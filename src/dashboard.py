@@ -361,6 +361,23 @@ def _news(rows):
             f"<tbody>{body}</tbody></table></div></section>")
 
 
+def _holdings_section(rows):
+    if not rows:
+        return ""
+    body = ""
+    for r in rows:
+        pnl = (f"<span class='n' style='color:{'#5ee7a0' if (r['pnl'] or 0)>=0 else '#ff8a9a'}'>{r['pnl']:+.0%}</span>"
+               if r.get("pnl") is not None else "<span class='dim'>—</span>")
+        conv = _convbar(r.get("conviction")) if r.get("conviction") is not None else "<span class='dim'>—</span>"
+        body += (f"<tr><td><b class='n'>{_h(r['ticker'])}</b><div class='dim sm'>{_h((r.get('name') or '')[:20])}</div></td>"
+                 f"<td><b>{_h(r['verdict'])}</b><div class='dim sm'>{_h(r.get('why'))}</div></td>"
+                 f"<td>{conv}</td><td class='r'>{pnl}</td></tr>")
+    return ("<section><h2>💼 محفظتي — أضِف / احتفظ / راجع</h2>"
+            "<div class='dim sub2'>توصية بحثية حسب الأداء والقناعة — مو «بيع/اشترِ الآن». عبّي أسعار شرائك في data/holdings.csv لحساب الربح/الخسارة.</div>"
+            "<div class='tablewrap'><table><thead><tr><th>السهم</th><th>التوصية</th><th>القناعة</th><th>ربح/خسارة</th></tr></thead>"
+            f"<tbody>{body}</tbody></table></div></section>")
+
+
 def _political(rows):
     if not rows:
         return (f"<section><h2>🏛️ النشاط السياسي {_i('political')} <span class='count'>0</span></h2>"
@@ -438,6 +455,10 @@ flex:0 0 auto;user-select:none;line-height:1}
 .box .ex{background:#0e1622;border-radius:10px;padding:10px 12px;margin-top:6px;color:#e7ecf3;font-size:13.5px}
 .hint{display:inline-block;background:#13202e;border:1px solid #24435e;color:#7fd0ff;border-radius:20px;
 padding:5px 12px;font-size:12.5px;margin:10px 0 0}
+.updrow{display:flex;gap:10px;margin:14px 0 4px;flex-wrap:wrap}
+.upd{background:#1f6feb;color:#fff;border:0;border-radius:12px;padding:12px 22px;font-size:15px;font-weight:800;cursor:pointer}
+.upd:hover{background:#3a82ff}.upd:disabled{opacity:.6;cursor:wait}
+.upd2{background:#13351f;color:#5ee7a0;border:1px solid #1d6340;border-radius:12px;padding:12px 18px;font-size:14px;font-weight:700;text-decoration:none}
 """
 
 JS = """
@@ -450,6 +471,16 @@ function g(k){var d=GL[k];if(!d)return;
 function gc(){document.getElementById('gm').style.display='none';}
 document.addEventListener('click',function(e){if(e.target.id==='gm')gc();});
 document.addEventListener('keydown',function(e){if(e.key==='Escape')gc();});
+function updateAll(b,full){
+  if(location.protocol==='file:'){
+    document.getElementById('updmsg').innerHTML='⚠️ عشان الزر يشتغل افتح الداشبورد عبر الخادم: شغّل <b>python src/server.py</b> في التيرمنال.';return;}
+  var o=b.innerText;b.disabled=true;b.innerText=full?'⏳ يفحص السوق... (~10د)':'⏳ يحدّث... (~دقيقة)';
+  document.getElementById('updmsg').innerText=full?'جاري فحص السوق كامل + الاكتشافات...':'جاري سحب آخر الأسعار وإعادة التقييم (أضف/احتفظ/راجع)...';
+  fetch(full?'/update-full':'/update').then(function(r){return r.json();}).then(function(d){
+    document.getElementById('updmsg').innerText=d.ok?'✅ تم — يعيد التحميل الآن':('⚠️ '+(d.summary||'خطأ'));
+    if(d.ok){setTimeout(function(){location.reload();},900);}else{b.disabled=false;b.innerText=o;}
+  }).catch(function(){document.getElementById('updmsg').innerText='⚠️ تعذّر الاتصال بالخادم — تأكد إنه شغّال';b.disabled=false;b.innerText=o;});
+}
 """
 
 
@@ -479,8 +510,13 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
     parts = [
         f"<h1>📊 {_h(name)}</h1>",
         f"<div class='sub'>{_h(subtitle)} · حُدّث {_h(meta.get('generated_at'))} (توقيت قطر)</div>",
+        "<div class='updrow'><button class='upd' onclick='updateAll(this,false)'>🔄 حدّث أسهمي (live)</button>"
+        "<button class='upd' style='background:#0e3a25' onclick='updateAll(this,true)'>🌍 افحص السوق كامل</button>"
+        "<a class='upd2' href='/planner'>💼 مخطّط المحفظة</a></div>"
+        "<div id='updmsg' class='dim sm'></div>",
         "<div class='hint'>💡 اضغط على أي علامة <b style='color:#fff'>؟</b> جنب أي مصطلح يطلع لك شرح بسيط: وش يعني + فايدته + مثال.</div>",
         banner,
+        _holdings_section(meta.get("holdings_eval") or []),
         "<div class='hint' style='background:#10221a;border-color:#1d6340;color:#9ce8c4'>🎯 محرّكات الصيد الثلاثة: <b>قادة المستقبل</b> (x3–x10 على سنوات) · <b>مُسرِّعون</b> (6–24 شهر) · <b>مُركِّبون</b> (جودة تدوم). سهم واحد ممكن يكون في أكثر من محرّك.</div>",
         _section_table("🌱", "قادة المستقبل (صيد x3–x10)", "future_leader", buckets.get("future_leader", []),
                        "أسهم صغيرة/متوسطة، نمو قوي + ثيم مستقبلي + هوامش حقيقية، ولسه ما انفجرت — هنا الفرص الكبيرة على سنوات، بحصص صغيرة موزّعة."),

@@ -97,10 +97,12 @@ def market_risk_today(events):
     return "Low"
 
 
-def build(focused_records, all_records, cfg):
+def build(focused_records, all_records, cfg, headlines=True):
     """
     Sets rec['_news_sentiment'] for focused records (sector tilt + headlines).
     Returns (event_rows for news_impact.csv, market_risk_today).
+    `headlines=False` skips the slow per-ticker yfinance .news fetch (fast update);
+    macro events + market_risk (from the yaml) still compute instantly.
     """
     events = _load_events()
     tilt = _sector_tilt(events)
@@ -111,7 +113,7 @@ def build(focused_records, all_records, cfg):
         themes = [str(t).lower() for t in (rec.get("themes") or [])]
         sec_tilt = allt + tilt.get(sector, 0.0) + sum(tilt.get(t, 0.0) for t in themes)
         sec_tilt = max(-1.0, min(1.0, sec_tilt))
-        hl = _headline_sentiment(rec)
+        hl = _headline_sentiment(rec) if headlines else None
         if hl is None:
             sent = sec_tilt
         else:

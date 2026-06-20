@@ -530,11 +530,11 @@ def fetch_record(ticker, cfg=None, fmp=None, want_deep=True):
     return _finalize(rec, cfg)
 
 
-def fetch_many(tickers, cfg=None, want_deep=True, verbose=True, progress_every=100, fmp=None):
-    """Threaded fetch. Returns (records, cache_hits)."""
+def fetch_many(tickers, cfg=None, want_deep=True, verbose=True, progress_every=100, fmp=None, force=False):
+    """Threaded fetch. Returns (records, cache_hits). force=True re-fetches live (ignores cache reads)."""
     cfg = cfg or CFG
     fmp = fmp if fmp is not None else FMPClient(cfg)
-    cache = _load_cache(cfg)
+    cache = _load_cache(cfg)        # keep the full cache; force only re-fetches requested tickers
     workers = max(1, int((cfg.get("data", {}) or {}).get("max_workers", 10)))
     tickers = [str(t).strip().upper() for t in tickers if str(t).strip()]
 
@@ -542,11 +542,11 @@ def fetch_many(tickers, cfg=None, want_deep=True, verbose=True, progress_every=1
     hits = 0
     todo = []
     for t in tickers:
-        if t in cache:
+        if t in cache and not force:
             out.append(cache[t])
             hits += 1
         else:
-            todo.append(t)
+            todo.append(t)        # force => re-fetch even if cached (live), rest of cache kept
 
     if verbose:
         src = "FMP (primary)" if fmp.enabled else "yfinance (FMP key not set)"

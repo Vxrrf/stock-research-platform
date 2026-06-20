@@ -91,6 +91,39 @@ def _read_holdings():
     return [h for h in out if h["ticker"]]
 
 
+def evaluate_holdings(records, cfg, deltas=None):
+    """For each owned name (data/holdings.csv): recommend add / keep / review / exit
+    based on conviction + lifecycle + drawdown. Research framing — never buy/sell now."""
+    deltas = deltas or {}
+    by = {r["ticker"]: r for r in records}
+    rows = []
+    for h in _read_holdings():
+        r = by.get(h["ticker"])
+        if not r:
+            rows.append({"ticker": h["ticker"], "name": "—", "conviction": None,
+                         "pnl": None, "halal": "—", "lifecycle": "—",
+                         "verdict": "⚪ لا بيانات — حدّث", "why": "ما لقيت بيانات هالسهم هالتشغيل"})
+            continue
+        conv = r.get("conviction_score") or 0
+        lc = r.get("lifecycle_status")
+        hal = r.get("halal_status")
+        pnl = (r["price"] / h["buy_price"] - 1) if (r.get("price") and h.get("buy_price")) else None
+        if hal == "fail":
+            verdict, why = "🔴 اخرج", "غير متوافق شرعياً"
+        elif conv >= 8:
+            verdict, why = "🟢 احتفظ / زِد", f"قناعة عالية {conv}/10"
+        elif pnl is not None and pnl <= cfg.get("portfolio", {}).get("drawdown_flag_pct", -0.25) and conv >= 6:
+            verdict, why = "🔵 فرصة تجميع", f"هبط {pnl:+.0%} لكن الأساسيات قوية (قناعة {conv})"
+        elif lc in ("Fallen Angel", "Falling Conviction") or conv < 5:
+            verdict, why = "🟠 راجع / قلّل", f"قناعة تنزل ({conv}/10){' · '+lc if lc else ''}"
+        else:
+            verdict, why = "⚪ احتفظ", f"قناعة {conv}/10، أداء مستقر"
+        rows.append({"ticker": r["ticker"], "name": r.get("name"), "conviction": conv,
+                     "pnl": pnl, "halal": hal, "lifecycle": lc, "verdict": verdict, "why": why})
+    rows.sort(key=lambda x: (x["conviction"] is None, -(x["conviction"] or 0)))
+    return rows
+
+
 def rebalance_flags(records, cfg, deltas=None):
     """Apply §17 rules to optional holdings. Returns list of flag dicts."""
     p = cfg.get("portfolio", {}) or {}

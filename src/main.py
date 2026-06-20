@@ -85,6 +85,7 @@ def main():
     ap.add_argument("--from-cache", action="store_true", help="reprocess today's cached records only (no fetch)")
     ap.add_argument("--limit", type=int, default=0, help="cap universe size")
     ap.add_argument("--no-political", action="store_true", help="skip Congress-trades fetch")
+    ap.add_argument("--live", action="store_true", help="force fresh fetch (ignore today's cache)")
     ap.add_argument("--no-trackers", action="store_true", help="skip earnings/insider/news/political")
     args = ap.parse_args()
 
@@ -125,7 +126,7 @@ def main():
     print(f"FMP primary: {'ACTIVE' if fmp.enabled else 'inactive (no key) → yfinance fallback'}")
 
     # ── 1) fetch (freshness + provenance handled inside) ──
-    records, hits = datasource.fetch_many(tickers, cfg, want_deep=True, verbose=True, fmp=fmp)
+    records, hits = datasource.fetch_many(tickers, cfg, want_deep=True, verbose=True, fmp=fmp, force=args.live)
     records = [r for r in records if r and r.get("price") is not None]
     if fmp.enabled and fmp.tier_note:
         print(f"ℹ️  {fmp.tier_note}")
@@ -156,8 +157,13 @@ def main():
     earnings_rows, insider_rows, news_rows = [], [], []
     political_rows, buys = [], {}
     market_risk = "—"
+    # macro news + market risk always compute (instant, from the yaml) — even on fast updates
+    try:
+        news_rows, market_risk = news_mod.build(focused, records, cfg, headlines=not args.no_trackers)
+    except Exception as e:
+        print(f"  news module skipped: {e}")
     if not args.no_trackers:
-        print(f"trackers on {len(focused)} focused names (earnings/insider/news"
+        print(f"trackers on {len(focused)} focused names (earnings/insider"
               f"{'' if args.no_political else '/political'})...")
         try:
             earnings_rows = earnings_mod.track(focused, cfg, fmp)
@@ -167,10 +173,6 @@ def main():
             insider_rows = insider_mod.track(focused, cfg, fmp)
         except Exception as e:
             print(f"  insider tracker skipped: {e}")
-        try:
-            news_rows, market_risk = news_mod.build(focused, records, cfg)
-        except Exception as e:
-            print(f"  news module skipped: {e}")
         if not args.no_political:
             try:
                 pol_universe = {r["ticker"] for r in records}
@@ -273,6 +275,7 @@ def main():
     # ── 9) portfolio + rebalancing ──
     portfolio_rows, growth_holdings = portfolio_mod.build_model(ranked, cfg)
     rebal = portfolio_mod.rebalance_flags(records, cfg, deltas)
+    holdings_eval = portfolio_mod.evaluate_holdings(records, cfg, deltas)
 
     # ── 10) write everything ──
     def W(name, cols, rows, append=False):
@@ -325,6 +328,7 @@ def main():
         "data_source": "FMP (primary)" if fmp.enabled else "yfinance (FMP key not set)",
         "fresh_counts": fc, "hi": cc.get("HIGH", 0), "med": cc.get("MEDIUM", 0), "low": cc.get("LOW", 0),
         "market_risk_today": market_risk, "examined": len(records), "universe": len(tickers),
+        "holdings_eval": holdings_eval,
     }
     html_doc = dashboard.build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg)
     with open(os.path.join(out_dir, "dashboard.html"), "w", encoding="utf-8") as f:
