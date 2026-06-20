@@ -114,12 +114,23 @@ def main():
     print("=" * 64)
 
     # ── ticker set ──
+    cached_records = None
     if args.from_cache:
         import pickle, glob
         cfiles = sorted(glob.glob(os.path.join(ROOT, "cache", "records_*.pkl")))
-        cache = pickle.load(open(cfiles[-1], "rb")) if cfiles else {}
-        tickers = sorted(cache.keys())
-        print(f"mode: FROM-CACHE reprocess ({len(tickers)} cached names, no fetch)")
+        # pick the RICHEST recent cache (guard against a partial cache written by a
+        # rate-limited fetch — e.g. across a midnight re-fetch). Most records wins.
+        best = {}
+        for cf in cfiles[-3:]:
+            try:
+                c = pickle.load(open(cf, "rb"))
+            except Exception:
+                continue
+            if isinstance(c, dict) and len(c) > len(best):
+                best = c
+        cached_records = list(best.values())
+        tickers = sorted(best.keys())
+        print(f"mode: FROM-CACHE reprocess ({len(tickers)} cached names — NO fetch, NO network)")
     elif args.watchlist:
         tickers = sorted(watchlist)
         print(f"mode: WATCHLIST smoke test ({len(tickers)} names)")
@@ -147,9 +158,13 @@ def main():
     else:
         force_set = set()
 
-    # ── 1) fetch (freshness + provenance handled inside) ──
-    records, hits = datasource.fetch_many(tickers, cfg, want_deep=True, verbose=True, fmp=fmp, force_set=force_set)
-    records = [r for r in records if r and r.get("price") is not None]
+    # ── 1) fetch (freshness + provenance handled inside) — OR reuse cache verbatim ──
+    if cached_records is not None:
+        records = [r for r in cached_records if r and r.get("price") is not None]
+        print(f"reusing {len(records)} cached records (reprocessing scores only, no fetch).")
+    else:
+        records, hits = datasource.fetch_many(tickers, cfg, want_deep=True, verbose=True, fmp=fmp, force_set=force_set)
+        records = [r for r in records if r and r.get("price") is not None]
     if fmp.enabled and fmp.tier_note:
         print(f"ℹ️  {fmp.tier_note}")
     print(f"fetched {len(records)} valid records.")
