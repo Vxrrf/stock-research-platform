@@ -24,7 +24,8 @@ import schema
 from schema import (now_local, now_utc, iso, RANKED_COLS, WATCHLIST_COLS,
                     DISCOVERY_LOG_COLS, EARNINGS_COLS, INSIDER_COLS, NEWS_COLS,
                     POLITICAL_COLS, PORTFOLIO_COLS, AVOID_COLS)
-from config_loader import load_config, load_external_lists, output_dir, ROOT
+from config_loader import (load_config, load_external_lists, load_halal_overrides,
+                           output_dir, ROOT)
 import datasource
 import themes
 import halal_gate
@@ -45,6 +46,7 @@ import actions
 import gates as gates_mod
 import recommendation
 import portfolio as portfolio_mod
+import backtest as backtest_mod
 import outputs
 import dashboard
 
@@ -92,10 +94,12 @@ def main():
     ap.add_argument("--smart", action="store_true",
                     help="one-button update: full scan + force-refresh YOUR watchlist/holdings live")
     ap.add_argument("--no-trackers", action="store_true", help="skip earnings/insider/news/political")
+    ap.add_argument("--backtest", action="store_true", help="run the (honest) top-basket vs SPY backtest + cache it")
     args = ap.parse_args()
 
     cfg = load_config()
     ext = load_external_lists()
+    halal_overrides = load_halal_overrides()      # your manual Zoya/Musaffa verdicts
     off = (cfg.get("run", {}) or {}).get("qatar_utc_offset", 3)
     run_dt = now_local(off)
     run_date = run_dt.strftime("%Y-%m-%d")
@@ -156,7 +160,7 @@ def main():
     # ── 2) per-record core enrichment ──
     for rec in records:
         themes.classify(rec)
-        halal_gate.apply(rec, cfg, extra={})            # extra={} → yfinance can't verify interest income
+        halal_gate.apply(rec, cfg, extra={}, overrides=halal_overrides)   # manual verdict wins; yfinance can't verify interest income
         rec["fundamental_score"] = scoring.fundamental_score(rec, cfg)
         cross_source.apply(rec, cfg, ext)
         rec["opportunity_score"] = scoring.opportunity_score(rec, cfg)
@@ -233,6 +237,7 @@ def main():
     # rank by the holistic overall score → #1 is the best across everything
     ranked = sorted(records, key=lambda r: (r.get("rank_score") or 0), reverse=True)
     mem, deltas = memory_mod.update(cfg, records, run_date, [r["ticker"] for r in ranked])
+    moves = memory_mod.movers(mem)        # "why score changed" — top rank movers since last run
 
     # ── 5b) lifecycle status (never drop a name just because it's not new) ──
     for rec in records:
@@ -263,25 +268,29 @@ def main():
     for rec in records:
         actions.apply(rec, cfg)
 
-    # ── 7) buckets ──
-    buckets = {a: [] for a in schema.ACTIONS}
-    for rec in ranked:
-        buckets[rec["action"]].append(rec)
-    buckets["crowded"] = [r for r in ranked if r.get("crowded_late")]
-    buckets["watchlist"] = [r for r in ranked if r["ticker"] in watchlist]
-    # NOT INVESTABLE YET: data/gate problems (NOT halal-unknown), excluding holdings & halal-fail
-    buckets["not_investable"] = [r for r in ranked if not r.get("investable", True)
-                                 and r["ticker"] not in watchlist
-                                 and r.get("halal_status") != "fail"]
-    # engine buckets (hide non-halal/Avoid/not-investable)
+    # ── 7) buckets (rebuilt per investor mode, since rank order changes) ──
     def _ok(r):
         return (r.get("action") != "Avoid" and r.get("halal_status") != "fail"
                 and r.get("investable", True))
-    buckets["compounder"] = [r for r in ranked if "compounder" in (r.get("engines") or []) and _ok(r)]
-    buckets["accelerator"] = [r for r in ranked if "accelerator" in (r.get("engines") or []) and _ok(r)]
-    buckets["future_leader"] = sorted(
-        [r for r in ranked if "future_leader" in (r.get("engines") or []) and _ok(r)],
-        key=lambda r: (r.get("future_leader_score") or 0), reverse=True)
+
+    def make_buckets(ranked_list):
+        b = {a: [] for a in schema.ACTIONS}
+        for rec in ranked_list:
+            b[rec["action"]].append(rec)
+        b["crowded"] = [r for r in ranked_list if r.get("crowded_late")]
+        b["watchlist"] = [r for r in ranked_list if r["ticker"] in watchlist]
+        # NOT INVESTABLE YET: data/gate problems (NOT halal-unknown), excluding holdings & halal-fail
+        b["not_investable"] = [r for r in ranked_list if not r.get("investable", True)
+                               and r["ticker"] not in watchlist
+                               and r.get("halal_status") != "fail"]
+        b["compounder"] = [r for r in ranked_list if "compounder" in (r.get("engines") or []) and _ok(r)]
+        b["accelerator"] = [r for r in ranked_list if "accelerator" in (r.get("engines") or []) and _ok(r)]
+        b["future_leader"] = sorted(
+            [r for r in ranked_list if "future_leader" in (r.get("engines") or []) and _ok(r)],
+            key=lambda r: (r.get("future_leader_score") or 0), reverse=True)
+        return b
+
+    buckets = make_buckets(ranked)
 
     # ── 8) discovery CSVs (spec §3) ──
     elig = [r for r in ranked if r.get("_discovery_eligible")]
@@ -353,21 +362,61 @@ def main():
     with open(os.path.join(out_dir, "recommendation_report.md"), "w", encoding="utf-8") as f:
         f.write(rep)
 
-    # dashboard
+    # ── backtest (honest sanity check; network-heavy → only on --backtest, else cached) ──
+    bt = backtest_mod.load_cached(cfg)
+    if args.backtest:
+        bt_basket = [r["ticker"] for r in ranked if _ok(r)][:15]
+        print(f"backtest: downloading ~3y history for {len(bt_basket)} top names vs SPY "
+              f"(honest check — has look-ahead/survivorship bias)...")
+        bt = backtest_mod.run_and_cache(bt_basket, cfg, run_date)
+        print(f"  backtest: {'ok' if bt.get('ok') else 'skipped — ' + str(bt.get('reason'))}")
+
+    # ── dashboards: generate ALL investor modes (balanced/aggressive/conservative) ──
     from collections import Counter
     fc = Counter(r.get("data_freshness_status") for r in records)
     cc = Counter(r.get("confidence") for r in records)
-    meta = {
+    base_meta = {
         "generated_at": run_ts,
         "data_source": "FMP (primary)" if fmp.enabled else "yfinance (FMP key not set)",
         "fresh_counts": fc, "hi": cc.get("HIGH", 0), "med": cc.get("MEDIUM", 0), "low": cc.get("LOW", 0),
         "market_risk_today": market_risk, "examined": len(records), "universe": len(tickers),
-        "holdings_eval": holdings_eval,
         "signals_rows": signals_mod.rows(rby, cfg)[1],
+        "movers": moves, "backtest": bt,
     }
-    html_doc = dashboard.build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg)
-    with open(os.path.join(out_dir, "dashboard.html"), "w", encoding="utf-8") as f:
-        f.write(html_doc)
+    modes = cfg.get("modes") or {"balanced": {"label": "⚖️ متوازن", "rank": None, "allocation": None}}
+    mode_files = {"balanced": "index.html", "aggressive": "aggressive.html", "conservative": "conservative.html"}
+    modes_nav = [(k, (modes[k] or {}).get("label", k), mode_files.get(k, k + ".html")) for k in modes]
+
+    for mkey, mdef in modes.items():
+        mdef = mdef or {}
+        weights = mdef.get("rank")
+        for rec in records:
+            rec["rank_score"] = scoring.overall_rank(rec, cfg, weights)
+        ranked_m = sorted(records, key=lambda r: (r.get("rank_score") or 0), reverse=True)
+        buckets_m = make_buckets(ranked_m)
+        mode_cfg = dict(cfg)
+        port = dict(cfg.get("portfolio", {}) or {})
+        if mdef.get("allocation"):
+            port["allocation"] = mdef["allocation"]
+        mode_cfg["portfolio"] = port
+        portfolio_rows_m, _ = portfolio_mod.build_model(ranked_m, mode_cfg)
+        meta = dict(base_meta)
+        meta.update({
+            "holdings_eval": portfolio_mod.evaluate_holdings(records, mode_cfg, deltas),
+            "active_mode": mkey, "active_mode_label": mdef.get("label", mkey),
+            "active_mode_desc": mdef.get("desc", ""), "modes_nav": modes_nav,
+        })
+        html_doc = dashboard.build(records, buckets_m, portfolio_rows_m, news_rows, political_rows, meta, mode_cfg)
+        with open(os.path.join(out_dir, mode_files.get(mkey, mkey + ".html")), "w", encoding="utf-8") as f:
+            f.write(html_doc)
+        if mkey == "balanced":
+            with open(os.path.join(out_dir, "dashboard.html"), "w", encoding="utf-8") as f:
+                f.write(html_doc)        # back-compat default name
+
+    # restore balanced rank on the records (CSVs already written balanced; keep summary consistent)
+    bal_w = (cfg.get("modes", {}) or {}).get("balanced", {}).get("rank")
+    for rec in records:
+        rec["rank_score"] = scoring.overall_rank(rec, cfg, bal_w)
 
     # ── summary ──
     print("\n" + "=" * 64)

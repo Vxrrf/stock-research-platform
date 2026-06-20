@@ -137,8 +137,20 @@ def screen(rec, cfg, extra=None):
     return "unknown", reasons, ratios
 
 
-def apply(rec, cfg, extra=None):
+def apply(rec, cfg, extra=None, overrides=None):
+    """Run the automatic screen, then honour your MANUAL verdict (Zoya/Musaffa)
+    if one exists in data/halal_overrides.yaml — your verification wins, and we
+    tag the source so the dashboard shows it's a human-verified call, not a guess."""
     status, reasons, ratios = screen(rec, cfg, extra=extra)
+    rec["halal_source"] = "auto"
+    ov = (overrides or {}).get(str(rec.get("ticker") or "").upper())
+    if ov:
+        auto = status
+        status = ov["status"]
+        rec["halal_source"] = f"manual:{ov['source']}"
+        note = ov.get("note") or f"تجاوز يدوي من {ov['source']}"
+        reasons = [f"✍️ تحقّق يدوي ({ov['source']}): {note}",
+                   f"(الفلتر التلقائي كان: {auto})"]
     rec["halal_status"] = status
     rec["halal_reasons"] = reasons
     rec["halal_ratios"] = ratios

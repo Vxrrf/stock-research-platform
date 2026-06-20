@@ -127,6 +127,7 @@ def blank_record(ticker):
         "halal_status": "unknown",
         "halal_reasons": [],
         "halal_ratios": {},
+        "halal_source": "auto",         # auto | manual:Zoya | manual:Musaffa (your verified override)
         # flags (spec §12, §13)
         "crowded_late": False,
         "popular_not_cheap": False,
@@ -146,6 +147,8 @@ def blank_record(ticker):
         "political_bonus": 0,               # 0..3
         # price targets (spec §14) — honestly labelled (these are ANALYST scenarios, not a DCF)
         "fair_value_estimate": None,
+        "fair_value_dcf": None,             # simple fading-growth DCF cross-check (per share)
+        "fair_value_method": None,          # which anchors agreed (P/E re-rate / DCF / analysts)
         "target_source": None,              # "analyst consensus" / None
         "valuation_method": None,           # "rough fwd-P/E re-rate (not a DCF)"
         "bear_case_price": None,
@@ -183,7 +186,7 @@ RANKED_COLS = [
     "one_year_return", "pct_below_52w_high",
     "independent_confirmations", "external_bonus",
     "insider_confidence_score", "earnings_score_adj", "news_impact_score",
-    "political_bonus", "halal_status", "crowded_late", "popular_not_cheap",
+    "political_bonus", "halal_status", "halal_source", "crowded_late", "popular_not_cheap",
     "fair_value_estimate", "bear_case_price", "base_case_price", "bull_case_price",
     "suggested_holding_period", "action", "action_reason",
 ] + PROVENANCE_COLS

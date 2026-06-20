@@ -100,10 +100,59 @@ def update(cfg, records, run_date, ranked):
             entry.setdefault("previous_rankings", []).append([run_date, rank_of[sym]])
             entry["previous_rankings"] = entry["previous_rankings"][-12:]
         entry["current_score"] = score
+        # snapshot key sub-scores so next run can explain WHY the score moved
+        entry["prev_metrics"] = entry.get("metrics")
+        entry["metrics"] = {
+            "rank": rec.get("rank_score"), "conv": rec.get("conviction_score"),
+            "opp": rec.get("opportunity_score"), "risk": rec.get("risk_score"),
+            "fund": rec.get("fundamental_score"), "upside": rec.get("analyst_upside_percent"),
+        }
         mem[sym] = entry
 
     save_memory(cfg, mem)
     return mem, deltas
+
+
+def _driver(cur, prev):
+    """Which single sub-score moved the most → a human reason for the rank change."""
+    cands = []
+    def add(label, cv, pv, scale):
+        if cv is None or pv is None:
+            return
+        cands.append((abs((cv - pv) / scale), label, cv - pv))
+    add("القناعة", cur.get("conv"), prev.get("conv"), 1.0)      # 0..10
+    add("الفرصة", cur.get("opp"), prev.get("opp"), 10.0)        # 0..100
+    add("المخاطرة", cur.get("risk"), prev.get("risk"), 10.0)
+    add("الأساس", cur.get("fund"), prev.get("fund"), 10.0)
+    if not cands:
+        return "تغيّر عام في البيانات"
+    cands.sort(reverse=True)
+    _, label, dv = cands[0]
+    return f"{label} {'ارتفعت' if dv > 0 else 'نزلت'}"
+
+
+def movers(mem, limit=8, min_delta=2.0):
+    """Top rank movers since last run, each with its main driver — 'why score changed'.
+    Empty on the first ever run (no prior snapshot to compare)."""
+    out = []
+    for sym, e in mem.items():
+        cur, prev = e.get("metrics") or {}, e.get("prev_metrics")
+        if not prev:
+            continue
+        cr, pr = cur.get("rank"), prev.get("rank")
+        if cr is None or pr is None:
+            continue
+        d = cr - pr
+        if abs(d) < min_delta:
+            continue
+        out.append({
+            "ticker": sym, "name": e.get("name"),
+            "rank_delta": round(d, 1), "rank_now": round(cr, 1),
+            "direction": "up" if d > 0 else "down",
+            "driver": _driver(cur, prev),
+        })
+    out.sort(key=lambda x: -abs(x["rank_delta"]))
+    return out[:limit]
 
 
 def memory_rows(mem, records_by_ticker):

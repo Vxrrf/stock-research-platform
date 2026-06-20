@@ -202,6 +202,22 @@ GLOSSARY = {
                       "w": "نسبة أسهم الشركة المملوكة لمؤسسات كبيرة (صناديق). مال حقيقي، مو ضجّة سوشال ميديا.",
                       "b": "دخول المؤسسات إشارة أقوى وأصدق من حماس تويتر.",
                       "e": "⚠️ نعرض النسبة الحالية فقط؛ «اتجاه التجميع» (زيادة/نقص) يحتاج FMP مدفوع."},
+    "modes": {"t": "أوضاع المستثمر (محافظ/متوازن/هجومي)",
+              "w": "نفس البيانات، عدسة مختلفة. يغيّر أوزان الترتيب وتوزيع المحفظة: «هجومي» يرفع وزن الفرصة والصيد x5–x10، «محافظ» يرفع الجودة وانخفاض المخاطرة والحماية.",
+              "b": "ترتّب نفس الأسهم حسب شخصيتك الاستثمارية بدون ما تغيّر أي بيانات.",
+              "e": "بدّل من الأزرار فوق: «هجومي» يطلّع قادة المستقبل فوق؛ «محافظ» يطلّع المُركِّبين والذهب."},
+    "movers": {"t": "أبرز التغيّرات (ليش تغيّر الترتيب؟)",
+               "w": "أكثر الأسهم تحرّكاً في الترتيب من آخر تشغيل، مع السبب الرئيسي: هل القناعة ارتفعت؟ المخاطرة نزلت؟ الفرصة تحسّنت؟",
+               "b": "ما تشوف رقم يتغيّر بدون تفسير — تعرف ليش صعد أو نزل سهم.",
+               "e": "«AMD ▲ القناعة ارتفعت» = تحسّنت جودته/نموه فصعد ترتيبه."},
+    "backtest": {"t": "اختبار بأثر رجعي (Backtest)",
+                 "w": "نأخذ أقوى أسهمك اليوم ونشوف كيف كان أداؤها لو امتلكتها آخر ~3 سنوات، مقابل مؤشر SPY.",
+                 "b": "مؤشر تعقّل: هل ترتيبنا يميل لأسماء أدّت كويس؟ — لكنه ليس إثباتاً.",
+                 "e": "⚠️ فيه انحياز نظر للأمام (اخترناها ببيانات اليوم) وانحياز ناجين — اقرأ التحذيرات تحت الجدول."},
+    "fair": {"t": "القيمة العادلة (تقاطُع المصادر)",
+             "w": "تقدير تقريبي لقيمة السهم من ٣ مصادر مستقلة: إعادة تسعير مكرّر الربحية + DCF مبسّط + هدف المحللين. نأخذ المتّفق منها فقط.",
+             "b": "تعرف هل السعر الحالي رخيص أو غالي مقابل تقدير متعدّد المصادر — مو مصدر واحد.",
+             "e": "لو الثلاثة قريبين = ثقة أعلى بالتقدير؛ لو متباينين = نقول «غير موثوق» بدل ما نخترع رقم."},
 }
 
 ENGINE_AR = {"compounder": "🏛️ مُركِّب", "accelerator": "🚀 مُسرِّع", "future_leader": "🌱 قائد قادم"}
@@ -290,6 +306,9 @@ def _stock_rows(records):
         fr = r.get("data_freshness_status")
         theme = r.get("primary_theme")
         theme_chip = (f"<span class='tchip'>{_h(THEME_AR.get(theme, theme))}</span>" if theme else "")
+        hsrc = r.get("halal_source") or "auto"
+        hsrc_badge = (f"<div class='dim sm' style='color:#7fd0ff'>✍️ {_h(hsrc.split(':', 1)[1])}</div>"
+                      if hsrc.startswith("manual") else "")
         out.append(
             "<tr>"
             f"<td class='dim'>{i}</td>"
@@ -301,7 +320,7 @@ def _stock_rows(records):
             f"<td class='r'>{_pctc(r.get('analyst_upside_percent'))}</td>"
             f"<td class='r'>{_pctc(r.get('rev_growth'))}</td>"
             f"<td class='dim sm n'>{('~'+str(r.get('suggested_hold_months'))+' شهر') if r.get('suggested_hold_months') else '—'}</td>"
-            f"<td>{_chip(HALAL_AR.get(hal, hal), _HALAL_CLASS.get(hal,''))}</td>"
+            f"<td>{_chip(HALAL_AR.get(hal, hal), _HALAL_CLASS.get(hal,''))}{hsrc_badge}</td>"
             f"<td>{_chip(FRESH_AR.get(fr, fr), _FRESH_CLASS.get(fr,''))}"
             f"<div class='dim sm'>{_h(CONF_AR.get(r.get('confidence'), r.get('confidence')))}</div></td>"
             "</tr>"
@@ -482,6 +501,72 @@ def _political(rows):
             f"<tbody>{body}</tbody></table></div></section>")
 
 
+def _mode_toggle(meta):
+    nav = meta.get("modes_nav") or []
+    if not nav:
+        return ""
+    active = meta.get("active_mode")
+    pills = "".join(
+        f"<a class='mpill {'on' if k == active else ''}' href='{_h(fname)}'>{_h(label)}</a>"
+        for k, label, fname in nav)
+    desc = meta.get("active_mode_desc") or ""
+    return (f"<div class='moderow'><span class='dim sm'>وضع المستثمر {_i('modes')}:</span>{pills}</div>"
+            f"<div class='dim sub2'>{_h(desc)}</div>")
+
+
+def _movers_section(rows):
+    head = (f"<section id='s-movers'><h2>🔀 أبرز التغيّرات {_i('movers')} "
+            f"<span class='count n'>{len(rows or [])}</span></h2>"
+            "<div class='dim sub2'>أكثر الأسهم تحرّكاً في الترتيب منذ آخر تشغيل — ومعها السبب الرئيسي.</div>")
+    if not rows:
+        return head + "<p class='dim'>أول تشغيل أو لا تغييرات تُذكر — التشغيل الجاي يوضّح وش تغيّر ولماذا.</p></section>"
+    body = ""
+    for m in rows:
+        up = m.get("direction") == "up"
+        col = "#5ee7a0" if up else "#ff8a9a"
+        arrow = "▲" if up else "▼"
+        body += (f"<tr><td><b class='n'>{_h(m.get('ticker'))}</b>"
+                 f"<div class='dim sm'>{_h((m.get('name') or '')[:20])}</div></td>"
+                 f"<td class='n' style='color:{col};font-weight:700'>{arrow} {abs(m.get('rank_delta', 0)):.0f}</td>"
+                 f"<td class='dim'>{_h(m.get('driver'))}</td>"
+                 f"<td class='n'>{m.get('rank_now', 0):.0f}</td></tr>")
+    return (head + "<div class='tablewrap'><table><thead><tr><th>السهم</th><th>تغيّر الترتيب</th>"
+            "<th>السبب الرئيسي</th><th>الترتيب الآن</th></tr></thead>"
+            f"<tbody>{body}</tbody></table></div></section>")
+
+
+def _backtest_section(bt):
+    head = f"<section id='s-bt'><h2>🧪 اختبار بأثر رجعي {_i('backtest')}</h2>"
+    if not bt or not bt.get("ok"):
+        reason = (bt or {}).get("reason") or "لم يُشغّل بعد"
+        return (head + f"<div class='dim sub2'>{_h(reason)} — للتشغيل على جهازك: "
+                "<b>python src/main.py --backtest</b> (يحمّل تاريخ ~3 سنوات، يحتاج إنترنت).</div></section>")
+
+    def _p(x):
+        return f"{x:+.0%}" if isinstance(x, (int, float)) else "—"
+
+    out = "#5ee7a0" if (bt.get("outperformance") or 0) >= 0 else "#ff8a9a"
+    kpis = f"""<div class="banner">
+      <div class="kpi"><b class="n" style="color:{out}">{_p(bt.get('basket_return'))}</b><span>سلّة أفضل {bt.get('n_stocks')} سهم ({bt.get('years')} سنة)</span></div>
+      <div class="kpi"><b class="n">{_p(bt.get('benchmark_return'))}</b><span>مؤشر {_h(bt.get('benchmark'))} (نفس الفترة)</span></div>
+      <div class="kpi"><b class="n" style="color:{out}">{_p(bt.get('outperformance'))}</b><span>الفرق (تفوّق/تخلّف)</span></div>
+      <div class="kpi"><b class="n">{_p(bt.get('basket_cagr'))}</b><span>نمو سنوي مركّب للسلّة<br><span class='dim sm'>المؤشر {_p(bt.get('benchmark_cagr'))}</span></span></div>
+      <div class="kpi"><b class="n" style="color:#ff8a9a">{_p(bt.get('basket_max_drawdown'))}</b><span>أقصى هبوط للسلّة<br><span class='dim sm'>المؤشر {_p(bt.get('benchmark_max_drawdown'))}</span></span></div>
+    </div>"""
+    per = bt.get("per_stock") or {}
+    chips = "".join(
+        f"<span class='tchip' style='color:{'#5ee7a0' if v >= 0 else '#ff8a9a'};border-color:#2a3645'>{_h(k)} {v:+.0%}</span>"
+        for k, v in sorted(per.items(), key=lambda kv: -kv[1]))
+    caveats = "".join(f"<li>{_h(c)}</li>" for c in (bt.get("caveats") or []))
+    return (head
+            + "<div class='dim sub2'>سلّة وزن متساوٍ من أقوى أسهمك حالياً، شراء واحتفاظ، مقابل المؤشر.</div>"
+            + kpis
+            + (f"<div style='margin:8px 0'>{chips}</div>" if chips else "")
+            + "<div class='note' style='border-color:#5e4420;background:#231a10;color:#f0c89a'>"
+            "⚠️ <b>اقرأ قبل تثق بالأرقام:</b><ul style='margin:8px 18px 0;padding:0'>"
+            + caveats + "</ul></div></section>")
+
+
 CSS = """
 *{box-sizing:border-box} html{-webkit-text-size-adjust:100%}
 body{margin:0;background:#0b0f17;color:#e7ecf3;direction:rtl;
@@ -553,6 +638,10 @@ padding:5px 12px;font-size:12.5px;margin:10px 0 0}
 .upd{background:#1f6feb;color:#fff;border:0;border-radius:12px;padding:12px 22px;font-size:15px;font-weight:800;cursor:pointer}
 .upd:hover{background:#3a82ff}.upd:disabled{opacity:.6;cursor:wait}
 .upd2{background:#13351f;color:#5ee7a0;border:1px solid #1d6340;border-radius:12px;padding:12px 18px;font-size:14px;font-weight:700;text-decoration:none}
+.moderow{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:14px 0 2px}
+.mpill{font-size:13px;color:#aeb9c9;background:#141b27;border:1px solid #1d2735;border-radius:20px;padding:6px 13px;text-decoration:none;font-weight:700}
+.mpill:hover{background:#1d2838;color:#fff}
+.mpill.on{background:#1f6feb;color:#fff;border-color:#1f6feb}
 """
 
 JS = """
@@ -607,6 +696,7 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
 
     nav = ("<nav class='qnav'>"
            "<a href='#s-hold'>💼 محفظتي</a>"
+           "<a href='#s-movers'>🔀 تغيّرات</a>"
            "<a href='#s-future'>🌱 قادة المستقبل</a>"
            "<a href='#s-accel'>🚀 مُسرِّعون</a>"
            "<a href='#s-comp'>🏛️ مُركِّبون</a>"
@@ -615,6 +705,7 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
            "<a href='#s-top'>🏆 أعلى 20</a>"
            "<a href='#s-signals'>📡 إشارات</a>"
            "<a href='#s-port'>📊 المحفظة</a>"
+           "<a href='#s-bt'>🧪 اختبار</a>"
            "</nav>")
 
     parts = [
@@ -623,10 +714,12 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
         "<div class='updrow'><button class='upd' onclick='updateAll(this)'>🔄 حدّث الكل</button>"
         "<a class='upd2' href='/planner'>💼 مخطّط المحفظة</a></div>"
         "<div id='updmsg' class='dim sm'></div>",
+        _mode_toggle(meta),
         "<div class='hint'>💡 اضغط على أي علامة <b style='color:#fff'>؟</b> جنب أي مصطلح يطلع لك شرح بسيط: وش يعني + فايدته + مثال. واستخدم الشريط فوق للتنقّل السريع.</div>",
         banner,
         nav,
         _holdings_section(meta.get("holdings_eval") or []),
+        _movers_section(meta.get("movers") or []),
         "<div class='hint' style='background:#10221a;border-color:#1d6340;color:#9ce8c4'>🎯 محرّكات الصيد الثلاثة: <b>قادة المستقبل</b> (x3–x10 على سنوات) · <b>مُسرِّعون</b> (6–24 شهر) · <b>مُركِّبون</b> (جودة تدوم). سهم واحد ممكن يكون في أكثر من محرّك.</div>",
         _section_table("🌱", "قادة المستقبل (صيد x3–x10)", "future_leader", buckets.get("future_leader", []),
                        "أسهم صغيرة/متوسطة، نمو قوي + ثيم مستقبلي + هوامش حقيقية، ولسه ما انفجرت — هنا الفرص الكبيرة على سنوات، بحصص صغيرة موزّعة.", sid="s-future"),
@@ -646,6 +739,7 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
         _exposure(visible),
         f"<span id='s-port'></span>",
         _portfolio(portfolio_rows),
+        _backtest_section(meta.get("backtest")),
         _not_investable_section(buckets.get("not_investable", [])),
         _news(news_rows),
         "<div class='note'>هذا <b>نظام بحث</b>، وليس نصيحة استثمارية. لا مخرج هنا توصية شراء ولا وعد بسعر. "

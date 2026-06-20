@@ -16,25 +16,89 @@ def _round(x, n=2):
     return round(x, n) if isinstance(x, (int, float)) else None
 
 
+def _dcf_per_share(rec, cfg):
+    """A SIMPLE fading-growth DCF cross-check (NOT a full model): project FCF with
+    growth fading to a terminal rate, discount, add a Gordon terminal value, and
+    scale to a per-share number via market cap. Returns None unless inputs are sane.
+
+    Honesty: free data gives only TTM FCF + a rough growth proxy, so this is a
+    sanity anchor, not a precise valuation. It is one of several anchors we cross-check."""
+    th = cfg.get("thresholds", {}) or {}
+    fcf = rec.get("fcf")
+    mcap = rec.get("market_cap")
+    price = rec.get("price")
+    if not fcf or fcf <= 0 or not mcap or mcap <= 0 or not price or price <= 0:
+        return None
+    r = th.get("dcf_discount_rate", 0.10)
+    tg = th.get("dcf_terminal_growth", 0.03)
+    H = int(th.get("dcf_high_growth_years", 10))
+    if r <= tg:
+        return None
+    cap = th.get("dcf_growth_cap", 0.25)
+    g0 = rec.get("rev_cagr_3y")
+    if g0 is None:
+        g0 = rec.get("rev_growth")
+    if g0 is None:
+        g0 = rec.get("eps_growth_fwd")
+    if g0 is None:
+        g0 = 0.06
+    g0 = max(0.0, min(cap, g0))                       # conservative: floor 0, cap config
+    pv = 0.0
+    f = float(fcf)
+    for yr in range(1, H + 1):
+        g = g0 + (tg - g0) * (yr - 1) / max(1, H - 1)  # fade g0 → terminal over H years
+        f *= (1.0 + g)
+        pv += f / ((1.0 + r) ** yr)
+    terminal = f * (1.0 + tg) / (r - tg)               # Gordon growth terminal value
+    pv += terminal / ((1.0 + r) ** H)
+    equity_value = pv                                  # FCF≈FCFE proxy on free data
+    per_share = equity_value * price / mcap            # scale by shares = mcap/price
+    if per_share <= 0:
+        return None
+    return max(price * 0.3, min(price * 3.0, per_share))
+
+
 def fair_value(rec, cfg):
-    """Rough fair value: re-rate forward P/E toward a 'fair' multiple. Labelled rough."""
+    """Cross-checked fair value from up to THREE independent anchors:
+      1) forward-P/E re-rate toward a fair multiple
+      2) a simple fading-growth DCF
+      3) analyst mean target
+    We blend the anchors that AGREE (within tolerance) and refuse to fake a number
+    when they disagree badly. rec['fair_value_method'] records which agreed."""
     th = cfg.get("thresholds", {}) or {}
     price = rec.get("price")
-    fpe = rec.get("forward_pe")
-    if not price or not fpe or fpe <= 0:
+    if not price or price <= 0:
+        rec["fair_value_dcf"] = None
+        rec["fair_value_method"] = None
         return None
-    fair_pe = th.get("forward_pe_fair_max", 35.0)
-    # implied forward EPS = price / fpe; fair value at the fair multiple
-    model_fv = price * (fair_pe / fpe)
+
+    anchors = []          # (label, value)
+    fpe = rec.get("forward_pe")
+    if fpe and fpe > 0:
+        anchors.append(("مكرّر ربحية", price * (th.get("forward_pe_fair_max", 35.0) / fpe)))
+    dcf = _dcf_per_share(rec, cfg)
+    rec["fair_value_dcf"] = _round(dcf)
+    if dcf:
+        anchors.append(("DCF مبسّط", dcf))
     tgt = rec.get("target_mean")
     if tgt:
-        # if model and analysts disagree a lot, don't fake a 'consensus' fair value
-        if abs(model_fv - tgt) / tgt > 0.30:
-            return None
-        fv = 0.5 * model_fv + 0.5 * tgt
-    else:
-        fv = model_fv
+        anchors.append(("هدف المحللين", tgt))
+
+    if not anchors:
+        rec["fair_value_method"] = None
+        return None
+
+    # keep only anchors that agree with the median within ±35% (drop the outlier)
+    vals = sorted(v for _, v in anchors)
+    med = vals[len(vals) // 2]
+    kept = [(lab, v) for lab, v in anchors if med and abs(v - med) / med <= 0.35]
+    if not kept:
+        # all three disagree → don't fabricate a consensus
+        rec["fair_value_method"] = "المصادر متباينة — لا تقدير موثوق"
+        return None
+    fv = sum(v for _, v in kept) / len(kept)
     fv = max(price * 0.4, min(price * 2.5, fv))     # keep sane (0.4x..2.5x)
+    rec["fair_value_method"] = "تقاطُع: " + " + ".join(lab for lab, _ in kept)
     return _round(fv)
 
 
@@ -125,7 +189,7 @@ def apply(rec, cfg):
     rec["bull_case_price"] = bull
     # honest labelling: these are ANALYST scenarios, not a real valuation model
     rec["target_source"] = "إجماع المحللين" if rec.get("target_mean") else None
-    rec["valuation_method"] = ("تقدير تقريبي بإعادة تسعير مكرّر الربحية — ليس نموذج DCF حقيقي"
+    rec["valuation_method"] = (rec.get("fair_value_method")
                                if rec.get("fair_value_estimate") else None)
     hp = holding_period(rec, cfg)
     rec["suggested_holding_period"] = hp

@@ -45,6 +45,9 @@ universe:
   min_price: 5.0                   # exclude penny stocks
   min_avg_dollar_volume: 5000000   # exclude illiquid (≈ $5M/day)
   universe_file: "universe_data.txt"
+  target_size: 3000                # توسعة: ابنِ كوناً حتى ~3000 سهم (python build_universe.py)
+  # ملاحظة صدق: فحص 3000 سهم بـ yfinance المجاني بطيء (دقائق) و FMP المجاني يحجب الأغلب.
+  # الزر السريع «حدّث الكل» يفحص الكون لكن يحدّث live أسماءك فقط. للمسح الكامل: python src/main.py --live
 
 # ─────────────────────────────────────────────────────────────────────
 #  HARD GATES  (non-negotiable; they protect you)
@@ -80,6 +83,11 @@ thresholds:
   ev_ebitda_multiplier: 1.8        # valuation-compression tolerance before full penalty
   analyst_upside_good: 0.15        # ≥15% upside to mean target
   analyst_upside_great: 0.30
+  # ── DCF cross-check (price_targets.py) — تقدير مبسّط، ليس بديلاً عن نموذج كامل ──
+  dcf_discount_rate: 0.10          # معدّل خصم سنوي (تكلفة رأس المال التقريبية)
+  dcf_terminal_growth: 0.03        # نمو نهائي دائم (≈ التضخم/النمو الاقتصادي)
+  dcf_high_growth_years: 10        # سنوات نمو مرتفع قبل التلاشي للنمو النهائي
+  dcf_growth_cap: 0.25             # سقف نمو الـFCF المُستخدم (تحفّظ ضد المبالغة)
 
 # ─────────────────────────────────────────────────────────────────────
 #  SCORING WEIGHTS — fundamental_score 0..100  (spec §1)
@@ -199,6 +207,28 @@ halal:
     - lodging
     - gaming                       # video gaming: content needs review, not auto-fail
     - electronic gaming & multimedia
+
+# ─────────────────────────────────────────────────────────────────────
+#  INVESTOR MODES — نفس البيانات، عدسة مختلفة (محافظ / متوازن / هجومي)
+#  يغيّر أوزان الترتيب الكلي (rank_score) + توزيع المحفظة. balanced = الافتراضي.
+#  المنصّة تولّد الثلاثة كل تشغيل وتقدر تبدّل بينها من الأزرار فوق.
+# ─────────────────────────────────────────────────────────────────────
+modes:
+  balanced:
+    label: "⚖️ متوازن"
+    desc: "توازن بين الجودة والفرصة والحماية — الوضع الافتراضي."
+    rank: {conv: 0.40, opp: 0.20, lowrisk: 0.15, fund: 0.15, total: 0.10}
+    allocation: {compounders: 0.30, accelerators: 0.16, future_leaders: 0.12, broad_market_etf: 0.13, gold_etf: 0.12, cash: 0.17}
+  aggressive:
+    label: "🔥 هجومي"
+    desc: "يرفع وزن الفرصة والصيد (x5–x10) ويخفّض وزن المخاطرة — تقلّب أعلى."
+    rank: {conv: 0.30, opp: 0.34, lowrisk: 0.06, fund: 0.12, total: 0.18}
+    allocation: {compounders: 0.24, accelerators: 0.22, future_leaders: 0.20, broad_market_etf: 0.10, gold_etf: 0.08, cash: 0.16}
+  conservative:
+    label: "🛡️ محافظ"
+    desc: "يرفع وزن الجودة وانخفاض المخاطرة والحماية — تذبذب أقل، صبر أطول."
+    rank: {conv: 0.36, opp: 0.10, lowrisk: 0.28, fund: 0.20, total: 0.06}
+    allocation: {compounders: 0.34, accelerators: 0.10, future_leaders: 0.06, broad_market_etf: 0.18, gold_etf: 0.14, cash: 0.18}
 
 # ─────────────────────────────────────────────────────────────────────
 #  PORTFOLIO BUILDER  (spec §16 — 25y/o, high-risk, growth + protection)

@@ -15,6 +15,7 @@ ROOT = os.path.dirname(_HERE)                      # mazer-system/
 CONFIG_PATH = os.path.join(ROOT, "config.yaml")
 LOCAL_CONFIG_PATH = os.path.join(ROOT, "config.local.yaml")   # git-ignored secrets/overrides
 EXTERNAL_LISTS_PATH = os.path.join(ROOT, "data", "external_lists.yaml")
+HALAL_OVERRIDES_PATH = os.path.join(ROOT, "data", "halal_overrides.yaml")
 
 
 def _deep_merge(base, over):
@@ -60,6 +61,26 @@ def load_external_lists():
             out[name] = {str(t).strip().upper() for t in items if str(t).strip()}
         else:
             out[name] = set()
+    return out
+
+
+def load_halal_overrides():
+    """Your manual Zoya/Musaffa verdicts → {TICKER: {status, source, note}}.
+    These OVERRIDE the automatic screen (you verified it yourself)."""
+    raw = _load_yaml(HALAL_OVERRIDES_PATH, default={}) or {}
+    ov = raw.get("overrides") or {}
+    out = {}
+    for sym, v in ov.items():
+        if not isinstance(v, dict):
+            continue
+        st = str(v.get("status") or "").strip().lower()
+        if st not in ("pass", "fail", "unknown"):
+            continue
+        out[str(sym).strip().upper()] = {
+            "status": st,
+            "source": str(v.get("source") or "manual").strip(),
+            "note": str(v.get("note") or "").strip(),
+        }
     return out
 
 

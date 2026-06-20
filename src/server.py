@@ -60,6 +60,9 @@ class Handler(BaseHTTPRequestHandler):
             # ONE-BUTTON update: full market scan + force-refresh your watchlist/holdings live.
             # First run of the day builds the cache (slower); after that it's fast.
             args += ["--smart"]
+        elif mode == "backtest":
+            # reuse today's cache, just (re)run the honest backtest + regenerate dashboards.
+            args += ["--from-cache", "--no-trackers", "--backtest"]
         try:
             r = subprocess.run(args, cwd=ROOT, capture_output=True, text=True, timeout=900)
             tail = "\n".join((r.stdout or "").strip().splitlines()[-12:])
@@ -80,6 +83,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._file(os.path.join(OUT, "planner.html"))
         if p in ("/update", "/update-full"):
             return self._run("smart")
+        if p == "/backtest":
+            return self._run("backtest")
         # serve any other output file (csv/report/etc.)
         return self._file(os.path.join(OUT, os.path.normpath(p.lstrip("/"))))
 

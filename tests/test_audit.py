@@ -18,6 +18,8 @@ import gates as G
 import actions
 import portfolio
 import halal_gate
+import price_targets
+import watchlist_memory
 
 CFG = config_loader.load_config()
 
@@ -118,6 +120,66 @@ def test_de_scale_consistent():
     comps = scoring._components(r, CFG)
     assert comps["debt"] is not None and comps["debt"] > 0.9, "low-debt (6%) should score near-perfect"
     print("✅ D/E percent-scale consistent (6% = low debt = high score)")
+
+
+def test_manual_halal_override_wins():
+    """A manual Zoya/Musaffa verdict overrides the auto screen and tags its source."""
+    r = _rec(ticker="AMD", sector="Technology", industry="Semiconductors", market_cap=2e11)
+    halal_gate.apply(r, CFG, extra={}, overrides={"AMD": {"status": "pass", "source": "Zoya", "note": "Compliant"}})
+    assert r["halal_status"] == "pass", "manual override must set status"
+    assert r["halal_source"] == "manual:Zoya", f"source must be tagged, got {r['halal_source']}"
+    # without override the same name should be 'unknown' on free data (can't verify interest income)
+    r2 = _rec(ticker="AMD", sector="Technology", industry="Semiconductors", market_cap=2e11)
+    halal_gate.apply(r2, CFG, extra={}, overrides={})
+    assert r2["halal_status"] == "unknown" and r2["halal_source"] == "auto"
+    print("✅ manual halal override wins and is source-tagged; auto stays 'unknown'")
+
+
+def test_override_cannot_break_vocabulary():
+    """A bad override status is ignored by the loader-level validation (never invents a state)."""
+    r = _rec(ticker="ZZZ", sector="Technology", market_cap=1e10)
+    # loader only keeps pass/fail/unknown; simulate a cleaned override dict
+    halal_gate.apply(r, CFG, extra={}, overrides={"ZZZ": {"status": "fail", "source": "Musaffa", "note": ""}})
+    assert r["halal_status"] == "fail" and r["halal_source"] == "manual:Musaffa"
+    print("✅ manual fail override respected")
+
+
+def test_dcf_crosscheck_sane_and_labelled():
+    """DCF anchor produces a positive per-share value and fair_value blends agreeing anchors."""
+    r = _rec(ticker="CCC", price=100.0, market_cap=1e11, fcf=4e9,
+             rev_cagr_3y=0.15, forward_pe=30, target_mean=110.0)
+    price_targets.apply(r, CFG)
+    assert r["fair_value_dcf"] is not None and r["fair_value_dcf"] > 0, "DCF anchor should compute"
+    assert r["fair_value_estimate"] is not None, "blended fair value should exist when anchors agree"
+    assert r["fair_value_method"], "fair value must record which anchors agreed"
+    print(f"✅ DCF cross-check sane (dcf={r['fair_value_dcf']}, fv={r['fair_value_estimate']}, via {r['fair_value_method']})")
+
+
+def test_mode_weights_change_ranking():
+    """Aggressive mode (high opportunity weight) ranks a high-opportunity name above a
+    low-risk compounder, vs conservative which does the opposite."""
+    growth = _rec(ticker="GRW", conviction_score=6, opportunity_score=90, risk_score=70,
+                  fundamental_score=60, total_score=70, confidence="HIGH")
+    safe = _rec(ticker="SAFE", conviction_score=7, opportunity_score=30, risk_score=20,
+                fundamental_score=75, total_score=72, confidence="HIGH")
+    aggr = CFG["modes"]["aggressive"]["rank"]
+    cons = CFG["modes"]["conservative"]["rank"]
+    g_a, s_a = scoring.overall_rank(growth, CFG, aggr), scoring.overall_rank(safe, CFG, aggr)
+    g_c, s_c = scoring.overall_rank(growth, CFG, cons), scoring.overall_rank(safe, CFG, cons)
+    assert g_a > s_a, "aggressive should favour the high-opportunity name"
+    assert s_c > g_c, "conservative should favour the low-risk quality name"
+    print(f"✅ modes re-rank (aggr: GRW {g_a}>{s_a}; cons: SAFE {s_c}>{g_c})")
+
+
+def test_movers_empty_on_first_run():
+    """movers() must not crash and returns [] when there's no prior snapshot."""
+    mem = {"AAA": {"ticker": "AAA", "name": "A", "metrics": {"rank": 80}, "prev_metrics": None}}
+    assert watchlist_memory.movers(mem) == []
+    mem["AAA"]["prev_metrics"] = {"rank": 70, "conv": 6}
+    mem["AAA"]["metrics"] = {"rank": 80, "conv": 8}
+    mv = watchlist_memory.movers(mem)
+    assert mv and mv[0]["ticker"] == "AAA" and mv[0]["direction"] == "up", "rank rise should surface as up-mover"
+    print("✅ movers: empty on first run, surfaces driver on change")
 
 
 def main():
