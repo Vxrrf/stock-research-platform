@@ -178,6 +178,10 @@ GLOSSARY = {
                  "w": "شركة أرقامها تتبع سعر سلعة (ذهب، نفط، ذاكرة) — تطير وقت ارتفاع السعر وتنهار وقت نزوله. مو نمو دائم.",
                  "b": "تعرف إنها تحوّط أو فرصة مؤقتة، مو مضاعِف ثروة طويل المدى — فما نرتّبها فوق القادة الحقيقيين.",
                  "e": "AEM (ذهب): +66% نمو بسبب الحرب، يختفي لما يهدأ الذهب. تحوّط ممتاز، لكنه ليس AVGO."},
+    "better": {"t": "بديل أفضل؟",
+               "w": "هل فيه سهم يسوّي نفس دور سهمك (نفس الفئة) لكن أقوى — ترتيب أعلى بوضوح + قناعة أعلى + حلال مو أسوأ؟",
+               "b": "ما نخليك تتمسّك بسهم وفيه أفضل منه يعطي عائد أحسن — بس نقترح **فقط لما نكون واثقين**.",
+               "e": "«✓ الأفضل في دوره» = احتفظ، ما فيه أحسن. «↑ XYZ» = فيه أقوى منه، ابحثه."},
     "signals": {"t": "إشارات المؤثرين",
                 "w": "أسهم ذكرها مستثمرون تتابعهم (joe.investss وغيره). كلود يقرا منشوراتهم لما تطلب، ويطلّع الأسهم.",
                 "b": "تستفيد من أفكارهم — بس بانضباط: كل سهم يُفحص على منصّتك قبل ما يصير قرار.",
@@ -445,15 +449,19 @@ def _holdings_section(rows):
                if r.get("pnl") is not None else "<span class='dim'>—</span>")
         conv = _convbar(r.get("conviction")) if r.get("conviction") is not None else "<span class='dim'>—</span>"
         hold = _h(r.get("hold_label") or "—")
+        b = r.get("better")
+        better = (f"<b style='color:#f0b46b'>↑ {_h(b['ticker'])}</b><div class='dim sm'>{_h(b['why'])}</div>"
+                  if b else "<span class='dim sm'>✓ الأفضل في دوره</span>")
         body += (f"<tr><td><b class='n'>{_h(r['ticker'])}</b><div class='dim sm'>{_h((r.get('name') or '')[:20])}</div></td>"
                  f"<td><b>{_h(r['verdict'])}</b><div class='dim sm'>{_h(r.get('why'))}</div></td>"
                  f"<td>{conv}</td><td class='r'>{pnl}</td>"
-                 f"<td class='dim sm'>{hold}</td></tr>")
+                 f"<td class='dim sm'>{hold}</td>"
+                 f"<td>{better}</td></tr>")
     return ("<section id='s-hold'><h2>💼 محفظتي — أضِف / احتفظ / بيع</h2>"
-            "<div class='dim sub2'>توصية بحثية حسب الأداء والقناعة — مو «بيع/اشترِ الآن». «مدة الاحتفاظ» تقدير لأفق السهم. "
-            "عبّي أسعار شرائك في data/holdings.csv لحساب الربح/الخسارة.</div>"
+            "<div class='dim sub2'>توصية بحثية حسب الأداء والقناعة — مو «بيع/اشترِ الآن». «بديل أفضل» يظهر فقط لما نكون واثقين (دور مماثل + ترتيب أعلى بوضوح + حلال مو أسوأ). "
+            "عبّي أسعار/تواريخ شرائك في data/holdings.csv.</div>"
             "<div class='tablewrap'><table><thead><tr><th>السهم</th><th>التوصية</th><th>القناعة</th><th>ربح/خسارة</th>"
-            f"<th>مدة الاحتفاظ {_i('hold')}</th></tr></thead>"
+            f"<th>مدة الاحتفاظ {_i('hold')}</th><th>بديل أفضل؟ {_i('better')}</th></tr></thead>"
             f"<tbody>{body}</tbody></table></div></section>")
 
 

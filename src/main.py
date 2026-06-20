@@ -38,6 +38,7 @@ import earnings as earnings_mod
 import insider as insider_mod
 import news as news_mod
 import political as political_mod
+import sources as sources_mod
 import signals as signals_mod
 import watchlist_memory as memory_mod
 import actions
@@ -120,11 +121,14 @@ def main():
         print(f"mode: WATCHLIST smoke test ({len(tickers)} names)")
     else:
         uni = load_universe(cfg)
-        tickers = sorted(set(uni) | watchlist)
+        # always include the tickers you care about: watchlist + holdings + influencer signals
+        sig_tickers = {str(s.get("ticker") or "").upper() for s in signals_mod.load()[1] if s.get("ticker")}
+        always = watchlist | sig_tickers
+        tickers = sorted(set(uni) | always)
         if args.limit:
-            keep = set(list(watchlist)) | set(uni[: args.limit])
-            tickers = sorted(keep)
-        print(f"mode: FULL universe — {len(tickers)} tickers (incl. {len(watchlist)} watchlist)")
+            tickers = sorted(set(always) | set(uni[: args.limit]))
+        print(f"mode: FULL universe — {len(tickers)} tickers "
+              f"(incl. {len(watchlist)} watchlist + {len(sig_tickers)} influencer signals)")
 
     fmp = datasource.FMPClient(cfg)
     print(f"FMP primary: {'ACTIVE' if fmp.enabled else 'inactive (no key) → yfinance fallback'}")
@@ -187,6 +191,14 @@ def main():
             insider_rows = insider_mod.track(focused, cfg, fmp)
         except Exception as e:
             print(f"  insider tracker skipped: {e}")
+        try:
+            fh = sources_mod.FinnhubClient(cfg)
+            if fh.enabled:
+                for rec in focused:
+                    sources_mod.analyst_confirmation(rec, fh)
+                print("  ✓ Finnhub 2nd analyst source confirmed")
+        except Exception as e:
+            print(f"  Finnhub confirmation skipped: {e}")
         if not args.no_political:
             try:
                 pol_universe = {r["ticker"] for r in records}

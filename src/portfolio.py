@@ -94,6 +94,56 @@ def _read_holdings():
     return [h for h in out if h["ticker"]]
 
 
+def _role(rec):
+    """The 'job' a stock does in the book — to compare like-for-like.
+    Cyclicals are split by sector so gold compares with gold, memory with memory
+    (Newmont is NOT a substitute for Micron even though both are cyclical)."""
+    if rec.get("cyclical"):
+        return "cyclical:" + str(rec.get("sector") or "other")
+    eng = rec.get("engines") or []
+    if "compounder" in eng:
+        return "compounder"
+    if "future_leader" in eng:
+        return "future_leader"
+    if "accelerator" in eng:
+        return "accelerator"
+    return rec.get("primary_theme") or (rec.get("sector") or "other")
+
+
+def find_better(holding, records, cfg, margin=10.0):
+    """Is there a clearly BETTER stock doing the same job? Only suggest when CONFIDENT:
+    same role, halal not worse, investable, and rank_score higher by a clear margin."""
+    role = _role(holding)
+    hrank = holding.get("rank_score") or 0
+    hconv = holding.get("conviction_score") or 0
+    hsym = holding.get("ticker")
+    halal_rank = {"pass": 2, "unknown": 1, "fail": 0}
+    h_halal = halal_rank.get(holding.get("halal_status"), 1)
+    best = None
+    for r in records:
+        if r.get("ticker") == hsym:
+            continue
+        if _role(r) != role:
+            continue
+        if not r.get("investable", True) or r.get("halal_status") == "fail":
+            continue
+        if halal_rank.get(r.get("halal_status"), 1) < h_halal:
+            continue                                   # don't downgrade halal
+        if (r.get("rank_score") or 0) < hrank + margin:
+            continue                                   # must be CLEARLY better
+        if (r.get("conviction_score") or 0) <= hconv:
+            continue
+        if best is None or (r.get("rank_score") or 0) > (best.get("rank_score") or 0):
+            best = r
+    if not best:
+        return None
+    up = best.get("analyst_upside_percent")
+    why = f"قناعة {best.get('conviction_score')}/10 مقابل {hconv}، ترتيب أعلى"
+    if up is not None:
+        why += f"، صعود متوقع {up:+.0%}"
+    return {"ticker": best["ticker"], "name": best.get("name"), "role": role, "why": why}
+
+
 def evaluate_holdings(records, cfg, deltas=None):
     """For each owned name (data/holdings.csv): recommend add / keep / review / exit
     based on conviction + lifecycle + drawdown. Research framing — never buy/sell now."""
@@ -138,10 +188,11 @@ def evaluate_holdings(records, cfg, deltas=None):
                     hold_label = f"يتبقّى ~{remaining} شهر (مرّ {held_m} من ~{target})"
             except Exception:
                 pass
+        better = find_better(r, records, cfg)          # only set when CONFIDENT
         rows.append({"ticker": r["ticker"], "name": r.get("name"), "conviction": conv,
                      "rank": r.get("rank_score"), "pnl": pnl, "halal": hal,
                      "lifecycle": lc, "verdict": verdict, "why": why,
-                     "hold_label": hold_label,
+                     "hold_label": hold_label, "better": better,
                      "days_until_earnings": r.get("days_until_earnings")})
     # best overall first (by holistic rank), unknowns last
     rows.sort(key=lambda x: (x["rank"] is None, -(x["rank"] or 0)))

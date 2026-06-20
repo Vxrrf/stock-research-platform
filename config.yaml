@@ -17,6 +17,9 @@ data:
   # Paste your key here OR set env var FMP_API_KEY. Empty => yfinance fallback.
   fmp_api_key: ""              # <-- paste FMP key to activate primary source
   fmp_base_url: "https://financialmodelingprep.com/api"
+  # 2nd analyst/news source — free key from finnhub.io (cross-confirms analyst ratings).
+  # Multi-source: gather from many, compare, flag disagreement — never trust one source.
+  finnhub_api_key: ""          # <-- paste a FREE Finnhub key to add a 2nd analyst source
   use_yfinance_fallback: true  # fill any field FMP can't provide
   request_timeout_sec: 20
   max_workers: 10              # parallel fetch threads
