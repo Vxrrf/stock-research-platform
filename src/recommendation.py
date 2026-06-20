@@ -139,7 +139,9 @@ def build(rec, cfg):
     L.append(f"**13) السيناريو المتشائم (Bear):** {_bear(rec)}")
     own, inval, reduce = _exit_thesis(rec, cfg)
     L.append(f"**14) أطروحة الخروج:**")
-    L.append(f"   - **ليش تملكه:** {own}.")
+    # halal not verified → frame as 'worth researching', not 'why you own it'
+    own_label = "ليش تملكه" if rec.get("halal_status") == "pass" else "ليش يستاهل البحث (قبل تأكيد الحلال)"
+    L.append(f"   - **{own_label}:** {own}.")
     L.append(f"   - **وش يلغي الأطروحة:**")
     for x in inval:
         L.append(f"     • {x}")

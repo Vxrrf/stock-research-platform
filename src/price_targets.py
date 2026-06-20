@@ -93,12 +93,21 @@ def exit_conditions(rec, cfg):
     return out
 
 
+_HOLD_LABEL = {"short": "~6 شهور أو أقل", "medium": "6–18 شهر", "long": "+18 شهر (سنة ونصف فأكثر)"}
+
+
 def apply(rec, cfg):
     rec["fair_value_estimate"] = fair_value(rec, cfg)
     bear, base, bull = scenarios(rec, cfg)
     rec["bear_case_price"] = bear
     rec["base_case_price"] = base
     rec["bull_case_price"] = bull
-    rec["suggested_holding_period"] = holding_period(rec, cfg)
+    # honest labelling: these are ANALYST scenarios, not a real valuation model
+    rec["target_source"] = "إجماع المحللين" if rec.get("target_mean") else None
+    rec["valuation_method"] = ("تقدير تقريبي بإعادة تسعير مكرّر الربحية — ليس نموذج DCF حقيقي"
+                               if rec.get("fair_value_estimate") else None)
+    hp = holding_period(rec, cfg)
+    rec["suggested_holding_period"] = hp
+    rec["suggested_hold_label"] = _HOLD_LABEL.get(hp)
     rec["exit_conditions"] = exit_conditions(rec, cfg)
     return rec

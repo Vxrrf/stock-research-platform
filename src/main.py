@@ -40,6 +40,7 @@ import news as news_mod
 import political as political_mod
 import watchlist_memory as memory_mod
 import actions
+import gates as gates_mod
 import recommendation
 import portfolio as portfolio_mod
 import outputs
@@ -244,7 +245,8 @@ def main():
             lc = "Returning"
         rec["lifecycle_status"] = lc
 
-    # ── 6) final action ──
+    # ── 6) final action + investability gates (data quality + hard gates) ──
+    gates_mod.apply_all(records, cfg, watchlist)   # halal-unknown stays investable; only data/gates filter
     for rec in records:
         actions.apply(rec, cfg)
 
@@ -254,9 +256,14 @@ def main():
         buckets[rec["action"]].append(rec)
     buckets["crowded"] = [r for r in ranked if r.get("crowded_late")]
     buckets["watchlist"] = [r for r in ranked if r["ticker"] in watchlist]
-    # engine buckets (hide non-halal/Avoid)
+    # NOT INVESTABLE YET: data/gate problems (NOT halal-unknown), excluding holdings & halal-fail
+    buckets["not_investable"] = [r for r in ranked if not r.get("investable", True)
+                                 and r["ticker"] not in watchlist
+                                 and r.get("halal_status") != "fail"]
+    # engine buckets (hide non-halal/Avoid/not-investable)
     def _ok(r):
-        return r.get("action") != "Avoid" and r.get("halal_status") != "fail"
+        return (r.get("action") != "Avoid" and r.get("halal_status") != "fail"
+                and r.get("investable", True))
     buckets["compounder"] = [r for r in ranked if "compounder" in (r.get("engines") or []) and _ok(r)]
     buckets["accelerator"] = [r for r in ranked if "accelerator" in (r.get("engines") or []) and _ok(r)]
     buckets["future_leader"] = sorted(

@@ -110,6 +110,23 @@ def track(records, cfg, fmp=None):
             if v is not None:
                 rec[k] = v
 
+        # validate next earnings date: must be in the FUTURE (past = stale, drop it)
+        ned = rec.get("next_earnings_date")
+        if ned:
+            try:
+                from datetime import datetime, timezone
+                d = datetime.strptime(str(ned)[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                days = (d - datetime.now(timezone.utc)).days
+                if days < 0:
+                    rec["_earnings_invalid"] = True
+                    rec["next_earnings_date"] = None
+                    rec["days_until_earnings"] = None
+                else:
+                    rec["days_until_earnings"] = days
+            except Exception:
+                rec["next_earnings_date"] = None
+                rec["days_until_earnings"] = None
+
         streak = rec.get("beat_streak") or 0
         adj = 0.0
         if streak > 0:

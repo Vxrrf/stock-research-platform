@@ -19,9 +19,11 @@ from config_loader import ROOT
 
 
 def _bucket(records, engine, cap, cfg):
-    """Members of an engine, halal not-fail, sorted by conviction."""
+    """Members of an engine, halal not-fail, investable (data/gates ok), sorted by conviction.
+    NOTE: halal 'unknown' is KEPT (it means verify-first, not exclude) — only 'fail' & not-investable are dropped."""
     out = [r for r in records
-           if engine in (r.get("engines") or []) and r.get("halal_status") != "fail"]
+           if engine in (r.get("engines") or []) and r.get("halal_status") != "fail"
+           and r.get("investable", True)]
     out.sort(key=lambda r: (r.get("conviction_score") or 0, r.get("total_score") or 0), reverse=True)
     return out[:cap]
 
@@ -122,7 +124,9 @@ def evaluate_holdings(records, cfg, deltas=None):
             verdict, why = "⚪ احتفظ", f"قناعة {conv}/10، أداء مستقر"
         rows.append({"ticker": r["ticker"], "name": r.get("name"), "conviction": conv,
                      "rank": r.get("rank_score"), "pnl": pnl, "halal": hal,
-                     "lifecycle": lc, "verdict": verdict, "why": why})
+                     "lifecycle": lc, "verdict": verdict, "why": why,
+                     "hold_label": r.get("suggested_hold_label"),
+                     "days_until_earnings": r.get("days_until_earnings")})
     # best overall first (by holistic rank), unknowns last
     rows.sort(key=lambda x: (x["rank"] is None, -(x["rank"] or 0)))
     return rows

@@ -173,6 +173,14 @@ GLOSSARY = {
                  "w": "شركة أرقامها تتبع سعر سلعة (ذهب، نفط، ذاكرة) — تطير وقت ارتفاع السعر وتنهار وقت نزوله. مو نمو دائم.",
                  "b": "تعرف إنها تحوّط أو فرصة مؤقتة، مو مضاعِف ثروة طويل المدى — فما نرتّبها فوق القادة الحقيقيين.",
                  "e": "AEM (ذهب): +66% نمو بسبب الحرب، يختفي لما يهدأ الذهب. تحوّط ممتاز، لكنه ليس AVGO."},
+    "hold": {"t": "مدة الاحتفاظ المقترحة",
+             "w": "تقدير لأفق السهم: ~6 شهور أو أقل / 6–18 شهر / +18 شهر — حسب متانة النمو والمخاطرة.",
+             "b": "تعرف هل هو فرصة قصيرة، متوسطة، أو مُركِّب طويل تمسكه سنين.",
+             "e": "مُركِّب جودة (NVDA) = +18 شهر؛ اسم دوري متعافٍ = ~6 شهور."},
+    "notinv": {"t": "غير قابل للاستثمار بعد",
+               "w": "أسهم ما نقدر نقيّمها بثقة: بيانات قديمة/ناقصة، تقييم ناقص، تاريخ أرباح غير صالح، أو تغطية محللين قليلة.",
+               "b": "نفصلها عن المرشّحين عشان ما تبني قرار على بيانات ضعيفة. (مو «حرام» — بس ناقصة بيانات).",
+               "e": "سهم بياناته أقدم من 48 ساعة أو أقل من 4 محللين → هنا لين تتحدّث."},
     "institutional": {"t": "الملكية المؤسسية",
                       "w": "نسبة أسهم الشركة المملوكة لمؤسسات كبيرة (صناديق). مال حقيقي، مو ضجّة سوشال ميديا.",
                       "b": "دخول المؤسسات إشارة أقوى وأصدق من حماس تويتر.",
@@ -362,8 +370,27 @@ def _news(rows):
         f"<td>{_chip(dir_ar.get(r['impact_direction'], r['impact_direction']), 'dir-'+str(r['impact_direction']))}</td></tr>"
         for r in rows
     )
-    return (f"<section><h2>📰 أثر الأخبار {_i('news')}</h2><div class='tablewrap'><table>"
+    return (f"<section><h2>📰 أثر الأخبار {_i('news')}</h2>"
+            "<div class='dim sub2'>⚠️ <b>أحداث يدوية</b> (تُحدّث يدوياً في data/news_events.yaml حسب تاريخ كل حدث) — "
+            "وليست بثّاً حياً لحظياً. «مخاطر السوق اليوم» مشتقّة من هذي الأحداث اليدوية. "
+            "للأخبار الحيّة العميقة اطلب من كلود «حدّث الأخبار».</div>"
+            "<div class='tablewrap'><table>"
             "<thead><tr><th>الحدث</th><th>التاريخ</th><th>الأثر/10</th><th>الاتجاه</th></tr></thead>"
+            f"<tbody>{body}</tbody></table></div></section>")
+
+
+def _not_investable_section(records, limit=20):
+    if not records:
+        return ""
+    body = ""
+    for r in records[:limit]:
+        reasons = "، ".join(r.get("not_investable_reasons") or [])
+        body += (f"<tr><td><b class='n'>{_h(r.get('ticker'))}</b><div class='dim sm'>{_h((r.get('name') or '')[:24])}</div></td>"
+                 f"<td class='dim'>{_h(reasons)}</td>"
+                 f"<td>{_chip(FRESH_AR.get(r.get('data_freshness_status'), r.get('data_freshness_status')), _FRESH_CLASS.get(r.get('data_freshness_status'),''))}</td></tr>")
+    return (f"<section><h2>🚫 غير قابل للاستثمار بعد {_i('notinv')} <span class='count n'>{len(records)}</span></h2>"
+            "<div class='dim sub2'>بيانات ناقصة/قديمة أو بوابات صارمة لم تُستوفَ — مفصولة عن المرشّحين (ليست محرّمة، بل غير مكتملة البيانات).</div>"
+            "<div class='tablewrap'><table><thead><tr><th>السهم</th><th>السبب</th><th>البيانات</th></tr></thead>"
             f"<tbody>{body}</tbody></table></div></section>")
 
 
@@ -375,12 +402,16 @@ def _holdings_section(rows):
         pnl = (f"<span class='n' style='color:{'#5ee7a0' if (r['pnl'] or 0)>=0 else '#ff8a9a'}'>{r['pnl']:+.0%}</span>"
                if r.get("pnl") is not None else "<span class='dim'>—</span>")
         conv = _convbar(r.get("conviction")) if r.get("conviction") is not None else "<span class='dim'>—</span>"
+        hold = _h(r.get("hold_label") or "—")
         body += (f"<tr><td><b class='n'>{_h(r['ticker'])}</b><div class='dim sm'>{_h((r.get('name') or '')[:20])}</div></td>"
                  f"<td><b>{_h(r['verdict'])}</b><div class='dim sm'>{_h(r.get('why'))}</div></td>"
-                 f"<td>{conv}</td><td class='r'>{pnl}</td></tr>")
-    return ("<section><h2>💼 محفظتي — أضِف / احتفظ / راجع</h2>"
-            "<div class='dim sub2'>توصية بحثية حسب الأداء والقناعة — مو «بيع/اشترِ الآن». عبّي أسعار شرائك في data/holdings.csv لحساب الربح/الخسارة.</div>"
-            "<div class='tablewrap'><table><thead><tr><th>السهم</th><th>التوصية</th><th>القناعة</th><th>ربح/خسارة</th></tr></thead>"
+                 f"<td>{conv}</td><td class='r'>{pnl}</td>"
+                 f"<td class='dim sm'>{hold}</td></tr>")
+    return ("<section><h2>💼 محفظتي — أضِف / احتفظ / بيع</h2>"
+            "<div class='dim sub2'>توصية بحثية حسب الأداء والقناعة — مو «بيع/اشترِ الآن». «مدة الاحتفاظ» تقدير لأفق السهم. "
+            "عبّي أسعار شرائك في data/holdings.csv لحساب الربح/الخسارة.</div>"
+            "<div class='tablewrap'><table><thead><tr><th>السهم</th><th>التوصية</th><th>القناعة</th><th>ربح/خسارة</th>"
+            f"<th>مدة الاحتفاظ {_i('hold')}</th></tr></thead>"
             f"<tbody>{body}</tbody></table></div></section>")
 
 
@@ -540,6 +571,7 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
         f"<div class='tablewrap'><table>{_thead()}<tbody>{_stock_rows(ranked[:top_n])}</tbody></table></div></section>",
         _exposure(visible),
         _portfolio(portfolio_rows),
+        _not_investable_section(buckets.get("not_investable", [])),
         _news(news_rows),
         "<div class='note'>هذا <b>نظام بحث</b>، وليس نصيحة استثمارية. لا مخرج هنا توصية شراء ولا وعد بسعر. "
         "الحالة الشرعية تقريبية — أكّد كل سهم على Zoya/Musaffa. نضارة البيانات تحكم الثقة: بيانات قديمة أو ناقصة → الثقة «منخفضة». "

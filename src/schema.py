@@ -132,6 +132,7 @@ def blank_record(ticker):
         "popular_not_cheap": False,
         # earnings (spec §5)
         "next_earnings_date": None,
+        "days_until_earnings": None,
         "eps_estimate": None,
         "revenue_estimate": None,
         "actual_eps": None,
@@ -143,13 +144,19 @@ def blank_record(ticker):
         # news / political (spec §9, §10)
         "news_impact_score": 0,             # signed, tiny
         "political_bonus": 0,               # 0..3
-        # price targets (spec §14)
+        # price targets (spec §14) — honestly labelled (these are ANALYST scenarios, not a DCF)
         "fair_value_estimate": None,
+        "target_source": None,              # "analyst consensus" / None
+        "valuation_method": None,           # "rough fwd-P/E re-rate (not a DCF)"
         "bear_case_price": None,
         "base_case_price": None,
         "bull_case_price": None,
         "suggested_holding_period": None,
+        "suggested_hold_label": None,       # human: ~6 شهور / 6–18 شهر / +18 شهر
         "exit_conditions": [],
+        # investability gates (gates.py)
+        "investable": True,
+        "not_investable_reasons": [],
         # discovery / memory (spec §3, §4)
         "discovery_status": None,           # new_discovery | returning_discovery
         # final
@@ -166,7 +173,8 @@ def blank_record(ticker):
 PROVENANCE_COLS = ["data_source", "last_updated", "data_freshness_status", "confidence"]
 
 RANKED_COLS = [
-    "ticker", "name", "sector", "primary_theme", "price", "market_cap",
+    "ticker", "name", "sector", "primary_theme", "cyclical", "price", "market_cap",
+    "rank_score", "conviction_score", "conviction_tier", "engines",
     "total_score", "fundamental_score", "opportunity_score", "risk_score",
     "ai_exposure_score", "rev_growth", "rev_cagr_3y", "eps_growth_fwd",
     "forward_pe", "ev_ebitda", "roic", "roe", "fcf_margin", "debt_to_equity",
@@ -180,8 +188,9 @@ RANKED_COLS = [
 ] + PROVENANCE_COLS
 
 WATCHLIST_COLS = [
-    "ticker", "name", "first_discovery_date", "discovery_score", "highest_score",
-    "current_score", "number_of_appearances", "previous_rankings",
+    "ticker", "name", "first_discovery_date", "last_seen_date", "discovery_age_days",
+    "discovery_score", "highest_score", "lowest_score", "current_score", "score_trend",
+    "times_seen", "number_of_appearances", "previous_rankings",
     "discovery_status", "action",
 ] + PROVENANCE_COLS
 

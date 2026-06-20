@@ -17,6 +17,16 @@ import json
 from config_loader import state_dir
 
 
+def _age_days(first, now):
+    from datetime import datetime
+    try:
+        a = datetime.strptime(str(first)[:10], "%Y-%m-%d")
+        b = datetime.strptime(str(now)[:10], "%Y-%m-%d")
+        return (b - a).days
+    except Exception:
+        return 0
+
+
 def _path(cfg):
     return os.path.join(state_dir(cfg), "watchlist_memory.json")
 
@@ -61,30 +71,34 @@ def update(cfg, records, run_date, ranked):
         entry = mem.get(sym)
         if entry is None:
             entry = {
-                "ticker": sym,
-                "name": rec.get("name"),
-                "first_discovery_date": run_date,
-                "discovery_score": score,
-                "highest_score": score,
-                "current_score": score,
-                "number_of_appearances": 1,
-                "previous_rankings": [],
-                "last_score": None,
+                "ticker": sym, "name": rec.get("name"),
+                "first_discovery_date": run_date, "last_seen_date": run_date,
+                "discovery_score": score, "highest_score": score, "lowest_score": score,
+                "current_score": score, "number_of_appearances": 1, "times_seen": 1,
+                "previous_rankings": [], "last_score": None, "score_trend": "new",
+                "discovery_age_days": 0,
             }
             rec["discovery_status"] = "new_discovery"
             deltas[sym] = 0.0
         else:
             entry["last_score"] = entry.get("current_score")
-            deltas[sym] = score - (entry["last_score"] if entry["last_score"] is not None else score)
+            d = score - (entry["last_score"] if entry["last_score"] is not None else score)
+            deltas[sym] = d
             entry["name"] = rec.get("name") or entry.get("name")
             entry["current_score"] = score
+            entry["last_seen_date"] = run_date
             entry["highest_score"] = max(entry.get("highest_score", score), score)
+            entry["lowest_score"] = min(entry.get("lowest_score", score), score)
             entry["number_of_appearances"] = entry.get("number_of_appearances", 1) + 1
+            entry["times_seen"] = entry["number_of_appearances"]
+            entry["score_trend"] = "up" if d >= 3 else ("down" if d <= -3 else "flat")
+            entry["discovery_age_days"] = _age_days(entry.get("first_discovery_date"), run_date)
             rec["discovery_status"] = "returning_discovery"
-        # record this run's ranking if present
+        rec["score_trend"] = entry.get("score_trend")
+        rec["discovery_age_days"] = entry.get("discovery_age_days")
         if sym in rank_of:
             entry.setdefault("previous_rankings", []).append([run_date, rank_of[sym]])
-            entry["previous_rankings"] = entry["previous_rankings"][-12:]  # keep last 12
+            entry["previous_rankings"] = entry["previous_rankings"][-12:]
         entry["current_score"] = score
         mem[sym] = entry
 
@@ -101,9 +115,14 @@ def memory_rows(mem, records_by_ticker):
             "ticker": sym,
             "name": e.get("name"),
             "first_discovery_date": e.get("first_discovery_date"),
+            "last_seen_date": e.get("last_seen_date"),
+            "discovery_age_days": e.get("discovery_age_days"),
             "discovery_score": e.get("discovery_score"),
             "highest_score": e.get("highest_score"),
+            "lowest_score": e.get("lowest_score"),
             "current_score": e.get("current_score"),
+            "score_trend": e.get("score_trend"),
+            "times_seen": e.get("times_seen", e.get("number_of_appearances")),
             "number_of_appearances": e.get("number_of_appearances"),
             "previous_rankings": ";".join(f"{d}:#{r}" for d, r in e.get("previous_rankings", [])),
             "discovery_status": rec.get("discovery_status", "returning_discovery"),
