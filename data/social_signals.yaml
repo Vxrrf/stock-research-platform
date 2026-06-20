@@ -20,6 +20,13 @@ watched_accounts:
   - billy_invests
   - deintest81
   - almazer88
+  # حسابات إضافية لقيتها عبر كروم (مقترحة من إنستقرام):
+  - mo.invests
+  - investingwithkris
+  - ericnomics
+  - dailychriscamillo
+  - bdinvestingg
+  - capitallgrowth
 
 signals:
   # kevvonz — أكبر رهاناته على بنية AI / neocloud (متحقّق من الكابشنات)
@@ -42,3 +49,5 @@ signals:
   # ذُكرت بالترند لكن منصّتنا رفضتها (للشفافية):
   - {account: trending-media, date: "2026-06-20", ticker: FIVN, sentiment: bearish, note: "رفضها فلترنا: حلال fail", source: "web/media scan"}
   - {account: trending-media, date: "2026-06-20", ticker: BTBT, sentiment: bearish, note: "رفضها فلترنا: حلال fail (بيتكوين)", source: "web/media scan"}
+  # joe.investss — قُرئ عبر كروم (إنستقرام، بدون حسابك)
+  - {account: joe.investss, date: "2026-06-20", ticker: SOFI, sentiment: bullish, note: "رفضها فلترنا: حلال fail (credit services) رغم قناعة 7.3", source: "Instagram via Chrome"}
