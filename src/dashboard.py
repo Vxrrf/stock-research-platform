@@ -57,6 +57,11 @@ _ACTION_CLASS = {
     "Candidate": "a-cand", "Research More": "a-res", "Watch": "a-watch",
     "Verify Halal First": "a-verify", "Avoid": "a-avoid",
 }
+RATING_AR = {"strong_buy": "شراء قوي", "buy": "شراء", "hold": "محايد",
+             "underperform": "ضعيف", "sell": "بيع"}
+RATING_CLASS = {"strong_buy": "a-cand", "buy": "a-res", "hold": "a-watch",
+                "underperform": "a-avoid", "sell": "a-avoid"}
+HOLD_AR = {"short": "~6 شهور", "medium": "6–18 شهر", "long": "+18 شهر"}
 _HALAL_CLASS = {"pass": "h-pass", "unknown": "h-unknown", "fail": "h-fail"}
 _FRESH_CLASS = {"FRESH": "f-fresh", "STALE": "f-stale", "MISSING": "f-missing"}
 
@@ -173,6 +178,10 @@ GLOSSARY = {
                  "w": "شركة أرقامها تتبع سعر سلعة (ذهب، نفط، ذاكرة) — تطير وقت ارتفاع السعر وتنهار وقت نزوله. مو نمو دائم.",
                  "b": "تعرف إنها تحوّط أو فرصة مؤقتة، مو مضاعِف ثروة طويل المدى — فما نرتّبها فوق القادة الحقيقيين.",
                  "e": "AEM (ذهب): +66% نمو بسبب الحرب، يختفي لما يهدأ الذهب. تحوّط ممتاز، لكنه ليس AVGO."},
+    "rating": {"t": "تقييم المحللين",
+               "w": "خلاصة رأي محللي وول ستريت: شراء قوي / شراء / محايد / ضعيف / بيع، مع المتوسط (من 5) وعدد المحللين.",
+               "b": "تشوف بسرعة هل الخبراء متحمّسين للسهم — كل المنصّة تعرض كل التقييمات، مو بس «شراء قوي».",
+               "e": "«شراء قوي 1.4/5 · 45 محلل» = إجماع قوي جداً مثل AVGO."},
     "hold": {"t": "مدة الاحتفاظ المقترحة",
              "w": "تقدير لأفق السهم: ~6 شهور أو أقل / 6–18 شهر / +18 شهر — حسب متانة النمو والمخاطرة.",
              "b": "تعرف هل هو فرصة قصيرة، متوسطة، أو مُركِّب طويل تمسكه سنين.",
@@ -249,6 +258,22 @@ def _pctc(x):
     return f"<span class='n' style='color:{col};font-weight:700'>{x:+.0%}</span>"
 
 
+def _rating_cell(r):
+    k = r.get("rec_key")
+    if not k:
+        return "<span class='dim'>—</span>"
+    m = r.get("rec_mean")
+    n = r.get("num_analysts")
+    sub = []
+    if m:
+        sub.append(f"{m:.1f}/5")
+    if n:
+        sub.append(f"{int(n)} محلل")
+    s = (" · ".join(sub))
+    return (_chip(RATING_AR.get(k, k), RATING_CLASS.get(k, ""))
+            + (f"<div class='dim sm n'>{s}</div>" if s else ""))
+
+
 def _stock_rows(records):
     out = []
     for i, r in enumerate(records, 1):
@@ -263,14 +288,11 @@ def _stock_rows(records):
             f"<td><b class='n'>{_h(r.get('ticker'))}</b><div class='dim sm'>{_h((r.get('name') or '')[:22])}</div>{theme_chip}{_engine_badges(r)}</td>"
             f"<td>{_chip(ACTION_AR.get(act, act), _ACTION_CLASS.get(act,''))}</td>"
             f"<td>{_convbar(r.get('conviction_score'))}</td>"
-            f"<td>{_bar(r.get('total_score'))}</td>"
-            f"<td>{_bar(r.get('fundamental_score'))}</td>"
-            f"<td>{_bar(r.get('opportunity_score'))}</td>"
             f"<td>{_bar(r.get('risk_score'), 'risk')}</td>"
-            f"<td>{_aibar(r.get('ai_exposure_score'))}</td>"
-            f"<td class='r'>{_pctc(r.get('rev_growth'))}</td>"
+            f"<td>{_rating_cell(r)}</td>"
             f"<td class='r'>{_pctc(r.get('analyst_upside_percent'))}</td>"
-            f"<td class='r n'>{_num(r.get('forward_pe'),1)}</td>"
+            f"<td class='r'>{_pctc(r.get('rev_growth'))}</td>"
+            f"<td class='dim sm'>{_h(HOLD_AR.get(r.get('suggested_holding_period'), '—'))}</td>"
             f"<td>{_chip(HALAL_AR.get(hal, hal), _HALAL_CLASS.get(hal,''))}</td>"
             f"<td>{_chip(FRESH_AR.get(fr, fr), _FRESH_CLASS.get(fr,''))}"
             f"<div class='dim sm'>{_h(CONF_AR.get(r.get('confidence'), r.get('confidence')))}</div></td>"
@@ -285,21 +307,18 @@ def _thead():
         "<th>#</th><th>السهم</th>"
         f"<th>القرار {_i('action')}</th>"
         f"<th>القناعة {_i('conviction')}</th>"
-        f"<th>النقاط {_i('total')}</th>"
-        f"<th>الأساس {_i('fund')}</th>"
-        f"<th>الفرصة {_i('opp')}</th>"
         f"<th>المخاطرة {_i('risk')}</th>"
-        f"<th>الذكاء {_i('ai')}</th>"
-        f"<th>النمو {_i('revg')}</th>"
+        f"<th>التقييم {_i('rating')}</th>"
         f"<th>الصعود {_i('upside')}</th>"
-        f"<th>م.ربحية {_i('fpe')}</th>"
+        f"<th>النمو {_i('revg')}</th>"
+        f"<th>مدة الاحتفاظ {_i('hold')}</th>"
         f"<th>الحلال {_i('halal')}</th>"
         f"<th>البيانات {_i('fresh')}</th>"
         "</tr></thead>"
     )
 
 
-def _section_table(emoji, title, info_key, records, subtitle="", limit=30):
+def _section_table(emoji, title, info_key, records, subtitle="", limit=30, sid=""):
     badge = _i(info_key) if info_key else ""
     total = len(records)
     shown = records[:limit]
@@ -311,7 +330,8 @@ def _section_table(emoji, title, info_key, records, subtitle="", limit=30):
         if total > limit:
             subtitle = (subtitle + f" — يُعرض أقوى {limit} من {total} (البقية في الملف).").strip(" —")
     sub = f"<div class='dim sub2'>{_h(subtitle)}</div>" if subtitle else ""
-    return (f"<section><h2>{emoji} {_h(title)} {badge} "
+    idattr = f" id='{sid}'" if sid else ""
+    return (f"<section{idattr}><h2>{emoji} {_h(title)} {badge} "
             f"<span class='count n'>{total}</span></h2>{sub}{body}</section>")
 
 
@@ -407,7 +427,7 @@ def _holdings_section(rows):
                  f"<td><b>{_h(r['verdict'])}</b><div class='dim sm'>{_h(r.get('why'))}</div></td>"
                  f"<td>{conv}</td><td class='r'>{pnl}</td>"
                  f"<td class='dim sm'>{hold}</td></tr>")
-    return ("<section><h2>💼 محفظتي — أضِف / احتفظ / بيع</h2>"
+    return ("<section id='s-hold'><h2>💼 محفظتي — أضِف / احتفظ / بيع</h2>"
             "<div class='dim sub2'>توصية بحثية حسب الأداء والقناعة — مو «بيع/اشترِ الآن». «مدة الاحتفاظ» تقدير لأفق السهم. "
             "عبّي أسعار شرائك في data/holdings.csv لحساب الربح/الخسارة.</div>"
             "<div class='tablewrap'><table><thead><tr><th>السهم</th><th>التوصية</th><th>القناعة</th><th>ربح/خسارة</th>"
@@ -444,7 +464,13 @@ h3{font-size:13px;margin:0 0 12px;color:#aeb9c9}
 .n{direction:ltr;unicode-bidi:isolate;display:inline-block}
 .banner{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0 6px}
 .kpi{background:linear-gradient(160deg,#141b27,#0f141d);border:1px solid #1d2735;border-radius:14px;padding:12px 16px;min-width:150px;flex:1}
-.kpi b{display:block;font-size:21px} .kpi span{color:#8a97a8;font-size:12px;display:flex;align-items:center;gap:5px}
+.kpi b{display:block;font-size:21px} .kpi span{color:#8a97a8;font-size:12px;display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.qnav{position:sticky;top:0;z-index:30;display:flex;gap:6px;flex-wrap:wrap;background:rgba(11,15,23,.93);
+backdrop-filter:blur(8px);padding:10px 4px;margin:8px -4px 6px;border-bottom:1px solid #1b2330}
+.qnav a{font-size:12.5px;color:#aeb9c9;background:#141b27;border:1px solid #1d2735;border-radius:20px;
+padding:6px 11px;text-decoration:none;white-space:nowrap}
+.qnav a:hover{background:#1d2838;color:#fff}
+section{scroll-margin-top:64px}
 .tablewrap{overflow-x:auto;border:1px solid #1b2330;border-radius:14px}
 table{width:100%;border-collapse:collapse;font-size:13px;min-width:820px}
 th{position:sticky;top:0;background:#121a25;color:#9fb0c6;text-align:right;padding:9px 8px;font-weight:600;white-space:nowrap;font-size:12px}
@@ -531,19 +557,32 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
     def _vis(r):
         return r.get("action") != "Avoid" and r.get("halal_status") != "fail"
     visible = [r for r in records if _vis(r)]
-    ranked = sorted(visible, key=lambda r: (r.get("total_score") or 0), reverse=True)
+    # one ranking everywhere: holistic rank_score (consistency fix)
+    ranked = sorted(visible, key=lambda r: (r.get("rank_score") or 0), reverse=True)
     fc = meta.get("fresh_counts", {})
     risk = meta.get("market_risk_today", "—")
     risk_cls = {"Low": "dir-positive", "Medium": "dir-neutral", "High": "a-watch", "Extreme": "a-avoid"}.get(risk, "dir-neutral")
 
+    # clearer KPIs — words, not bare ratios
     banner = f"""
     <div class="banner">
-      <div class="kpi"><b class="n">{_h(meta.get('data_source'))}</b><span>مصدر البيانات</span></div>
-      <div class="kpi"><b class="n">{fc.get('FRESH',0)}/{fc.get('STALE',0)}/{fc.get('MISSING',0)}</b><span>حديثة/قديمة/ناقصة {_i('fresh')}</span></div>
-      <div class="kpi"><b class="n">{meta.get('hi',0)}/{meta.get('med',0)}/{meta.get('low',0)}</b><span>ثقة عالية/متوسطة/منخفضة</span></div>
-      <div class="kpi"><b><span class="chip {risk_cls}">{_h(RISK_AR.get(risk, risk))}</span></b><span>مخاطر السوق اليوم {_i('marketrisk')}</span></div>
       <div class="kpi"><b class="n">{len(visible)}</b><span>سهم مناسب (من {meta.get('examined',0)} مفحوص)</span></div>
+      <div class="kpi"><b><span class="chip {risk_cls}">{_h(RISK_AR.get(risk, risk))}</span></b><span>مخاطر السوق اليوم {_i('marketrisk')}</span></div>
+      <div class="kpi"><b class="n">{fc.get('FRESH',0)}</b><span>بياناتها حديثة {_i('fresh')}<br><span class='dim sm'>قديمة {fc.get('STALE',0)} · ناقصة {fc.get('MISSING',0)}</span></span></div>
+      <div class="kpi"><b class="n">{meta.get('hi',0)}</b><span>ثقة عالية<br><span class='dim sm'>متوسطة {meta.get('med',0)} · منخفضة {meta.get('low',0)}</span></span></div>
+      <div class="kpi"><b class="n">{_h(meta.get('data_source'))}</b><span>مصدر البيانات</span></div>
     </div>"""
+
+    nav = ("<nav class='qnav'>"
+           "<a href='#s-hold'>💼 محفظتي</a>"
+           "<a href='#s-future'>🌱 قادة المستقبل</a>"
+           "<a href='#s-accel'>🚀 مُسرِّعون</a>"
+           "<a href='#s-comp'>🏛️ مُركِّبون</a>"
+           "<a href='#s-halal'>⚠️ تأكّد الحلال</a>"
+           "<a href='#s-watch'>⭐ قائمتي</a>"
+           "<a href='#s-top'>🏆 أعلى 20</a>"
+           "<a href='#s-port'>📊 المحفظة</a>"
+           "</nav>")
 
     parts = [
         f"<h1>📊 {_h(name)}</h1>",
@@ -551,25 +590,27 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
         "<div class='updrow'><button class='upd' onclick='updateAll(this)'>🔄 حدّث الكل</button>"
         "<a class='upd2' href='/planner'>💼 مخطّط المحفظة</a></div>"
         "<div id='updmsg' class='dim sm'></div>",
-        "<div class='hint'>💡 اضغط على أي علامة <b style='color:#fff'>؟</b> جنب أي مصطلح يطلع لك شرح بسيط: وش يعني + فايدته + مثال.</div>",
+        "<div class='hint'>💡 اضغط على أي علامة <b style='color:#fff'>؟</b> جنب أي مصطلح يطلع لك شرح بسيط: وش يعني + فايدته + مثال. واستخدم الشريط فوق للتنقّل السريع.</div>",
         banner,
+        nav,
         _holdings_section(meta.get("holdings_eval") or []),
         "<div class='hint' style='background:#10221a;border-color:#1d6340;color:#9ce8c4'>🎯 محرّكات الصيد الثلاثة: <b>قادة المستقبل</b> (x3–x10 على سنوات) · <b>مُسرِّعون</b> (6–24 شهر) · <b>مُركِّبون</b> (جودة تدوم). سهم واحد ممكن يكون في أكثر من محرّك.</div>",
         _section_table("🌱", "قادة المستقبل (صيد x3–x10)", "future_leader", buckets.get("future_leader", []),
-                       "أسهم صغيرة/متوسطة، نمو قوي + ثيم مستقبلي + هوامش حقيقية، ولسه ما انفجرت — هنا الفرص الكبيرة على سنوات، بحصص صغيرة موزّعة."),
+                       "أسهم صغيرة/متوسطة، نمو قوي + ثيم مستقبلي + هوامش حقيقية، ولسه ما انفجرت — هنا الفرص الكبيرة على سنوات، بحصص صغيرة موزّعة.", sid="s-future"),
         _section_table("🚀", "مُسرِّعون (6–24 شهر)", "accelerator", buckets.get("accelerator", []),
-                       "نموها يتسارع والمحللون إيجابيون وأرباحها تفوق التوقعات — فرص متوسطة المدى."),
+                       "نموها يتسارع والمحللون إيجابيون وأرباحها تفوق التوقعات — فرص متوسطة المدى.", sid="s-accel"),
         _section_table("🏛️", "مُركِّبون طويل المدى", "compounder", buckets.get("compounder", []),
-                       "جودة عالية + نمو يدوم سنوات + ميزانية قوية — أساس الثروة، تمسكها وتتضاعف بهدوء."),
+                       "جودة عالية + نمو يدوم سنوات + ميزانية قوية — أساس الثروة، تمسكها وتتضاعف بهدوء.", sid="s-comp"),
         _section_table("⚠️", "تأكّد من الحلال أولاً", "halal", buckets.get("Verify Halal First", []),
-                       "أسهم قوية لكن لازم تأكّد شرعيتها على Zoya/Musaffa قبل أي شي."),
+                       "أسهم قوية لكن لازم تأكّد شرعيتها على Zoya/Musaffa قبل أي شي.", sid="s-halal"),
         _section_table("⭐", "قائمتي (قناعاتي)", "watchlist",
                        [r for r in buckets.get("watchlist", []) if _vis(r)],
-                       "أسهمك — التفاصيل الكاملة في watchlist.csv."),
-        f"<section><h2>🏆 أعلى {top_n} سهم {_i('top20')}</h2>"
-        "<div class='dim sub2'>مرتّبة: الأفضل من كل النواحي أولاً (قناعة + فرصة + مخاطرة منخفضة + محرّكات + تأكيدات + بيانات حديثة).</div>"
+                       "أسهمك — التفاصيل الكاملة في watchlist.csv.", sid="s-watch"),
+        f"<section id='s-top'><h2>🏆 أعلى {top_n} سهم {_i('top20')}</h2>"
+        "<div class='dim sub2'>مرتّبة: الأفضل من كل النواحي أولاً (قناعة + صعود + مخاطرة منخفضة + محرّكات + بيانات حديثة).</div>"
         f"<div class='tablewrap'><table>{_thead()}<tbody>{_stock_rows(ranked[:top_n])}</tbody></table></div></section>",
         _exposure(visible),
+        f"<span id='s-port'></span>",
         _portfolio(portfolio_rows),
         _not_investable_section(buckets.get("not_investable", [])),
         _news(news_rows),
