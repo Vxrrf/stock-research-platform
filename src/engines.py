@@ -44,7 +44,11 @@ def is_accelerator(rec, cfg):
     # (No 'high growth' fallback — that's not acceleration, and it over-fired.)
     if cagr is None or rg is None:
         return False
-    accel = rg >= cagr + 0.07 and rg >= 0.15        # ≥7pts above its own trend
+    # FATAL fix: require an already-healthy positive trend, else a cyclical RECOVERY
+    # from a bad year (negative CAGR) fakes "acceleration" (e.g. airline post-crash bounce).
+    if cagr < 0.08:
+        return False
+    accel = rg >= cagr + 0.07 and rg >= 0.15        # ≥7pts above an already-healthy trend
     if not accel:
         return False
     if (rec.get("conviction_score") or 0) < 6.0:    # only ones we have conviction in
@@ -102,6 +106,12 @@ def is_future_leader(rec, cfg):
 
 def classify(rec, cfg):
     rec["future_leader_score"] = future_leader_score(rec, cfg)
+    # cyclical/commodity names (gold, oil, memory) are NOT durable growth — they are
+    # hedges/trades, not compounders/accelerators/future-leaders. Keep them out of the
+    # growth engines so a gold spike in a crisis doesn't masquerade as a growth winner.
+    if rec.get("cyclical"):
+        rec["engines"] = []
+        return rec
     eng = []
     if is_compounder(rec, cfg):
         eng.append("compounder")

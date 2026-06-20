@@ -71,15 +71,18 @@ def _components(rec, cfg):
 
     fpe = rec.get("forward_pe")
     if fpe is not None and fpe > 0:
-        # smooth, monotonic: 1.0 at fwd P/E ≤ 20, linearly to 0 at ≥ 80 (no cliff)
-        c["forward_pe"] = _c01(1.0 - (fpe - 20.0) / 60.0)
+        # smooth, monotonic (config-driven): 1.0 at ≤ fair_min, 0 at ≥ zero_score
+        fmin = th.get("forward_pe_fair_min", 20.0)
+        fzero = th.get("forward_pe_zero_score", 80.0)
+        c["forward_pe"] = _c01(1.0 - (fpe - fmin) / max(1.0, fzero - fmin))
     else:
         c["forward_pe"] = None
 
     ev = rec.get("ev_ebitda")
     if ev is not None and ev > 0:
         fair = th.get("ev_ebitda_fair_max", 25.0)
-        c["ev_ebitda"] = _c01(1.0 - ev / (fair * 1.8))
+        mult = th.get("ev_ebitda_multiplier", 1.8)
+        c["ev_ebitda"] = _c01(1.0 - ev / (fair * mult))
     else:
         c["ev_ebitda"] = None
 
@@ -123,6 +126,10 @@ def fundamental_score(rec, cfg):
     raw = acc / got_w                  # quality of what we know (0..1)
     coverage = got_w / total_w         # how much we know (0..1)
     score = 100.0 * raw * (0.60 + 0.40 * coverage)
+    # cyclical/commodity names: discount fundamentals too (not just conviction) so the
+    # cyclical penalty propagates through overall_rank (fatal-audit fix).
+    if rec.get("cyclical"):
+        score *= 0.82
     rec["_score_coverage"] = round(coverage, 2)
     return round(score, 1)
 
@@ -172,6 +179,9 @@ def risk_score(rec, cfg):
     beta = rec.get("beta")
     if beta is not None:
         add((beta - 1.0) / 1.5, 10)
+    up = rec.get("analyst_upside_percent")
+    if up is not None and up < 0:                                   # analysts expect a FALL = risk
+        add((-up) / max(0.01, th.get("analyst_upside_great", 0.30)), 10)
     oyr = rec.get("one_year_return")
     if oyr is not None:
         add((oyr - 0.6) / (cr.get("hype_one_year_return", 2.0)), 14)  # runup risk

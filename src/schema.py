@@ -103,6 +103,7 @@ def blank_record(ticker):
         "themes": [],
         "primary_theme": None,
         "ai_exposure_score": 0,             # 0..10
+        "cyclical": False,                  # commodity/gold/oil/memory — growth is cyclical, not durable
         # scores
         "fundamental_score": None,          # 0..100 (primary)
         "opportunity_score": None,          # 0..100 (spec §8)

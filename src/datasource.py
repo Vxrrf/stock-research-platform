@@ -216,7 +216,9 @@ def _fmp_fill(rec, fmp, sym, want_deep=True):
                 rec["roe"] = _num(rt.get("returnOnEquityTTM"))
             de = _num(rt.get("debtToEquityRatioTTM"))
             if de is not None:
-                rec["debt_to_equity"] = de * 100.0 if abs(de) <= 10 else de  # → % scale
+                # FMP gives a RAW ratio (0.06); yfinance gives PERCENT (6.0). Always ×100
+                # so both sources land on the same %-scale (verified: AMD yf=6.0, fmp=0.06).
+                rec["debt_to_equity"] = de * 100.0
             rec["pe"] = _num(rt.get("priceToEarningsRatioTTM"))
             if rec.get("ev_ebitda") is None:
                 rec["ev_ebitda"] = _num(rt.get("enterpriseValueMultipleTTM"))
@@ -407,11 +409,11 @@ def _yf_deep(rec, t, oyr):
 #  Derived fields + freshness + confidence
 # ══════════════════════════════════════════════════════════════════
 def _finalize(rec, cfg):
-    # analyst upside
-    if rec.get("target_mean") and rec.get("price"):
+    # analyst upside (explicit > 0 guards)
+    if rec.get("target_mean") and rec.get("price") and rec["price"] > 0:
         rec["analyst_upside_percent"] = rec["target_mean"] / rec["price"] - 1.0
     # distance below 52w high
-    if rec.get("week52_high") and rec.get("price"):
+    if rec.get("week52_high") and rec.get("price") and rec["week52_high"] > 0:
         rec["pct_below_52w_high"] = max(0.0, (rec["week52_high"] - rec["price"]) / rec["week52_high"])
     _freshness_confidence(rec, cfg)
     return rec

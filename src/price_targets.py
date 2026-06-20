@@ -25,13 +25,16 @@ def fair_value(rec, cfg):
         return None
     fair_pe = th.get("forward_pe_fair_max", 35.0)
     # implied forward EPS = price / fpe; fair value at the fair multiple
-    fv = price * (fair_pe / fpe)
-    # blend with analyst mean target if present (anchors to the market view)
+    model_fv = price * (fair_pe / fpe)
     tgt = rec.get("target_mean")
     if tgt:
-        fv = 0.5 * fv + 0.5 * tgt
-    # keep it sane: within 0.4x..2.5x of price
-    fv = max(price * 0.4, min(price * 2.5, fv))
+        # if model and analysts disagree a lot, don't fake a 'consensus' fair value
+        if abs(model_fv - tgt) / tgt > 0.30:
+            return None
+        fv = 0.5 * model_fv + 0.5 * tgt
+    else:
+        fv = model_fv
+    fv = max(price * 0.4, min(price * 2.5, fv))     # keep sane (0.4x..2.5x)
     return _round(fv)
 
 
@@ -43,24 +46,28 @@ def scenarios(rec, cfg):
     lo = rec.get("target_low")
     mean = rec.get("target_mean")
     base = mean or price
+    # if analysts are net bearish (mean<price) BUT the high target shows upside,
+    # don't let 'base' collapse to a pure downside number — blend toward neutral.
+    if mean and mean < price and hi and hi > price:
+        base = (mean + price) / 2.0
     bull = hi or (base * 1.25)
     bear = lo or (price * 0.7)
-    # ensure ordering bear <= base <= bull
-    bear = min(bear, base)
+    bear = min(bear, base)                          # ensure bear ≤ base ≤ bull
     bull = max(bull, base)
     return _round(bear), _round(base), _round(bull)
 
 
 def holding_period(rec, cfg):
-    """short 0-6m / medium 6-18m / long 18m+ — driven by durability of growth."""
+    """short 0-6m / medium 6-18m / long 18m+ — driven by DURABLE growth (not just AI hype)."""
     th = cfg.get("thresholds", {}) or {}
     growth = rec.get("rev_cagr_3y") or rec.get("rev_growth") or 0
     ai = rec.get("ai_exposure_score", 0) or 0
     risk = rec.get("risk_score") or 50
-    durable = (growth >= th.get("rev_cagr_3y_good", 0.15)) or (ai >= 6)
-    if durable and risk < 65:
+    # AI exposure only upgrades the horizon when there is REAL growth behind it
+    durable = (growth >= th.get("rev_cagr_3y_good", 0.15)) or (growth >= 0.10 and ai >= 6)
+    if durable and risk < 65 and not rec.get("cyclical"):
         return "long"
-    if growth >= th.get("revenue_growth_good", 0.18) * 0.6 or ai >= 4:
+    if (growth >= th.get("revenue_growth_good", 0.18) * 0.6) or (growth >= 0.08 and ai >= 6):
         return "medium"
     return "short"
 

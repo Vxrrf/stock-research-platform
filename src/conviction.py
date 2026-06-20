@@ -128,7 +128,15 @@ def compute(rec, cfg):
         return rec
     raw = acc / got_w                       # 0..1 quality of what we know
     coverage = got_w / total_w
-    score10 = round(10.0 * raw * (0.7 + 0.3 * coverage), 1)
+    # heavier coverage penalty than before (less false confidence on sparse data),
+    # but maxes at 1.0 so conviction stays within 0..10.
+    score10 = 10.0 * raw * (0.5 + 0.5 * coverage)
+    score10 = min(10.0, score10)
+    # cyclical/commodity names: discount conviction — hot numbers are temporary
+    # (commodity-price driven), so they shouldn't outrank durable secular leaders.
+    if rec.get("cyclical"):
+        score10 *= 0.82
+    score10 = round(score10, 1)
     rec["conviction_score"] = score10
     rec["conviction_tier"] = tier(score10)
     rec["_conviction_components"] = {k: (round(v, 2) if v is not None else None) for k, v in comps.items()}

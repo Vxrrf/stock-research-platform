@@ -101,8 +101,8 @@ def screen(rec, cfg, extra=None):
         rr = receivables / mcap
         ratios["receivables/marketcap"] = round(rr, 3)
         if rr >= h.get("receivables_to_marketcap_max", 0.49):
-            reasons.append(f"receivables / market cap = {rr:.0%} above "
-                           f"{h.get('receivables_to_marketcap_max', 0.49):.0%} — review")
+            return "fail", [f"receivables / market cap = {rr:.0%} ≥ "
+                            f"{h.get('receivables_to_marketcap_max', 0.49):.0%} (AAOIFI limit)"], ratios
 
     # ── 3) Interest income / revenue (the < 5% purification test) ──
     income_known = (interest_income is not None and revenue not in (None, 0))

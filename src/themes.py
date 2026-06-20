@@ -149,8 +149,38 @@ def _has(blob, kw):
     return re.search(r"(?<![a-z])" + re.escape(kw.lower()) + r"s?(?![a-z])", blob) is not None
 
 
+# Cyclical / commodity-driven names: their booming numbers track commodity prices
+# (gold, oil, memory-chip prices), NOT durable secular demand. Flagged so they are
+# not ranked as compounders/accelerators/future-leaders (a real fix — gold spiking
+# in a crisis is a HEDGE, not a growth compounder).
+_CYCLICAL_SECTORS = {"basic materials", "energy"}
+# industry/name keywords for cyclical businesses across sectors (autos, airlines,
+# homebuilders, shipping, oil-services, banks, steel, chemicals, etc.)
+_CYCLICAL_KW = ["gold", "silver", "mining", "miner", "metals", "oil", "gas", "coal",
+                "copper", "steel", "aluminum", "uranium", "fertilizer", "commodity",
+                "chemicals", "paper", "lumber", "airline", "airlines",
+                "auto manufacturer", "auto parts", "automotive", "homebuilder",
+                "residential construction", "building materials", "cruise",
+                "shipping", "marine", "trucking", "freight", "drilling", "refining",
+                "oil & gas equipment", "semiconductor equipment", "bank", "banks",
+                "capital markets", "consumer finance"]
+_CYCLICAL_TICKERS = {"MU", "STX", "WDC", "SNDK"}   # memory/storage = price-cycle driven
+
+
+def is_cyclical(rec):
+    sym = rec.get("ticker", "").upper()
+    if sym in _CYCLICAL_TICKERS:
+        return True
+    sector = str(rec.get("sector") or "").lower()
+    if sector in _CYCLICAL_SECTORS:
+        return True
+    blob = " ".join(str(rec.get(k) or "").lower() for k in ("industry", "name"))
+    return any(_has(blob, k) for k in _CYCLICAL_KW)
+
+
 def classify(rec):
-    """Set rec['themes'], rec['primary_theme'], rec['ai_exposure_score']."""
+    """Set rec['themes'], rec['primary_theme'], rec['ai_exposure_score'], rec['cyclical']."""
+    rec["cyclical"] = is_cyclical(rec)
     sym = rec.get("ticker", "").upper()
     if sym in CURATED:
         ai, themes = CURATED[sym]

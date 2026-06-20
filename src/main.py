@@ -234,7 +234,7 @@ def main():
             lc = "Long-Term Compounder"
         elif conv >= 9:
             lc = "High Conviction"
-        elif highest - current >= 12 and (rec.get("fundamental_score") or 0) >= 45:
+        elif highest - current >= 12 and (rec.get("fundamental_score") or 0) >= 45 and conv < 6:
             lc = "Fallen Angel"
         elif d <= -5:
             lc = "Falling Conviction"

@@ -68,10 +68,13 @@ thresholds:
   roe_good: 0.15
   gross_margin_good: 0.45
   operating_margin_good: 0.15
-  debt_to_equity_ceiling: 150.0    # % (yfinance scale); penalised above
+  debt_to_equity_ceiling: 150.0    # % (yfinance scale = ratio×100); penalised above
+  forward_pe_fair_min: 20.0        # P/E ≤ this = top score (used by fundamental + risk)
   forward_pe_fair_max: 35.0
+  forward_pe_zero_score: 80.0      # P/E ≥ this = zero score (smooth slope)
   forward_pe_rich: 55.0
   ev_ebitda_fair_max: 25.0
+  ev_ebitda_multiplier: 1.8        # valuation-compression tolerance before full penalty
   analyst_upside_good: 0.15        # ≥15% upside to mean target
   analyst_upside_great: 0.30
 

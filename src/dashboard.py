@@ -169,6 +169,10 @@ GLOSSARY = {
                       "w": "شركة صغيرة/متوسطة ($1–40 مليار) نمو قوي + هوامش حقيقية + ثيم مستقبلي، لسه ما انفجرت. بانضباط: مو قصة بلا إيرادات ولا طايرة +200%.",
                       "b": "هنا يجي الـ x5–x10 على سنوات — بحصة صغيرة لكل اسم عشان الخطر محدود.",
                       "e": "مثل SanDisk قبل ما تنفجر — نصطادها بدري ونوزّع الرهان."},
+    "cyclical": {"t": "دوري / تحوّط 🔄",
+                 "w": "شركة أرقامها تتبع سعر سلعة (ذهب، نفط، ذاكرة) — تطير وقت ارتفاع السعر وتنهار وقت نزوله. مو نمو دائم.",
+                 "b": "تعرف إنها تحوّط أو فرصة مؤقتة، مو مضاعِف ثروة طويل المدى — فما نرتّبها فوق القادة الحقيقيين.",
+                 "e": "AEM (ذهب): +66% نمو بسبب الحرب، يختفي لما يهدأ الذهب. تحوّط ممتاز، لكنه ليس AVGO."},
     "institutional": {"t": "الملكية المؤسسية",
                       "w": "نسبة أسهم الشركة المملوكة لمؤسسات كبيرة (صناديق). مال حقيقي، مو ضجّة سوشال ميديا.",
                       "b": "دخول المؤسسات إشارة أقوى وأصدق من حماس تويتر.",
@@ -221,10 +225,12 @@ def _convbar(s):
 
 
 def _engine_badges(rec):
-    eng = rec.get("engines") or []
-    if not eng:
-        return ""
-    return "".join(f"<span class='ebadge {ENGINE_CLASS.get(e,'')}'>{ENGINE_AR.get(e,e)}</span>" for e in eng)
+    out = ""
+    if rec.get("cyclical"):
+        out += "<span class='ebadge e-cyc'>🔄 دوري/تحوّط</span>"
+    out += "".join(f"<span class='ebadge {ENGINE_CLASS.get(e,'')}'>{ENGINE_AR.get(e,e)}</span>"
+                   for e in (rec.get("engines") or []))
+    return out
 
 
 def _pctc(x):
@@ -437,6 +443,7 @@ tbody tr:hover{background:#0f141d}
 .e-comp{background:#0e2a3a;color:#6cc4ff;border:1px solid #1d4a63}
 .e-accel{background:#241a3a;color:#c4a0ff;border:1px solid #4a2d6b}
 .e-future{background:#0e3a25;color:#5ee7a0;border:1px solid #1d6340}
+.e-cyc{background:#3a2a12;color:#f0b46b;border:1px solid #5e4420}
 .metric{display:flex;align-items:baseline;gap:8px;margin:8px 0}.metric b{font-size:20px}.metric span{color:#8a97a8;font-size:12px}
 .note{background:#10161f;border:1px solid #1b2330;border-radius:12px;padding:14px 16px;color:#9fb0c6;font-size:13px;margin-top:18px}
 footer{color:#5c6675;font-size:12px;margin-top:40px;text-align:center}
@@ -523,16 +530,8 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
                        "نموها يتسارع والمحللون إيجابيون وأرباحها تفوق التوقعات — فرص متوسطة المدى."),
         _section_table("🏛️", "مُركِّبون طويل المدى", "compounder", buckets.get("compounder", []),
                        "جودة عالية + نمو يدوم سنوات + ميزانية قوية — أساس الثروة، تمسكها وتتضاعف بهدوء."),
-        _section_table("✅", "مرشّحون أقوياء", "action", buckets.get("Candidate", []),
-                       "حلال مبدئياً + أساسيات قوية + مخاطرة مقبولة."),
         _section_table("⚠️", "تأكّد من الحلال أولاً", "halal", buckets.get("Verify Halal First", []),
                        "أسهم قوية لكن لازم تأكّد شرعيتها على Zoya/Musaffa قبل أي شي."),
-        _section_table("🔁", "مزدحم / متأخر", "crowded",
-                       [r for r in buckets.get("crowded", []) if _vis(r)],
-                       "صعد كثير وقريب من قمته — احذر الدخول المتأخر."),
-        _section_table("🔭", "ابحث أكثر", "action", buckets.get("Research More", []),
-                       "واعد، بس يحتاج بحث أعمق."),
-        _section_table("👀", "راقب", "action", buckets.get("Watch", [])),
         _section_table("⭐", "قائمتي (قناعاتي)", "watchlist",
                        [r for r in buckets.get("watchlist", []) if _vis(r)],
                        "أسهمك — التفاصيل الكاملة في watchlist.csv."),
@@ -542,7 +541,6 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
         _exposure(visible),
         _portfolio(portfolio_rows),
         _news(news_rows),
-        _political(political_rows),
         "<div class='note'>هذا <b>نظام بحث</b>، وليس نصيحة استثمارية. لا مخرج هنا توصية شراء ولا وعد بسعر. "
         "الحالة الشرعية تقريبية — أكّد كل سهم على Zoya/Musaffa. نضارة البيانات تحكم الثقة: بيانات قديمة أو ناقصة → الثقة «منخفضة». "
         "بيانات الكونغرس إشارة ضعيفة فقط. القرار والمسؤولية عليك وحدك.</div>",

@@ -115,7 +115,8 @@ def evaluate_holdings(records, cfg, deltas=None):
         elif pnl is not None and pnl <= cfg.get("portfolio", {}).get("drawdown_flag_pct", -0.25) and conv >= 6:
             # سهم قوي هبط = فرصة شراء، مو بيع (لا تبيع الجوهرة بالغلط)
             verdict, why = "🔵 فرصة تجميع (لا تبيع)", f"هبط {pnl:+.0%} لكن الأساسيات قوية (قناعة {conv}/10)"
-        elif lc in ("Fallen Angel", "Falling Conviction") or conv < 5:
+        elif conv < 5 or (lc == "Falling Conviction") or (lc == "Fallen Angel" and (r.get("fundamental_score") or 0) < 45):
+            # don't say 'sell' on a Fallen Angel that still has strong fundamentals (panic-sell guard)
             verdict, why = "🔴 بيع", f"قناعة ضعيفة/تنزل ({conv}/10){' · '+lc if lc else ''}"
         else:
             verdict, why = "⚪ احتفظ", f"قناعة {conv}/10، أداء مستقر"
