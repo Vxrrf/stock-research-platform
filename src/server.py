@@ -56,10 +56,10 @@ class Handler(BaseHTTPRequestHandler):
     def _run(self, mode):
         """Run the pipeline live, regenerate dashboard, return summary."""
         args = [sys.executable, os.path.join("src", "main.py")]
-        if mode == "watchlist":
-            # fast LIVE refresh: force fresh prices + scores + holdings + macro news,
-            # skip slow per-ticker trackers so the button returns in ~1-2 min.
-            args += ["--watchlist", "--no-trackers", "--live"]
+        if mode == "smart":
+            # ONE-BUTTON update: full market scan + force-refresh your watchlist/holdings live.
+            # First run of the day builds the cache (slower); after that it's fast.
+            args += ["--smart"]
         try:
             r = subprocess.run(args, cwd=ROOT, capture_output=True, text=True, timeout=900)
             tail = "\n".join((r.stdout or "").strip().splitlines()[-12:])
@@ -78,10 +78,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._file(os.path.join(OUT, "dashboard.html"))
         if p in ("/planner", "/planner.html"):
             return self._file(os.path.join(OUT, "planner.html"))
-        if p == "/update":
-            return self._run("watchlist")
-        if p == "/update-full":
-            return self._run("full")
+        if p in ("/update", "/update-full"):
+            return self._run("smart")
         # serve any other output file (csv/report/etc.)
         return self._file(os.path.join(OUT, os.path.normpath(p.lstrip("/"))))
 

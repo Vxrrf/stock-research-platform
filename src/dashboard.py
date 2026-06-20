@@ -471,12 +471,12 @@ function g(k){var d=GL[k];if(!d)return;
 function gc(){document.getElementById('gm').style.display='none';}
 document.addEventListener('click',function(e){if(e.target.id==='gm')gc();});
 document.addEventListener('keydown',function(e){if(e.key==='Escape')gc();});
-function updateAll(b,full){
+function updateAll(b){
   if(location.protocol==='file:'){
     document.getElementById('updmsg').innerHTML='⚠️ عشان الزر يشتغل افتح الداشبورد عبر الخادم: شغّل <b>python src/server.py</b> في التيرمنال.';return;}
-  var o=b.innerText;b.disabled=true;b.innerText=full?'⏳ يفحص السوق... (~10د)':'⏳ يحدّث... (~دقيقة)';
-  document.getElementById('updmsg').innerText=full?'جاري فحص السوق كامل + الاكتشافات...':'جاري سحب آخر الأسعار وإعادة التقييم (أضف/احتفظ/راجع)...';
-  fetch(full?'/update-full':'/update').then(function(r){return r.json();}).then(function(d){
+  var o=b.innerText;b.disabled=true;b.innerText='⏳ يحدّث الكل...';
+  document.getElementById('updmsg').innerText='يحدّث أسهمك live + يفحص السوق. أول مرة باليوم تاخذ دقائق، بعدها أسرع...';
+  fetch('/update').then(function(r){return r.json();}).then(function(d){
     document.getElementById('updmsg').innerText=d.ok?'✅ تم — يعيد التحميل الآن':('⚠️ '+(d.summary||'خطأ'));
     if(d.ok){setTimeout(function(){location.reload();},900);}else{b.disabled=false;b.innerText=o;}
   }).catch(function(){document.getElementById('updmsg').innerText='⚠️ تعذّر الاتصال بالخادم — تأكد إنه شغّال';b.disabled=false;b.innerText=o;});
@@ -510,8 +510,7 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
     parts = [
         f"<h1>📊 {_h(name)}</h1>",
         f"<div class='sub'>{_h(subtitle)} · حُدّث {_h(meta.get('generated_at'))} (توقيت قطر)</div>",
-        "<div class='updrow'><button class='upd' onclick='updateAll(this,false)'>🔄 حدّث أسهمي (live)</button>"
-        "<button class='upd' style='background:#0e3a25' onclick='updateAll(this,true)'>🌍 افحص السوق كامل</button>"
+        "<div class='updrow'><button class='upd' onclick='updateAll(this)'>🔄 حدّث الكل</button>"
         "<a class='upd2' href='/planner'>💼 مخطّط المحفظة</a></div>"
         "<div id='updmsg' class='dim sm'></div>",
         "<div class='hint'>💡 اضغط على أي علامة <b style='color:#fff'>؟</b> جنب أي مصطلح يطلع لك شرح بسيط: وش يعني + فايدته + مثال.</div>",

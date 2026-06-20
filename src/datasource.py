@@ -530,11 +530,15 @@ def fetch_record(ticker, cfg=None, fmp=None, want_deep=True):
     return _finalize(rec, cfg)
 
 
-def fetch_many(tickers, cfg=None, want_deep=True, verbose=True, progress_every=100, fmp=None, force=False):
-    """Threaded fetch. Returns (records, cache_hits). force=True re-fetches live (ignores cache reads)."""
+def fetch_many(tickers, cfg=None, want_deep=True, verbose=True, progress_every=100, fmp=None,
+               force=False, force_set=None):
+    """Threaded fetch. Returns (records, cache_hits).
+    force=True re-fetches everything live; force_set={tickers} re-fetches only those live
+    (e.g. your watchlist) while the rest of the universe is served from cache."""
     cfg = cfg or CFG
     fmp = fmp if fmp is not None else FMPClient(cfg)
-    cache = _load_cache(cfg)        # keep the full cache; force only re-fetches requested tickers
+    force_set = {t.upper() for t in (force_set or set())}
+    cache = _load_cache(cfg)        # keep the full cache; only forced tickers are re-fetched
     workers = max(1, int((cfg.get("data", {}) or {}).get("max_workers", 10)))
     tickers = [str(t).strip().upper() for t in tickers if str(t).strip()]
 
@@ -542,11 +546,11 @@ def fetch_many(tickers, cfg=None, want_deep=True, verbose=True, progress_every=1
     hits = 0
     todo = []
     for t in tickers:
-        if t in cache and not force:
+        if t in cache and not force and t not in force_set:
             out.append(cache[t])
             hits += 1
         else:
-            todo.append(t)        # force => re-fetch even if cached (live), rest of cache kept
+            todo.append(t)        # forced tickers re-fetched live; rest of cache kept
 
     if verbose:
         src = "FMP (primary)" if fmp.enabled else "yfinance (FMP key not set)"

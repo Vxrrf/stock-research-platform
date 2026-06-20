@@ -86,6 +86,8 @@ def main():
     ap.add_argument("--limit", type=int, default=0, help="cap universe size")
     ap.add_argument("--no-political", action="store_true", help="skip Congress-trades fetch")
     ap.add_argument("--live", action="store_true", help="force fresh fetch (ignore today's cache)")
+    ap.add_argument("--smart", action="store_true",
+                    help="one-button update: full scan + force-refresh YOUR watchlist/holdings live")
     ap.add_argument("--no-trackers", action="store_true", help="skip earnings/insider/news/political")
     args = ap.parse_args()
 
@@ -125,8 +127,18 @@ def main():
     fmp = datasource.FMPClient(cfg)
     print(f"FMP primary: {'ACTIVE' if fmp.enabled else 'inactive (no key) → yfinance fallback'}")
 
+    # what to refresh LIVE: everything (--live), or just your watchlist (--smart)
+    if args.live:
+        force_set = set(tickers)
+    elif args.smart:
+        force_set = set(watchlist)
+        args.no_trackers = True        # keep the one-button update fast; macro news still computes
+        print(f"smart update: full scan + force-refresh {len(force_set)} of your names live")
+    else:
+        force_set = set()
+
     # ── 1) fetch (freshness + provenance handled inside) ──
-    records, hits = datasource.fetch_many(tickers, cfg, want_deep=True, verbose=True, fmp=fmp, force=args.live)
+    records, hits = datasource.fetch_many(tickers, cfg, want_deep=True, verbose=True, fmp=fmp, force_set=force_set)
     records = [r for r in records if r and r.get("price") is not None]
     if fmp.enabled and fmp.tier_note:
         print(f"ℹ️  {fmp.tier_note}")
