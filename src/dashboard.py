@@ -712,7 +712,7 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
         f"<h1>📊 {_h(name)}</h1>",
         f"<div class='sub'>{_h(subtitle)} · حُدّث {_h(meta.get('generated_at'))} (توقيت قطر)</div>",
         "<div class='updrow'><button class='upd' onclick='updateAll(this)'>🔄 حدّث الكل</button>"
-        "<a class='upd2' href='/planner'>💼 مخطّط المحفظة</a></div>"
+        "<a class='upd2' href='planner.html'>💼 مخطّط المحفظة</a></div>"
         "<div id='updmsg' class='dim sm'></div>",
         _mode_toggle(meta),
         "<div class='hint'>💡 اضغط على أي علامة <b style='color:#fff'>؟</b> جنب أي مصطلح يطلع لك شرح بسيط: وش يعني + فايدته + مثال. واستخدم الشريط فوق للتنقّل السريع.</div>",
