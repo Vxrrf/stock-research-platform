@@ -178,6 +178,10 @@ GLOSSARY = {
                  "w": "شركة أرقامها تتبع سعر سلعة (ذهب، نفط، ذاكرة) — تطير وقت ارتفاع السعر وتنهار وقت نزوله. مو نمو دائم.",
                  "b": "تعرف إنها تحوّط أو فرصة مؤقتة، مو مضاعِف ثروة طويل المدى — فما نرتّبها فوق القادة الحقيقيين.",
                  "e": "AEM (ذهب): +66% نمو بسبب الحرب، يختفي لما يهدأ الذهب. تحوّط ممتاز، لكنه ليس AVGO."},
+    "signals": {"t": "إشارات المؤثرين",
+                "w": "أسهم ذكرها مستثمرون تتابعهم (joe.investss وغيره). كلود يقرا منشوراتهم لما تطلب، ويطلّع الأسهم.",
+                "b": "تستفيد من أفكارهم — بس بانضباط: كل سهم يُفحص على منصّتك قبل ما يصير قرار.",
+                "e": "مؤثر ذكر سهم → نشوف قناعتنا فيه وحلاله قبل أي شي. إشارة ضعيفة، مو توصية."},
     "rating": {"t": "تقييم المحللين",
                "w": "خلاصة رأي محللي وول ستريت: شراء قوي / شراء / محايد / ضعيف / بيع، مع المتوسط (من 5) وعدد المحللين.",
                "b": "تشوف بسرعة هل الخبراء متحمّسين للسهم — كل المنصّة تعرض كل التقييمات، مو بس «شراء قوي».",
@@ -292,7 +296,7 @@ def _stock_rows(records):
             f"<td>{_rating_cell(r)}</td>"
             f"<td class='r'>{_pctc(r.get('analyst_upside_percent'))}</td>"
             f"<td class='r'>{_pctc(r.get('rev_growth'))}</td>"
-            f"<td class='dim sm'>{_h(HOLD_AR.get(r.get('suggested_holding_period'), '—'))}</td>"
+            f"<td class='dim sm n'>{('~'+str(r.get('suggested_hold_months'))+' شهر') if r.get('suggested_hold_months') else '—'}</td>"
             f"<td>{_chip(HALAL_AR.get(hal, hal), _HALAL_CLASS.get(hal,''))}</td>"
             f"<td>{_chip(FRESH_AR.get(fr, fr), _FRESH_CLASS.get(fr,''))}"
             f"<div class='dim sm'>{_h(CONF_AR.get(r.get('confidence'), r.get('confidence')))}</div></td>"
@@ -396,6 +400,24 @@ def _news(rows):
             "للأخبار الحيّة العميقة اطلب من كلود «حدّث الأخبار».</div>"
             "<div class='tablewrap'><table>"
             "<thead><tr><th>الحدث</th><th>التاريخ</th><th>الأثر/10</th><th>الاتجاه</th></tr></thead>"
+            f"<tbody>{body}</tbody></table></div></section>")
+
+
+def _signals_section(rows):
+    head = (f"<section id='s-signals'><h2>📡 إشارات المؤثرين {_i('signals')} "
+            f"<span class='count n'>{len(rows)}</span></h2>"
+            "<div class='dim sub2'>أسهم ذكرها مؤثرون تتابعهم — <b>إشارة ضعيفة للمراجعة فقط</b>، وكل سهم مفحوص على منصّتك قبل أي قرار. "
+            "اطلب من كلود «شوف المؤثرين» يجيب آخر منشوراتهم.</div>")
+    if not rows:
+        return head + "<p class='dim'>لا توجد إشارات بعد — قول لكلود «شوف المؤثرين» يفحص حساباتهم.</p></section>"
+    body = ""
+    for r in rows[:30]:
+        body += (f"<tr><td><b class='n'>{_h(r.get('ticker'))}</b></td>"
+                 f"<td class='dim'>{_h(r.get('account'))}<div class='dim sm n'>{_h(r.get('date'))}</div></td>"
+                 f"<td>{_h(r.get('sentiment'))}</td>"
+                 f"<td><b>{_h(r.get('platform_fit'))}</b><div class='dim sm'>{_h((r.get('note') or '')[:60])}</div></td></tr>")
+    return (head + "<div class='tablewrap'><table><thead><tr><th>السهم</th><th>المصدر</th><th>الرأي</th>"
+            "<th>هل يتوافق مع منصّتك؟</th></tr></thead>"
             f"<tbody>{body}</tbody></table></div></section>")
 
 
@@ -581,6 +603,7 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
            "<a href='#s-halal'>⚠️ تأكّد الحلال</a>"
            "<a href='#s-watch'>⭐ قائمتي</a>"
            "<a href='#s-top'>🏆 أعلى 20</a>"
+           "<a href='#s-signals'>📡 إشارات</a>"
            "<a href='#s-port'>📊 المحفظة</a>"
            "</nav>")
 
@@ -609,6 +632,7 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
         f"<section id='s-top'><h2>🏆 أعلى {top_n} سهم {_i('top20')}</h2>"
         "<div class='dim sub2'>مرتّبة: الأفضل من كل النواحي أولاً (قناعة + صعود + مخاطرة منخفضة + محرّكات + بيانات حديثة).</div>"
         f"<div class='tablewrap'><table>{_thead()}<tbody>{_stock_rows(ranked[:top_n])}</tbody></table></div></section>",
+        _signals_section(meta.get("signals_rows") or []),
         _exposure(visible),
         f"<span id='s-port'></span>",
         _portfolio(portfolio_rows),

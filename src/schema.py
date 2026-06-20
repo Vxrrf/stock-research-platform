@@ -152,7 +152,8 @@ def blank_record(ticker):
         "base_case_price": None,
         "bull_case_price": None,
         "suggested_holding_period": None,
-        "suggested_hold_label": None,       # human: ~6 شهور / 6–18 شهر / +18 شهر
+        "suggested_hold_months": None,      # SPECIFIC target horizon in months
+        "suggested_hold_label": None,       # human label
         "exit_conditions": [],
         # investability gates (gates.py)
         "investable": True,

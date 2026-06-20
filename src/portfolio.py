@@ -85,6 +85,7 @@ def _read_holdings():
                         "ticker": (row.get("ticker") or "").upper().strip(),
                         "buy_price": float(row.get("buy_price") or 0) or None,
                         "weight": float(row.get("weight") or 0) or None,
+                        "buy_date": (row.get("buy_date") or "").strip() or None,
                     })
                 except Exception:
                     continue
@@ -122,10 +123,25 @@ def evaluate_holdings(records, cfg, deltas=None):
             verdict, why = "🔴 بيع", f"قناعة ضعيفة/تنزل ({conv}/10){' · '+lc if lc else ''}"
         else:
             verdict, why = "⚪ احتفظ", f"قناعة {conv}/10، أداء مستقر"
+        # specific holding-period COUNTDOWN: if we know buy_date, show months remaining
+        hold_label = r.get("suggested_hold_label")
+        target = r.get("suggested_hold_months")
+        if h.get("buy_date") and target:
+            from datetime import datetime
+            try:
+                bd = datetime.strptime(str(h["buy_date"])[:10], "%Y-%m-%d")
+                held_m = max(0, round((datetime.now() - bd).days / 30.4))
+                remaining = max(0, target - held_m)
+                if remaining <= 0:
+                    hold_label = f"وصل الهدف (~{target} شهر) — راجع الأطروحة"
+                else:
+                    hold_label = f"يتبقّى ~{remaining} شهر (مرّ {held_m} من ~{target})"
+            except Exception:
+                pass
         rows.append({"ticker": r["ticker"], "name": r.get("name"), "conviction": conv,
                      "rank": r.get("rank_score"), "pnl": pnl, "halal": hal,
                      "lifecycle": lc, "verdict": verdict, "why": why,
-                     "hold_label": r.get("suggested_hold_label"),
+                     "hold_label": hold_label,
                      "days_until_earnings": r.get("days_until_earnings")})
     # best overall first (by holistic rank), unknowns last
     rows.sort(key=lambda x: (x["rank"] is None, -(x["rank"] or 0)))

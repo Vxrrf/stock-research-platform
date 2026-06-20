@@ -38,6 +38,7 @@ import earnings as earnings_mod
 import insider as insider_mod
 import news as news_mod
 import political as political_mod
+import signals as signals_mod
 import watchlist_memory as memory_mod
 import actions
 import gates as gates_mod
@@ -350,6 +351,7 @@ def main():
         "fresh_counts": fc, "hi": cc.get("HIGH", 0), "med": cc.get("MEDIUM", 0), "low": cc.get("LOW", 0),
         "market_risk_today": market_risk, "examined": len(records), "universe": len(tickers),
         "holdings_eval": holdings_eval,
+        "signals_rows": signals_mod.rows(rby, cfg)[1],
     }
     html_doc = dashboard.build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg)
     with open(os.path.join(out_dir, "dashboard.html"), "w", encoding="utf-8") as f:

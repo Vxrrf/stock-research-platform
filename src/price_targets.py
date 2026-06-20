@@ -93,7 +93,28 @@ def exit_conditions(rec, cfg):
     return out
 
 
-_HOLD_LABEL = {"short": "~6 شهور أو أقل", "medium": "6–18 شهر", "long": "+18 شهر (سنة ونصف فأكثر)"}
+def hold_months(rec, cfg):
+    """A SPECIFIC target horizon in months (not a vague bucket — count it down over time)."""
+    if rec.get("cyclical"):
+        return 6                                  # cyclical = a trade, shorter leash
+    hp = rec.get("suggested_holding_period")       # short/medium/long
+    base = {"short": 4, "medium": 12, "long": 24}.get(hp, 9)
+    conv = rec.get("conviction_score") or 6
+    if hp == "long" and conv >= 9:
+        base = 30                                  # highest-conviction compounders → longer
+    if hp == "short" and conv <= 4:
+        base = 3
+    return base
+
+
+def _hold_label(months):
+    if months is None:
+        return "—"
+    if months < 6:
+        return f"~{months} شهر (قصير — مضاربة)"
+    if months < 18:
+        return f"~{months} شهر (متوسط)"
+    return f"~{months} شهر (طويل — مُركِّب)"
 
 
 def apply(rec, cfg):
@@ -108,6 +129,8 @@ def apply(rec, cfg):
                                if rec.get("fair_value_estimate") else None)
     hp = holding_period(rec, cfg)
     rec["suggested_holding_period"] = hp
-    rec["suggested_hold_label"] = _HOLD_LABEL.get(hp)
+    months = hold_months(rec, cfg)
+    rec["suggested_hold_months"] = months
+    rec["suggested_hold_label"] = _hold_label(months)
     rec["exit_conditions"] = exit_conditions(rec, cfg)
     return rec
