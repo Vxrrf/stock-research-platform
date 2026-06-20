@@ -35,3 +35,10 @@ signals:
   # almazer88 (المازر — المرجع)
   - {account: almazer88, date: "2026-06-20", ticker: AMD, sentiment: bullish, note: "ذكره المازر", source: "X/IG"}
   - {account: almazer88, date: "2026-06-20", ticker: SPUS, sentiment: bullish, note: "ETF حلال (SP Funds)", source: "X/IG"}
+  # ترند الإعلام/المؤثرين يونيو 2026 — مفلتر على منصّتنا (نجحوا قناعة ≥7)
+  - {account: trending-media, date: "2026-06-20", ticker: STRL, sentiment: bullish, note: "بنية AI — قناعة 7.3 مُسرِّع (نجح فلترنا)", source: "web/media scan"}
+  - {account: trending-media, date: "2026-06-20", ticker: PATH, sentiment: bullish, note: "UiPath AI — قناعة 7.0 مُركِّب", source: "web/media scan"}
+  - {account: trending-media, date: "2026-06-20", ticker: SATL, sentiment: bullish, note: "Satellogic فضاء — قناعة 7.2", source: "web/media scan"}
+  # ذُكرت بالترند لكن منصّتنا رفضتها (للشفافية):
+  - {account: trending-media, date: "2026-06-20", ticker: FIVN, sentiment: bearish, note: "رفضها فلترنا: حلال fail", source: "web/media scan"}
+  - {account: trending-media, date: "2026-06-20", ticker: BTBT, sentiment: bearish, note: "رفضها فلترنا: حلال fail (بيتكوين)", source: "web/media scan"}
