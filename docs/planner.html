@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>مخطّط محفظتي</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0b0f17;color:#e7ecf3;direction:rtl;
+font-family:-apple-system,'SF Arabic','Segoe UI',Tahoma,Arial,sans-serif;line-height:1.6}
+.wrap{max-width:760px;margin:0 auto;padding:22px 16px 90px}
+h1{font-size:23px;margin:0 0 2px}.sub{color:#8a97a8;font-size:13px;margin-bottom:16px}
+.card{background:#0f141d;border:1px solid #1b2330;border-radius:16px;padding:18px;margin:14px 0}
+h2{font-size:17px;margin:0 0 12px}h3{font-size:13px;color:#aeb9c9;margin:0 0 8px}
+label{display:block;color:#9fb0c6;font-size:13px;margin:10px 0 5px}
+input[type=number]{width:100%;background:#0b1119;border:1px solid #28384b;color:#fff;border-radius:12px;
+padding:14px 16px;font-size:20px;text-align:center;direction:ltr;font-weight:700}
+.btn{display:block;width:100%;background:#1f6feb;color:#fff;border:0;border-radius:12px;padding:14px;
+font-size:15px;font-weight:700;cursor:pointer;margin-top:12px}.btn:hover{background:#3a82ff}
+.btn2{background:#13351f;color:#5ee7a0;border:1px solid #1d6340}
+.bigval{font-size:30px;font-weight:800;text-align:center;direction:ltr;margin:6px 0}
+.row{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-top:1px solid #18202c}
+.row:first-child{border-top:0}
+.tk{font-weight:800;direction:ltr;display:inline-block}.nm{color:#74808f;font-size:11px}
+.amt{font-weight:800;direction:ltr;color:#5ee7a0;font-size:16px}
+.cat{display:inline-block;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:700;margin-inline-start:6px}
+.c-lead{background:#0e2a3a;color:#6cc4ff}.c-grow{background:#0e3a25;color:#5ee7a0}.c-asym{background:#241a3a;color:#c4a0ff}
+.c-etf{background:#13202e;color:#7fd0ff}.c-gold{background:#3a3413;color:#e8cf5a}.c-cash{background:#222934;color:#9fb0c6}
+.conv{font-size:11px;color:#8fa3bd;direction:ltr}
+.hal{font-size:10px;border-radius:10px;padding:1px 6px}.h-ok{background:#0e3a25;color:#5ee7a0}.h-rev{background:#3a2a12;color:#f0b46b}.h-warn{background:#3a1820;color:#ff8a9a}
+.alloc{display:flex;align-items:center;gap:10px;margin:8px 0}.alloc .lbl{width:130px;font-size:13px}
+.alloc .bar{flex:1;background:#161d28;height:9px;border-radius:6px;overflow:hidden}.alloc .bar i{display:block;height:100%}
+.alloc .pc{width:46px;text-align:left;direction:ltr;font-weight:700;font-size:13px}
+.note{background:#10161f;border:1px solid #1b2330;border-radius:12px;padding:12px;color:#9fb0c6;font-size:12.5px;margin-top:10px}
+.hint{background:#10221a;border:1px solid #1d6340;color:#9ce8c4;border-radius:12px;padding:10px 14px;font-size:13px;margin:10px 0}
+.kpi{display:flex;gap:10px;flex-wrap:wrap}.kpi>div{flex:1;background:#0b1119;border:1px solid #1b2330;border-radius:12px;padding:10px;text-align:center;min-width:90px}
+.kpi b{display:block;font-size:18px;direction:ltr}.kpi span{font-size:11px;color:#8a97a8}
+small{color:#74808f}
+</style></head>
+<body><div class="wrap">
+<h1>💼 مخطّط محفظتي</h1>
+<div class="sub">حط مبلغك (راتبك مثلاً) → نقسّمه لك بالفئات ونقولك حط كم في كل سهم. بحث، مو توصية.</div>
+
+<div class="card">
+  <label>كم المبلغ اللي تبي توزّعه الحين؟ ($)</label>
+  <input type="number" id="amt" placeholder="مثال: 1000" oninput="calc()">
+  <div class="hint">⚙️ التوزيع مهيّأ لعمرك (25) وهدفك: نمو + فرص غير متماثلة + حماية. الجو الحالي (حرب/نفط) → كاش وذهب أعلى. تقدر تعدّل النسب تحت.</div>
+  <button class="btn btn2" onclick="addContribution()">➕ سجّلت إني حطّيت هذا المبلغ فعلاً</button>
+  <div class="kpi" style="margin-top:12px">
+    <div><b id="totalInvested">$0</b><span>إجمالي اللي حطّيته</span></div>
+    <div><b id="timesAdded">0</b><span>عدد المرّات</span></div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>📊 التوزيع حسب الفئة</h2>
+  <div id="allocBars"></div>
+  <div class="note" id="allocNote"></div>
+</div>
+
+<div class="card">
+  <h2>🎯 حط كم في كل سهم <small>(مرتّب: الأفضل أولاً)</small></h2>
+  <div id="breakdown"><div class="note">اكتب المبلغ فوق يطلع لك التوزيع.</div></div>
+</div>
+
+<div class="card">
+  <h2>⚖️ عدّل النسب (لو تبي)</h2>
+  <div id="sliders"></div>
+  <div class="note">المجموع لازم 100%. لو زاد/نقص نظبّطه تلقائياً عند الحساب.</div>
+</div>
+
+<div class="note">هذا أداة بحث وتخطيط — وليست توصية أو ضمان. الحلال تقريبي: أكّد كل سهم على Zoya/Musaffa (خصوصاً TTWO وSpaceX). القرار والمسؤولية عليك.</div>
+</div>
+
+<script>
+// فئات التوزيع (قابلة للتعديل)
+var ALLOC = {leaders:0.30, growth:0.15, asymmetric:0.12, etf:0.13, gold:0.10, cash:0.20};
+var CATNAME = {leaders:'قادة كبار (جودة)', growth:'أسهم نمو', asymmetric:'فرص غير متماثلة (x مرتفع)', etf:'ETF تحوّط', gold:'ذهب (حماية)', cash:'كاش (ذخيرة)'};
+var CATCLS = {leaders:'c-lead', growth:'c-grow', asymmetric:'c-asym', etf:'c-etf', gold:'c-gold', cash:'c-cash'};
+var CATCOL = {leaders:'#6cc4ff', growth:'#5ee7a0', asymmetric:'#c4a0ff', etf:'#7fd0ff', gold:'#e8cf5a', cash:'#9fb0c6'};
+
+// الأسهم: مرتّبة بالقناعة. held=تملكها. حلال: ok/rev/warn
+var PICKS = [
+ {t:'NVDA', n:'Nvidia', cat:'leaders', conv:9.6, hal:'rev', held:true},
+ {t:'AVGO', n:'Broadcom', cat:'leaders', conv:9.0, hal:'rev', held:true},
+ {t:'NOW',  n:'ServiceNow', cat:'leaders', conv:7.6, hal:'rev', held:true},
+ {t:'MU',   n:'Micron', cat:'growth', conv:8.0, hal:'rev', held:true},
+ {t:'APPF', n:'AppFolio', cat:'growth', conv:8.8, hal:'rev', held:false},
+ {t:'MNDY', n:'Monday.com', cat:'growth', conv:7.1, hal:'rev', held:false},
+ {t:'MRVL', n:'Marvell', cat:'growth', conv:5.8, hal:'rev', held:true},
+ {t:'CELH', n:'Celsius', cat:'asymmetric', conv:8.1, hal:'rev', held:false},
+ {t:'DLO',  n:'DLocal', cat:'asymmetric', conv:7.8, hal:'rev', held:false},
+ {t:'TEM',  n:'Tempus AI', cat:'asymmetric', conv:5.8, hal:'rev', held:false},
+ {t:'RKLB', n:'Rocket Lab', cat:'asymmetric', conv:6.3, hal:'warn', held:true, note:'دفاع — راجع'},
+ {t:'HLAL', n:'Wahed Shariah ETF', cat:'etf', conv:null, hal:'ok', held:true},
+ {t:'AEM',  n:'Agnico Eagle (ذهب)', cat:'gold', conv:9.3, hal:'rev', held:true},
+ {t:'CASH', n:'كاش / ذخيرة للهبوط', cat:'cash', conv:null, hal:'ok', held:false}
+];
+// ملاحظة: TTWO وSpaceX مستبعدين من التوزيع التلقائي للمراجعة الشرعية — راجعهم يدوياً.
+
+function money(x){return '$'+Math.round(x).toLocaleString('en-US');}
+
+function renderAlloc(){
+  var h=''; var keys=Object.keys(ALLOC);
+  for(var i=0;i<keys.length;i++){var k=keys[i];var p=Math.round(ALLOC[k]*100);
+    h+='<div class="alloc"><span class="lbl">'+CATNAME[k]+'</span><div class="bar"><i style="width:'+p+'%;background:'+CATCOL[k]+'"></i></div><span class="pc">'+p+'%</span></div>';}
+  document.getElementById('allocBars').innerHTML=h;
+}
+function renderSliders(){
+  var h=''; var keys=Object.keys(ALLOC);
+  for(var i=0;i<keys.length;i++){var k=keys[i];
+    h+='<div class="alloc"><span class="lbl">'+CATNAME[k]+'</span><input type="range" min="0" max="60" value="'+Math.round(ALLOC[k]*100)+'" style="flex:1" oninput="setAlloc(\''+k+'\',this.value)"><span class="pc" id="pc_'+k+'">'+Math.round(ALLOC[k]*100)+'%</span></div>';}
+  document.getElementById('sliders').innerHTML=h;
+}
+function setAlloc(k,v){ALLOC[k]=v/100;document.getElementById('pc_'+k).innerText=v+'%';renderAlloc();calc();}
+
+function calc(){
+  var amt=parseFloat(document.getElementById('amt').value)||0;
+  if(amt<=0){document.getElementById('breakdown').innerHTML='<div class="note">اكتب المبلغ فوق يطلع لك التوزيع.</div>';document.getElementById('allocNote').innerText='';return;}
+  // طبّع النسب لـ100%
+  var sum=0,keys=Object.keys(ALLOC);for(var i=0;i<keys.length;i++)sum+=ALLOC[keys[i]];
+  var rows=[]; var catTotals={};
+  for(var i=0;i<keys.length;i++){var k=keys[i];var catAmt=amt*(ALLOC[k]/sum);catTotals[k]=catAmt;
+    var inCat=PICKS.filter(function(p){return p.cat===k;});
+    if(inCat.length===0)continue;
+    if(k==='asymmetric'){ // حصص صغيرة متساوية = رهان موزّع
+      inCat.forEach(function(p){p._amt=catAmt/inCat.length;rows.push(p);});
+    } else if(k==='leaders'||k==='growth'){ // ترجيح بالقناعة
+      var cs=inCat.reduce(function(a,p){return a+(p.conv||5);},0);
+      inCat.forEach(function(p){p._amt=catAmt*((p.conv||5)/cs);rows.push(p);});
+    } else { // etf/gold/cash: حيازة واحدة
+      inCat.forEach(function(p){p._amt=catAmt/inCat.length;rows.push(p);});
+    }
+  }
+  // رتّب: قادة>نمو>غير متماثل>etf>ذهب>كاش، وداخل كل فئة بالقناعة
+  var order={leaders:0,growth:1,asymmetric:2,etf:3,gold:4,cash:5};
+  rows.sort(function(a,b){return (order[a.cat]-order[b.cat])||((b.conv||0)-(a.conv||0));});
+  var h='';
+  rows.forEach(function(p){
+    var halc=p.hal==='ok'?'h-ok':(p.hal==='warn'?'h-warn':'h-rev');
+    var halt=p.hal==='ok'?'حلال':(p.hal==='warn'?'راجع⚠️':'أكّد');
+    var conv=p.conv?('<span class="conv">قناعة '+p.conv+'</span>'):'';
+    var heldb=p.held?' <small>(تملكه)</small>':'';
+    h+='<div class="row"><div><span class="tk">'+p.t+'</span><span class="cat '+CATCLS[p.cat]+'">'+CATNAME[p.cat]+'</span> '+conv+'<br><span class="nm">'+p.n+heldb+'</span> <span class="hal '+halc+'">'+halt+'</span>'+(p.note?' <small>'+p.note+'</small>':'')+'</div><div class="amt">'+money(p._amt)+'</div></div>';
+  });
+  document.getElementById('breakdown').innerHTML=h;
+  var note='من أصل '+money(amt)+': ';
+  note+=keys.map(function(k){return CATNAME[k]+' '+money(catTotals[k]);}).join(' · ');
+  document.getElementById('allocNote').innerText=note;
+}
+
+// تتبّع المساهمات (يحفظ محلياً على جهازك)
+function loadContrib(){
+  var t=parseFloat(localStorage.getItem('inv_total')||'0');
+  var n=parseInt(localStorage.getItem('inv_times')||'0');
+  document.getElementById('totalInvested').innerText=money(t);
+  document.getElementById('timesAdded').innerText=n;
+}
+function addContribution(){
+  var amt=parseFloat(document.getElementById('amt').value)||0;
+  if(amt<=0){alert('اكتب المبلغ أول');return;}
+  var t=parseFloat(localStorage.getItem('inv_total')||'0')+amt;
+  var n=parseInt(localStorage.getItem('inv_times')||'0')+1;
+  localStorage.setItem('inv_total',t);localStorage.setItem('inv_times',n);
+  loadContrib();
+  alert('تم! سجّلت '+money(amt)+'. إجمالي ما حطّيته: '+money(t));
+}
+renderAlloc();renderSliders();loadContrib();
+</script>
+</body></html>

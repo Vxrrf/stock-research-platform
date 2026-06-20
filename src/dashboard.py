@@ -153,7 +153,30 @@ GLOSSARY = {
                    "w": "حالة السوق العامة: منخفضة / متوسطة / عالية / قصوى — من الأحداث الاقتصادية.",
                    "b": "تعرف الجو العام قبل أي قرار.",
                    "e": "«قصوى» = يوم متقلّب، خفّف المخاطرة."},
+    "conviction": {"t": "درجة القناعة (0–10)",
+                   "w": "رقم واحد يقول قد ايش نثق بالشركة: جودة + نمو + محللين + تقييم + ميزانية + ملكية مؤسسية + ثبات الأرباح.",
+                   "b": "يجمع كل الإشارات المهمة في رقم سهل بدل ما تطالع عشر أعمدة.",
+                   "e": "9+ قناعة عالية جداً · 8+ مرشّح قوي · 6–8 ابحث أكثر · أقل من 6 راقب."},
+    "compounder": {"t": "مُركِّب طويل المدى 🏛️",
+                   "w": "شركة جودة عالية تنمو بثبات لسنوات: CAGR إيرادات >15%، ROIC عالي، هوامش وميزانية قوية.",
+                   "b": "هذي الي تمسكها سنين وتتضاعف بهدوء — أساس الثروة.",
+                   "e": "شركة تنمو 20% سنوياً بأرباح وعوائد قوية تدوم = مُركِّب."},
+    "accelerator": {"t": "مُسرِّع (6–24 شهر) 🚀",
+                    "w": "شركة نموها يتسارع: مبيعاتها الأخيرة أسرع من معدّلها، محللون إيجابيون، وأرباح تفوق التوقعات.",
+                    "b": "فرص متوسطة المدى تُكتشف قبل الجميع — مو مضاربة يومية.",
+                    "e": "شركة كانت تنمو 20% صارت 35% = تسارع، غالباً السعر يلحق."},
+    "future_leader": {"t": "قائد المستقبل (صيد x3–x10) 🌱",
+                      "w": "شركة صغيرة/متوسطة ($1–40 مليار) نمو قوي + هوامش حقيقية + ثيم مستقبلي، لسه ما انفجرت. بانضباط: مو قصة بلا إيرادات ولا طايرة +200%.",
+                      "b": "هنا يجي الـ x5–x10 على سنوات — بحصة صغيرة لكل اسم عشان الخطر محدود.",
+                      "e": "مثل SanDisk قبل ما تنفجر — نصطادها بدري ونوزّع الرهان."},
+    "institutional": {"t": "الملكية المؤسسية",
+                      "w": "نسبة أسهم الشركة المملوكة لمؤسسات كبيرة (صناديق). مال حقيقي، مو ضجّة سوشال ميديا.",
+                      "b": "دخول المؤسسات إشارة أقوى وأصدق من حماس تويتر.",
+                      "e": "⚠️ نعرض النسبة الحالية فقط؛ «اتجاه التجميع» (زيادة/نقص) يحتاج FMP مدفوع."},
 }
+
+ENGINE_AR = {"compounder": "🏛️ مُركِّب", "accelerator": "🚀 مُسرِّع", "future_leader": "🌱 قائد قادم"}
+ENGINE_CLASS = {"compounder": "e-comp", "accelerator": "e-accel", "future_leader": "e-future"}
 
 
 def _i(key):
@@ -187,6 +210,23 @@ def _aibar(s):
             f"<b class='n'>{int(s)}</b></div>")
 
 
+def _convbar(s):
+    """شريط القناعة 0–10 — الرقم الرئيسي."""
+    if not isinstance(s, (int, float)):
+        return "<span class='dim'>—</span>"
+    w = max(0, min(10, s)) * 10
+    col = "#5ee7a0" if s >= 8 else ("#6cc4ff" if s >= 6 else "#8b97a8")
+    return (f"<div class='sbwrap'><div class='sb sb-lg'><i style='width:{w:.0f}%;background:{col}'></i></div>"
+            f"<b class='n' style='font-size:13.5px'>{s:.1f}</b></div>")
+
+
+def _engine_badges(rec):
+    eng = rec.get("engines") or []
+    if not eng:
+        return ""
+    return "".join(f"<span class='ebadge {ENGINE_CLASS.get(e,'')}'>{ENGINE_AR.get(e,e)}</span>" for e in eng)
+
+
 def _pctc(x):
     """نسبة ملوّنة: أخضر موجب، أحمر سالب."""
     if not isinstance(x, (int, float)):
@@ -206,8 +246,9 @@ def _stock_rows(records):
         out.append(
             "<tr>"
             f"<td class='dim'>{i}</td>"
-            f"<td><b class='n'>{_h(r.get('ticker'))}</b><div class='dim sm'>{_h((r.get('name') or '')[:22])}</div>{theme_chip}</td>"
+            f"<td><b class='n'>{_h(r.get('ticker'))}</b><div class='dim sm'>{_h((r.get('name') or '')[:22])}</div>{theme_chip}{_engine_badges(r)}</td>"
             f"<td>{_chip(ACTION_AR.get(act, act), _ACTION_CLASS.get(act,''))}</td>"
+            f"<td>{_convbar(r.get('conviction_score'))}</td>"
             f"<td>{_bar(r.get('total_score'))}</td>"
             f"<td>{_bar(r.get('fundamental_score'))}</td>"
             f"<td>{_bar(r.get('opportunity_score'))}</td>"
@@ -229,6 +270,7 @@ def _thead():
         "<thead><tr>"
         "<th>#</th><th>السهم</th>"
         f"<th>القرار {_i('action')}</th>"
+        f"<th>القناعة {_i('conviction')}</th>"
         f"<th>النقاط {_i('total')}</th>"
         f"<th>الأساس {_i('fund')}</th>"
         f"<th>الفرصة {_i('opp')}</th>"
@@ -373,6 +415,11 @@ tbody tr:hover{background:#0f141d}
 .sb i{position:absolute;top:0;bottom:0;right:0;border-radius:6px}
 .sbwrap b{font-size:12.5px;min-width:20px;text-align:left;color:#e7ecf3}
 .tchip{display:inline-block;margin-top:4px;background:#13202e;border:1px solid #24435e;color:#7fd0ff;border-radius:20px;padding:1px 8px;font-size:10.5px}
+.sb-lg{width:64px;height:10px}
+.ebadge{display:inline-block;margin:4px 0 0 4px;border-radius:20px;padding:1px 7px;font-size:10px;font-weight:700}
+.e-comp{background:#0e2a3a;color:#6cc4ff;border:1px solid #1d4a63}
+.e-accel{background:#241a3a;color:#c4a0ff;border:1px solid #4a2d6b}
+.e-future{background:#0e3a25;color:#5ee7a0;border:1px solid #1d6340}
 .metric{display:flex;align-items:baseline;gap:8px;margin:8px 0}.metric b{font-size:20px}.metric span{color:#8a97a8;font-size:12px}
 .note{background:#10161f;border:1px solid #1b2330;border-radius:12px;padding:14px 16px;color:#9fb0c6;font-size:13px;margin-top:18px}
 footer{color:#5c6675;font-size:12px;margin-top:40px;text-align:center}
@@ -434,6 +481,13 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
         f"<div class='sub'>{_h(subtitle)} · حُدّث {_h(meta.get('generated_at'))} (توقيت قطر)</div>",
         "<div class='hint'>💡 اضغط على أي علامة <b style='color:#fff'>؟</b> جنب أي مصطلح يطلع لك شرح بسيط: وش يعني + فايدته + مثال.</div>",
         banner,
+        "<div class='hint' style='background:#10221a;border-color:#1d6340;color:#9ce8c4'>🎯 محرّكات الصيد الثلاثة: <b>قادة المستقبل</b> (x3–x10 على سنوات) · <b>مُسرِّعون</b> (6–24 شهر) · <b>مُركِّبون</b> (جودة تدوم). سهم واحد ممكن يكون في أكثر من محرّك.</div>",
+        _section_table("🌱", "قادة المستقبل (صيد x3–x10)", "future_leader", buckets.get("future_leader", []),
+                       "أسهم صغيرة/متوسطة، نمو قوي + ثيم مستقبلي + هوامش حقيقية، ولسه ما انفجرت — هنا الفرص الكبيرة على سنوات، بحصص صغيرة موزّعة."),
+        _section_table("🚀", "مُسرِّعون (6–24 شهر)", "accelerator", buckets.get("accelerator", []),
+                       "نموها يتسارع والمحللون إيجابيون وأرباحها تفوق التوقعات — فرص متوسطة المدى."),
+        _section_table("🏛️", "مُركِّبون طويل المدى", "compounder", buckets.get("compounder", []),
+                       "جودة عالية + نمو يدوم سنوات + ميزانية قوية — أساس الثروة، تمسكها وتتضاعف بهدوء."),
         _section_table("✅", "مرشّحون أقوياء", "action", buckets.get("Candidate", []),
                        "حلال مبدئياً + أساسيات قوية + مخاطرة مقبولة."),
         _section_table("⚠️", "تأكّد من الحلال أولاً", "halal", buckets.get("Verify Halal First", []),

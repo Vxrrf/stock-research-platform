@@ -18,69 +18,55 @@ import csv
 from config_loader import ROOT
 
 
+def _bucket(records, engine, cap, cfg):
+    """Members of an engine, halal not-fail, sorted by conviction."""
+    out = [r for r in records
+           if engine in (r.get("engines") or []) and r.get("halal_status") != "fail"]
+    out.sort(key=lambda r: (r.get("conviction_score") or 0, r.get("total_score") or 0), reverse=True)
+    return out[:cap]
+
+
 def build_model(candidates, cfg):
-    """Returns (rows for portfolio_model.csv, growth_holdings list)."""
+    """Engine-based allocation. Returns (rows for portfolio_model.csv, picks dict)."""
     p = cfg.get("portfolio", {}) or {}
     alloc = p.get("allocation", {}) or {}
     etfs = p.get("etf_suggestions", {}) or {}
-    max_pos = p.get("max_growth_positions", 12)
 
-    # growth bucket = top halal-pass Candidates/Research-More by total_score
-    elig = [r for r in candidates
-            if r.get("halal_status") == "pass"
-            and r.get("action") in ("Candidate", "Research More")]
-    elig.sort(key=lambda r: (r.get("total_score") or 0), reverse=True)
-    growth = elig[:max_pos]
-    # honesty fallback: with no FMP key, halal can't reach 'pass' (interest income
-    # unverifiable), so nothing is a Candidate yet. Surface the strongest
-    # halal-not-fail names as PENDING verification rather than show an empty book.
-    pending = False
-    if not growth:
-        pending = True
-        cand = [r for r in candidates
-                if r.get("halal_status") != "fail"
-                and (r.get("fundamental_score") or 0) >= 50]
-        cand.sort(key=lambda r: (r.get("total_score") or 0), reverse=True)
-        growth = cand[:max_pos]
+    comp = _bucket(candidates, "compounder", p.get("max_compounders", 8), cfg)
+    accel = _bucket(candidates, "accelerator", p.get("max_accelerators", 8), cfg)
+    fut = _bucket(candidates, "future_leader", p.get("max_future_leaders", 10), cfg)
 
     rows = []
-    bucket_labels = {
-        "growth_stocks": "Growth stocks",
-        "broad_market_etf": "Broad-market ETF",
-        "semi_ai_etf": "Semiconductor / AI ETF",
-        "healthcare_defensive_etf": "Healthcare / defensive ETF",
-        "gold_etf": "Gold ETF",
-        "cash": "Cash",
-    }
-    for key, label in bucket_labels.items():
+    specs = [
+        ("compounders", "🏛️ مُركِّبون (نواة)", comp,
+         f"جودة تدوم — موزّعة بالقناعة، كل اسم ≤ {p.get('max_single_compounder_pct', 0.12):.0%}"),
+        ("accelerators", "🚀 مُسرِّعون (6–24ش)", accel, "نمو يتسارع — فرص متوسطة المدى"),
+        ("future_leaders", "🌱 قادة المستقبل", fut,
+         f"رهانات صغيرة موزّعة (x3–x10) — كل اسم ≤ {p.get('max_single_future_leader_pct', 0.03):.0%} عشان -80% يبقى محتمَل"),
+        ("broad_market_etf", "🛡️ ETF حلال/واسع", None, "تحوّط واسع متوافق شرعياً"),
+        ("gold_etf", "🥇 ذهب (حماية)", None, "حماية وقت الأزمات (الحرب/النفط الحين)"),
+        ("cash", "💵 كاش (ذخيرة)", None, "ذخيرة للتقلّب والشراء بالهبوط"),
+    ]
+    for key, label, bucket, note in specs:
         pct = alloc.get(key, 0.0)
-        if key == "growth_stocks":
-            holdings = ", ".join(r["ticker"] for r in growth) or "—"
-            if pending:
-                notes = (f"top {len(growth)} names by score — PENDING halal verification "
-                         "(add an FMP key or confirm on Zoya/Musaffa before buying)")
-            else:
-                notes = (f"top {len(growth)} halal-pass growth names by total score; "
-                         f"each ≤ {p.get('max_single_stock_pct', 0.15):.0%} of the book")
+        if bucket is not None:
+            holdings = ", ".join(r["ticker"] for r in bucket) or "—"
         elif key == "cash":
             holdings = "—"
-            notes = "dry powder for volatility / accumulation"
         else:
             holdings = ", ".join(etfs.get(key, [])) or "—"
-            notes = "diversifier / protection sleeve"
         rows.append({
             "bucket": label,
             "allocation_pct": f"{pct:.0%}",
             "suggested_holdings": holdings,
-            "notes": notes,
+            "notes": note,
         })
-    # sanity note if allocation doesn't sum to 1
     s = sum(alloc.values())
     if abs(s - 1.0) > 0.001:
-        rows.append({"bucket": "⚠️ check", "allocation_pct": f"{s:.0%}",
+        rows.append({"bucket": "⚠️ تحقّق", "allocation_pct": f"{s:.0%}",
                      "suggested_holdings": "—",
-                     "notes": "allocation does not sum to 100% — edit config.yaml"})
-    return rows, growth
+                     "notes": "المجموع لا يساوي 100% — عدّل config.yaml"})
+    return rows, {"compounders": comp, "accelerators": accel, "future_leaders": fut}
 
 
 def _read_holdings():

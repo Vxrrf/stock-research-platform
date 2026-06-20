@@ -198,21 +198,25 @@ halal:
 #  PORTFOLIO BUILDER  (spec §16 — 25y/o, high-risk, growth + protection)
 # ─────────────────────────────────────────────────────────────────────
 portfolio:
-  allocation:                      # must sum to 1.0
-    growth_stocks: 0.55
-    broad_market_etf: 0.20
-    semi_ai_etf: 0.10
-    healthcare_defensive_etf: 0.05
-    gold_etf: 0.05
-    cash: 0.05
+  # Engine-based allocation (asymmetry by design): big core of compounders,
+  # medium accelerators, a SMALL sleeve of many tiny future-leader bets.
+  allocation:                      # must sum to ~1.0 (editable)
+    compounders: 0.30              # core quality — hold for years
+    accelerators: 0.16             # 6–24 month inflections
+    future_leaders: 0.12           # small, DISTRIBUTED asymmetric bets (x3–x10 hunt)
+    broad_market_etf: 0.13         # halal/broad hedge
+    gold_etf: 0.12                 # crisis protection (higher now: war/oil shock)
+    cash: 0.17                     # dry powder for volatility
+  max_single_compounder_pct: 0.12  # cap any one core name
+  max_single_future_leader_pct: 0.03  # each future leader stays tiny (survive an -80%)
   max_single_stock_pct: 0.15       # rebalance flag (spec §17)
   drawdown_flag_pct: -0.25         # position down 25% => review (spec §17)
-  max_growth_positions: 12
+  max_compounders: 8
+  max_accelerators: 8
+  max_future_leaders: 10
   etf_suggestions:
-    broad_market_etf: [VOO, VTI]
-    semi_ai_etf: [SMH, SOXX]
-    healthcare_defensive_etf: [XLV, VHT]
-    gold_etf: [GLD, IAU]
+    broad_market_etf: [HLAL, SPUS, VOO]   # HLAL/SPUS = halal broad ETFs
+    gold_etf: [AEM, GLD, IAU]
 
 # ─────────────────────────────────────────────────────────────────────
 #  OUTPUT
@@ -228,6 +232,12 @@ output:
 #  STARTING WATCHLIST  (spec §21)  — your personal conviction list
 # ─────────────────────────────────────────────────────────────────────
 starting_watchlist:
+  # حيازاتك الفعلية (تظهر دايماً — حتى لو عملاقة، لأنك تملكها)
+  - NVDA
+  - AVGO
+  - AEM
+  - HLAL
+  # قائمتك + الطلبات المعلّقة
   - MRVL
   - AMD
   - MU

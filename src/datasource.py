@@ -315,6 +315,8 @@ def _yf_fill(rec, sym, want_deep=True):
     setif("div_yield", _num(info.get("dividendYield")))
     setif("week52_high", _num(info.get("fiftyTwoWeekHigh")))
     setif("week52_low", _num(info.get("fiftyTwoWeekLow")))
+    setif("institutional_ownership", _num(info.get("heldPercentInstitutions")))
+    setif("insider_ownership", _num(info.get("heldPercentInsiders")))
     if not rec.get("summary"):
         rec["summary"] = (info.get("longBusinessSummary") or "")[:600]
 

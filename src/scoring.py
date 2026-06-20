@@ -71,12 +71,8 @@ def _components(rec, cfg):
 
     fpe = rec.get("forward_pe")
     if fpe is not None and fpe > 0:
-        fair = th.get("forward_pe_fair_max", 35.0)
-        rich = th.get("forward_pe_rich", 55.0)
-        if fpe <= fair:
-            c["forward_pe"] = _c01(1.0 - fpe / (fair * 1.6))
-        else:
-            c["forward_pe"] = _c01((rich - fpe) / rich) * 0.5
+        # smooth, monotonic: 1.0 at fwd P/E ≤ 20, linearly to 0 at ≥ 80 (no cliff)
+        c["forward_pe"] = _c01(1.0 - (fpe - 20.0) / 60.0)
     else:
         c["forward_pe"] = None
 
@@ -188,9 +184,9 @@ def risk_score(rec, cfg):
     cov = rec.get("_score_coverage")
     if cov is not None:
         add(1.0 - cov, 8)                                            # data-gap risk
-    # halal not-pass is a real risk for this investor
-    hs = rec.get("halal_status")
-    add(1.0 if hs == "fail" else (0.5 if hs == "unknown" else 0.0), 8)
+    # NOTE: halal is NOT added here — it's a hard gate (fail→Avoid, hidden;
+    # unknown→Verify First). Penalising risk for it double-counts and unfairly
+    # inflates risk for the normal 'unknown' state on free data. (panel fix)
     na = rec.get("num_analysts")
     if na is not None:
         add((6 - na) / 6.0 if na < 6 else 0.0, 6)

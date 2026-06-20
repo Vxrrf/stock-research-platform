@@ -108,6 +108,15 @@ def blank_record(ticker):
         "opportunity_score": None,          # 0..100 (spec §8)
         "risk_score": None,                 # 0..100 (spec §8)
         "total_score": None,                # 0..100 (fundamental + capped bonuses)
+        # conviction + engines (v2 — hunting asymmetric winners)
+        "conviction_score": None,           # 0..10
+        "conviction_tier": None,            # High Conviction / Strong Candidate / Research More / Watch
+        "engines": [],                      # subset of: compounder / accelerator / future_leader
+        "future_leader_score": None,        # 0..100
+        "lifecycle_status": None,           # New Discovery / Emerging / High Conviction / Compounder / Falling / Fallen Angel
+        # institutional (he values this over social sentiment)
+        "institutional_ownership": None,    # % held by institutions (0..1)
+        "insider_ownership": None,          # % held by insiders (0..1)
         # cross-source (spec §2)
         "independent_confirmations": 0,
         "external_bonus": 0,

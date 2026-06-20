@@ -1,15 +1,17 @@
 # -*- coding: utf-8 -*-
 """
-recommendation.py — per-stock research report (spec §15, 13 sections).
+recommendation.py — تقرير بحثي من 14 بند لكل سهم قوي (عربي).
+يشمل: السبب في الظهور، درجة القناعة، السيناريوهات (متفائل/أساسي/متشائم)،
+وأطروحة الخروج (ليش تملكه / وش يلغي الأطروحة / متى تقلّل القناعة).
 
-This is RESEARCH output, never a buy signal. It never promises a price.
+بحث، وليس توصية. لا يقول «اشترِ الآن» ولا يعد بسعر.
 """
 
 
 def _pct(x, plus=True):
-    if x is None:
+    if not isinstance(x, (int, float)):
         return "—"
-    return f"{x:+.1%}" if plus else f"{x:.1%}"
+    return f"{x:+.0%}" if plus else f"{x:.0%}"
 
 
 def _money(x):
@@ -26,89 +28,125 @@ def _num(x, d=1):
     return f"{x:.{d}f}" if isinstance(x, (int, float)) else "—"
 
 
-HALAL_LABEL = {
-    "pass": "✅ pass (passes the approximate Sharia screen)",
-    "unknown": "⚠️ unknown — Verify Halal First (do not act until confirmed)",
-    "fail": "🔴 fail (fails the Sharia screen — Avoid)",
-}
+HALAL_AR = {"pass": "✅ حلال مبدئياً", "unknown": "⚠️ غير مؤكّد — تأكّد على Zoya/Musaffa", "fail": "🔴 غير متوافق"}
+ENGINE_AR = {"compounder": "مُركِّب طويل المدى 🏛️", "accelerator": "مُسرِّع 🚀", "future_leader": "قائد مستقبل 🌱"}
+THEME_AR = {"ai": "ذكاء اصطناعي", "semiconductors": "أشباه موصلات", "data_centers": "مراكز بيانات",
+            "cloud": "حوسبة سحابية", "cybersecurity": "أمن سيبراني", "robotics": "روبوتات",
+            "defense_tech": "تقنية دفاع", "digital_health": "صحة رقمية",
+            "energy_infrastructure": "بنية الطاقة", "critical_materials": "مواد حيوية", "space": "فضاء"}
+
+
+def _why_appeared(rec):
+    bits = []
+    for e in (rec.get("engines") or []):
+        bits.append(ENGINE_AR.get(e, e))
+    n = rec.get("independent_confirmations", 0) or 0
+    if n:
+        bits.append(f"{n} مجموعة تأكيد مستقلة")
+    if (rec.get("conviction_score") or 0) >= 8:
+        bits.append(f"قناعة عالية {rec['conviction_score']}/10")
+    if rec.get("lifecycle_status"):
+        bits.append(f"الحالة: {rec['lifecycle_status']}")
+    return "، ".join(bits) if bits else "نقاط أساس قوية في الفرز الكمّي"
 
 
 def _growth_drivers(rec):
-    drivers = []
-    if rec.get("primary_theme"):
-        drivers.append(f"theme exposure: {', '.join(rec.get('themes') or [])}")
+    d = []
+    th = [THEME_AR.get(t, t) for t in (rec.get("themes") or [])]
+    if th:
+        d.append("ثيمات: " + "، ".join(th))
     if (rec.get("ai_exposure_score") or 0) >= 6:
-        drivers.append(f"meaningful AI exposure (score {rec['ai_exposure_score']}/10)")
-    if rec.get("rev_growth") is not None and rec["rev_growth"] > 0.15:
-        drivers.append(f"revenue growing {_pct(rec['rev_growth'])} yoy")
+        d.append(f"تعرّض قوي للـAI ({rec['ai_exposure_score']}/10)")
+    if rec.get("rev_growth") is not None:
+        d.append(f"نمو إيرادات {_pct(rec['rev_growth'])}")
     if rec.get("rev_cagr_3y") is not None and rec["rev_cagr_3y"] > 0.12:
-        drivers.append(f"durable 3Y revenue CAGR {_pct(rec['rev_cagr_3y'])}")
-    if rec.get("eps_growth_fwd") is not None and rec["eps_growth_fwd"] > 0.10:
-        drivers.append(f"expected EPS growth {_pct(rec['eps_growth_fwd'])}")
+        d.append(f"نمو مركّب 3 سنوات {_pct(rec['rev_cagr_3y'])}")
     if rec.get("fcf_margin") is not None and rec["fcf_margin"] > 0.10:
-        drivers.append(f"strong free-cash-flow margin {_pct(rec['fcf_margin'], plus=False)}")
-    return drivers or ["growth drivers unclear from the quantitative data — needs deep research"]
+        d.append(f"تدفّق نقدي حر قوي {_pct(rec['fcf_margin'], plus=False)}")
+    return "، ".join(d) if d else "تحتاج بحث أعمق للمحرّكات النوعية"
+
+
+def _bull(rec):
+    p = rec.get("bull_case_price")
+    drv = []
+    if rec.get("primary_theme"):
+        drv.append(THEME_AR.get(rec["primary_theme"], rec["primary_theme"]))
+    up = (p / rec["price"] - 1) if (p and rec.get("price")) else None
+    return (f"لو النمو استمر وتوسّعت الهوامش والثيم ({'، '.join(drv) or 'النمو'}) ساند — "
+            f"المدى المتفائل نحو {_money(p)}" + (f" (صعود {_pct(up)})" if up is not None else "") + ".")
+
+
+def _base(rec):
+    p = rec.get("base_case_price")
+    up = rec.get("analyst_upside_percent")
+    return (f"السيناريو المعقول: هدف المحللين المتوسط نحو {_money(p)}"
+            + (f" (صعود {_pct(up)})" if up is not None else "") + "، بافتراض استمرار النمو الحالي.")
+
+
+def _bear(rec):
+    p = rec.get("bear_case_price")
+    risk = (rec.get("weaknesses") or ["تباطؤ النمو"])[0]
+    return (f"لو تباطأ النمو أو انكمش التقييم أو ضغط الماكرو (حرب/نفط/فائدة) — "
+            f"المدى المتشائم نحو {_money(p)}. الخطر الأبرز: {risk}.")
+
+
+def _exit_thesis(rec, cfg):
+    th = cfg.get("thresholds", {}) or {}
+    own = []
+    if rec.get("conviction_score"):
+        own.append(f"قناعة {rec['conviction_score']}/10")
+    if rec.get("engines"):
+        own.append("، ".join(ENGINE_AR.get(e, e) for e in rec["engines"]))
+    own = " · ".join(own) or "نمو وجودة"
+    invalidate = [
+        f"النمو يتباطأ قطعين ربعيين متتاليين (تحت ~{th.get('revenue_growth_good', 0.18):.0%}).",
+        "الهوامش تنكمش أو الدين يرتفع بشكل ملموس.",
+        "هدف المحللين المتوسط ينزل تحت السعر مع خفض التقديرات.",
+    ]
+    if rec.get("halal_status") != "pass":
+        invalidate.append("الحلال يطلع «غير متوافق» على Zoya/Musaffa — اخرج بغض النظر عن السعر.")
+    reduce = [
+        "درجة القناعة تنزل تحت 6.",
+        "يفقد عضوية محرّكه (ما عاد مُركِّب/مُسرِّع/قائد).",
+        f"التقييم يصير مجنون (P/E مستقبلي فوق ~{th.get('forward_pe_rich', 55):.0f}) بدون رفع أرباح.",
+    ]
+    return own, invalidate, reduce
 
 
 def build(rec, cfg):
     L = []
-    L.append(f"## {rec.get('name')} ({rec['ticker']}) — {rec.get('action')}")
-    L.append(f"> total {_num(rec.get('total_score'))}/100 · fundamental {_num(rec.get('fundamental_score'))} · "
-             f"opportunity {_num(rec.get('opportunity_score'))} · risk {_num(rec.get('risk_score'))} · "
-             f"confidence {rec.get('confidence')} · data {rec.get('data_freshness_status')}")
+    conv = rec.get("conviction_score")
+    L.append(f"## {rec.get('name')} ({rec['ticker']}) — {rec.get('action')}"
+             + (f" · قناعة {conv}/10" if conv is not None else ""))
+    L.append(f"> القرار: **{rec.get('action')}** — {rec.get('action_reason')}")
     L.append("")
-    # 1
-    L.append(f"**1) Name & business:** {rec.get('name')} — {rec.get('sector') or '—'} / {rec.get('industry') or '—'}, "
-             f"market cap {_cap(rec.get('market_cap'))}.")
-    # 2
-    L.append(f"**2) Analyst opinion:** {rec.get('rec_key') or '—'}"
-             + (f" (mean {_num(rec.get('rec_mean'),2)}/5, {int(rec['num_analysts'])} analysts)" if rec.get('num_analysts') else ""))
-    # 3
-    L.append(f"**3) Current price & target:** {_money(rec.get('price'))} now · mean target {_money(rec.get('target_mean'))} "
-             f"(range {_money(rec.get('target_low'))}–{_money(rec.get('target_high'))})")
-    # 4
-    L.append(f"**4) Expected upside:** {_pct(rec.get('analyst_upside_percent'))} to mean target.")
-    # 5
-    summ = (rec.get("summary") or "").strip()
-    L.append(f"**5) Company overview:** {summ[:320] + '…' if summ else 'no description available.'}")
-    # 6
-    L.append(f"**6) Growth drivers:** " + "; ".join(_growth_drivers(rec)) + ".")
-    # 7
-    sent = rec.get("_news_sentiment")
-    if sent is None:
-        news = "no recent headline signal captured."
-    elif sent > 0.15:
-        news = f"recent news skews positive (sentiment {sent:+.2f}) — light tailwind."
-    elif sent < -0.15:
-        news = f"recent news skews negative (sentiment {sent:+.2f}) — watch for a catalyst risk."
-    else:
-        news = f"recent news roughly neutral (sentiment {sent:+.2f})."
-    L.append(f"**7) Recent news & impact:** {news} (news affects the score by ≤5%, applied: {_num(rec.get('news_impact_score'),2)} pts)")
-    # 8
+    L.append(f"**1) الشركة والنشاط:** {rec.get('sector') or '—'} / {rec.get('industry') or '—'} · القيمة السوقية {_cap(rec.get('market_cap'))}.")
+    L.append(f"**2) رأي المحللين:** {rec.get('rec_key') or '—'}"
+             + (f" (متوسط {_num(rec.get('rec_mean'),2)}/5، {int(rec['num_analysts'])} محلل)" if rec.get('num_analysts') else "") + ".")
+    L.append(f"**3) السعر الحالي:** {_money(rec.get('price'))}.")
+    L.append(f"**4) الأهداف السعرية:** متوسط {_money(rec.get('target_mean'))} · المدى {_money(rec.get('target_low'))} – {_money(rec.get('target_high'))} · القيمة العادلة (تقدير) {_money(rec.get('fair_value_estimate'))}.")
+    L.append(f"**5) ليش ظهر؟** {_why_appeared(rec)}.")
+    L.append(f"**6) محرّكات النمو:** {_growth_drivers(rec)}.")
     risks = list(rec.get("weaknesses") or [])
     if rec.get("risk_score") is not None:
-        risks.insert(0, f"composite risk score {_num(rec['risk_score'])}/100")
-    L.append(f"**8) Risks:** " + "; ".join(risks) + ".")
-    # 9
-    L.append(f"**9) Halal status:** {HALAL_LABEL.get(rec.get('halal_status'), '—')}")
-    for r in (rec.get("halal_reasons") or [])[:2]:
-        L.append(f"   - {r}")
-    # 10
-    flags = []
-    if rec.get("crowded_late"):
-        flags.append("CROWDED / LATE (near highs after a big run)")
-    if rec.get("popular_not_cheap"):
-        flags.append("POPULAR, NOT CHEAP (late-entry risk)")
-    L.append(f"**10) Crowding / late-entry:** {'; '.join(flags) if flags else 'no crowding flag.'}")
-    # 11
-    L.append(f"**11) Suggested holding period:** {rec.get('suggested_holding_period') or '—'} "
-             "(short 0–6m · medium 6–18m · long 18m+).")
-    # 12
-    L.append("**12) Exit conditions** (conditions, not dated sells):")
-    for c in (rec.get("exit_conditions") or [])[:5]:
-        L.append(f"   - {c}")
-    # 13
-    L.append(f"**13) Final action:** **{rec.get('action')}** — {rec.get('action_reason')}")
+        risks.insert(0, f"نقاط المخاطرة {_num(rec['risk_score'])}/100")
+    L.append(f"**7) المخاطر:** {'؛ '.join(risks)}.")
+    L.append(f"**8) التقييم:** P/E مستقبلي {_num(rec.get('forward_pe'),1)} · EV/EBITDA {_num(rec.get('ev_ebitda'),1)} · صعود للهدف {_pct(rec.get('analyst_upside_percent'))}.")
+    L.append(f"**9) أفق الاستثمار:** {rec.get('suggested_holding_period') or '—'} (قصير 0–6ش · متوسط 6–18ش · طويل 18ش+).")
+    L.append(f"**10) درجة القناعة:** {_num(conv) if conv is not None else '—'}/10 — {rec.get('conviction_tier') or '—'}.")
+    L.append(f"**11) السيناريو المتفائل (Bull):** {_bull(rec)}")
+    L.append(f"**12) السيناريو الأساسي (Base):** {_base(rec)}")
+    L.append(f"**13) السيناريو المتشائم (Bear):** {_bear(rec)}")
+    own, inval, reduce = _exit_thesis(rec, cfg)
+    L.append(f"**14) أطروحة الخروج:**")
+    L.append(f"   - **ليش تملكه:** {own}.")
+    L.append(f"   - **وش يلغي الأطروحة:**")
+    for x in inval:
+        L.append(f"     • {x}")
+    L.append(f"   - **متى تقلّل القناعة:**")
+    for x in reduce:
+        L.append(f"     • {x}")
+    L.append(f"**الحلال:** {HALAL_AR.get(rec.get('halal_status'), '—')}.")
     L.append("")
     L.append("---")
     return "\n".join(L)
@@ -116,21 +154,21 @@ def build(rec, cfg):
 
 def build_report(records, cfg, market_risk="—"):
     from schema import now_local
+    app_name = (cfg.get("app", {}) or {}).get("name", "مرصد الأسهم")
     off = (cfg.get("run", {}) or {}).get("qatar_utc_offset", 3)
     now = now_local(off)
-    app_name = (cfg.get("app", {}) or {}).get("name", "مرصد الأسهم")
     H = [
-        f"# 📊 {app_name} — تقرير البحث",
-        f"**Generated:** {now.strftime('%Y-%m-%d %H:%M')} (Qatar) · **Market risk today:** {market_risk}",
+        f"# 📊 {app_name} — تقرير البحث (14 بند لكل سهم)",
+        f"**التاريخ:** {now.strftime('%Y-%m-%d %H:%M')} (قطر) · **مخاطر السوق اليوم:** {market_risk}",
         "",
-        "> Research only — not advice, not a buy signal, never a promised price. "
-        "Halal status is approximate; confirm on Zoya/Musaffa. Final decision and responsibility are yours.",
+        "> بحث فقط — وليس نصيحة ولا توصية شراء ولا وعد بسعر. الحلال تقريبي؛ أكّد على Zoya/Musaffa. "
+        "القرار والمسؤولية عليك وحدك.",
         "",
         "---",
         "",
     ]
     if not records:
-        H.append("_No qualifying names this run._")
+        H.append("_لا يوجد سهم قوي بما يكفي للتقرير في هذا التشغيل._")
         return "\n".join(H)
     for rec in records:
         H.append(build(rec, cfg))

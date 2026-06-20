@@ -29,6 +29,8 @@ import datasource
 import themes
 import halal_gate
 import scoring
+import conviction as conviction_mod
+import engines as engines_mod
 import cross_source
 import price_targets
 import flags
@@ -194,10 +196,37 @@ def main():
         total = _clamp(base + theme_b + ext_b + earn + ins + pol + news_adj - hype)
         rec["total_score"] = round(total, 1)
         rec["weaknesses"] = scoring.weaknesses(rec, cfg)
+        # conviction (0–10) + hunting engines (compounder/accelerator/future-leader)
+        conviction_mod.compute(rec, cfg)
+        engines_mod.classify(rec, cfg)
 
     # ── 5) watchlist memory (rising/fallen + new/returning) ──
     ranked = sorted(records, key=lambda r: (r.get("total_score") or 0), reverse=True)
     mem, deltas = memory_mod.update(cfg, records, run_date, [r["ticker"] for r in ranked])
+
+    # ── 5b) lifecycle status (never drop a name just because it's not new) ──
+    for rec in records:
+        e = mem.get(rec["ticker"], {})
+        eng = rec.get("engines") or []
+        conv = rec.get("conviction_score") or 0
+        highest = e.get("highest_score") or 0
+        current = e.get("current_score") or 0
+        d = deltas.get(rec["ticker"], 0)
+        if rec.get("discovery_status") == "new_discovery":
+            lc = "New Discovery"
+        elif "compounder" in eng and conv >= 7:
+            lc = "Long-Term Compounder"
+        elif conv >= 9:
+            lc = "High Conviction"
+        elif highest - current >= 12 and (rec.get("fundamental_score") or 0) >= 45:
+            lc = "Fallen Angel"
+        elif d <= -5:
+            lc = "Falling Conviction"
+        elif ("future_leader" in eng) or ("accelerator" in eng):
+            lc = "Emerging Opportunity"
+        else:
+            lc = "Returning"
+        rec["lifecycle_status"] = lc
 
     # ── 6) final action ──
     for rec in records:
@@ -209,6 +238,14 @@ def main():
         buckets[rec["action"]].append(rec)
     buckets["crowded"] = [r for r in ranked if r.get("crowded_late")]
     buckets["watchlist"] = [r for r in ranked if r["ticker"] in watchlist]
+    # engine buckets (hide non-halal/Avoid)
+    def _ok(r):
+        return r.get("action") != "Avoid" and r.get("halal_status") != "fail"
+    buckets["compounder"] = [r for r in ranked if "compounder" in (r.get("engines") or []) and _ok(r)]
+    buckets["accelerator"] = [r for r in ranked if "accelerator" in (r.get("engines") or []) and _ok(r)]
+    buckets["future_leader"] = sorted(
+        [r for r in ranked if "future_leader" in (r.get("engines") or []) and _ok(r)],
+        key=lambda r: (r.get("future_leader_score") or 0), reverse=True)
 
     # ── 8) discovery CSVs (spec §3) ──
     elig = [r for r in ranked if r.get("_discovery_eligible")]
@@ -270,8 +307,11 @@ def main():
     W("political_activity.csv", POLITICAL_COLS, political_rows)
     W("portfolio_model.csv", PORTFOLIO_COLS, portfolio_rows)
 
-    # recommendation report (top candidates + research more)
-    rec_targets = (buckets["Candidate"] + buckets["Research More"])[:15]
+    # recommendation report — strong names: any engine OR conviction ≥6, halal not fail
+    rec_targets = sorted(
+        [r for r in ranked if r.get("halal_status") != "fail"
+         and ((r.get("engines")) or (r.get("conviction_score") or 0) >= 6)],
+        key=lambda r: (r.get("conviction_score") or 0, r.get("total_score") or 0), reverse=True)[:20]
     rep = recommendation.build_report(rec_targets, cfg, market_risk=market_risk)
     with open(os.path.join(out_dir, "recommendation_report.md"), "w", encoding="utf-8") as f:
         f.write(rep)
