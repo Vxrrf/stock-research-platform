@@ -568,6 +568,8 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')gc();});
 function updateAll(b){
   if(location.protocol==='file:'){
     document.getElementById('updmsg').innerHTML='⚠️ عشان الزر يشتغل افتح الداشبورد عبر الخادم: شغّل <b>python src/server.py</b> في التيرمنال.';return;}
+  if(location.hostname.indexOf('github.io')>=0 || location.hostname.indexOf('localhost')<0 && location.hostname.indexOf('127.0.0.1')<0){
+    document.getElementById('updmsg').innerHTML='📱 هذا <b>رابط عرض (snapshot)</b> — يفتح من أي مكان. للتحديث الحي شغّل <b>python src/server.py</b> على جهازك وافتح localhost:8800.';return;}
   var o=b.innerText;b.disabled=true;b.innerText='⏳ يحدّث الكل...';
   document.getElementById('updmsg').innerText='يحدّث أسهمك live + يفحص السوق. أول مرة باليوم تاخذ دقائق، بعدها أسرع...';
   fetch('/update').then(function(r){return r.json();}).then(function(d){
