@@ -100,7 +100,7 @@ def evaluate_holdings(records, cfg, deltas=None):
     for h in _read_holdings():
         r = by.get(h["ticker"])
         if not r:
-            rows.append({"ticker": h["ticker"], "name": "—", "conviction": None,
+            rows.append({"ticker": h["ticker"], "name": "—", "conviction": None, "rank": None,
                          "pnl": None, "halal": "—", "lifecycle": "—",
                          "verdict": "⚪ لا بيانات — حدّث", "why": "ما لقيت بيانات هالسهم هالتشغيل"})
             continue
@@ -109,18 +109,21 @@ def evaluate_holdings(records, cfg, deltas=None):
         hal = r.get("halal_status")
         pnl = (r["price"] / h["buy_price"] - 1) if (r.get("price") and h.get("buy_price")) else None
         if hal == "fail":
-            verdict, why = "🔴 اخرج", "غير متوافق شرعياً"
+            verdict, why = "🔴 بيع — غير متوافق شرعياً", "فشل الفلتر الشرعي"
         elif conv >= 8:
             verdict, why = "🟢 احتفظ / زِد", f"قناعة عالية {conv}/10"
         elif pnl is not None and pnl <= cfg.get("portfolio", {}).get("drawdown_flag_pct", -0.25) and conv >= 6:
-            verdict, why = "🔵 فرصة تجميع", f"هبط {pnl:+.0%} لكن الأساسيات قوية (قناعة {conv})"
+            # سهم قوي هبط = فرصة شراء، مو بيع (لا تبيع الجوهرة بالغلط)
+            verdict, why = "🔵 فرصة تجميع (لا تبيع)", f"هبط {pnl:+.0%} لكن الأساسيات قوية (قناعة {conv}/10)"
         elif lc in ("Fallen Angel", "Falling Conviction") or conv < 5:
-            verdict, why = "🟠 راجع / قلّل", f"قناعة تنزل ({conv}/10){' · '+lc if lc else ''}"
+            verdict, why = "🔴 بيع", f"قناعة ضعيفة/تنزل ({conv}/10){' · '+lc if lc else ''}"
         else:
             verdict, why = "⚪ احتفظ", f"قناعة {conv}/10، أداء مستقر"
         rows.append({"ticker": r["ticker"], "name": r.get("name"), "conviction": conv,
-                     "pnl": pnl, "halal": hal, "lifecycle": lc, "verdict": verdict, "why": why})
-    rows.sort(key=lambda x: (x["conviction"] is None, -(x["conviction"] or 0)))
+                     "rank": r.get("rank_score"), "pnl": pnl, "halal": hal,
+                     "lifecycle": lc, "verdict": verdict, "why": why})
+    # best overall first (by holistic rank), unknowns last
+    rows.sort(key=lambda x: (x["rank"] is None, -(x["rank"] or 0)))
     return rows
 
 

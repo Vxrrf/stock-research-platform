@@ -538,6 +538,7 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
                        [r for r in buckets.get("watchlist", []) if _vis(r)],
                        "أسهمك — التفاصيل الكاملة في watchlist.csv."),
         f"<section><h2>🏆 أعلى {top_n} سهم {_i('top20')}</h2>"
+        "<div class='dim sub2'>مرتّبة: الأفضل من كل النواحي أولاً (قناعة + فرصة + مخاطرة منخفضة + محرّكات + تأكيدات + بيانات حديثة).</div>"
         f"<div class='tablewrap'><table>{_thead()}<tbody>{_stock_rows(ranked[:top_n])}</tbody></table></div></section>",
         _exposure(visible),
         _portfolio(portfolio_rows),

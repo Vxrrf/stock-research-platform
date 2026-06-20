@@ -108,6 +108,7 @@ def blank_record(ticker):
         "opportunity_score": None,          # 0..100 (spec §8)
         "risk_score": None,                 # 0..100 (spec §8)
         "total_score": None,                # 0..100 (fundamental + capped bonuses)
+        "rank_score": None,                 # 0..~120 holistic "best overall" rank
         # conviction + engines (v2 — hunting asymmetric winners)
         "conviction_score": None,           # 0..10
         "conviction_tier": None,            # High Conviction / Strong Candidate / Research More / Watch

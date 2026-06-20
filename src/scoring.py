@@ -198,6 +198,23 @@ def risk_score(rec, cfg):
     return round(100.0 * val, 1)
 
 
+def overall_rank(rec, cfg):
+    """Holistic 'best across everything' score → #1 is the best all-around.
+    Blends conviction (consolidated quality) + opportunity + low-risk + fundamentals
+    + total, with bonuses for engine membership & confirmations, scaled by data confidence."""
+    conv = (rec.get("conviction_score") or 0) * 10.0          # 0..100
+    opp = rec.get("opportunity_score") or 0.0
+    risk = rec.get("risk_score")
+    lowrisk = (100.0 - risk) if risk is not None else 50.0
+    fund = rec.get("fundamental_score") or 0.0
+    total = rec.get("total_score") or 0.0
+    base = 0.40 * conv + 0.20 * opp + 0.15 * lowrisk + 0.15 * fund + 0.10 * total
+    eng = len(rec.get("engines") or []) * 2.0                  # quality signal
+    conf = (rec.get("independent_confirmations") or 0) * 1.5
+    cmul = {"HIGH": 1.0, "MEDIUM": 0.96, "LOW": 0.88}.get(rec.get("confidence"), 0.92)
+    return round((base + eng + conf) * cmul, 1)
+
+
 def weaknesses(rec, cfg):
     """Honest, human-readable weak points (kept from the original system's spirit)."""
     th = cfg.get("thresholds", {}) or {}

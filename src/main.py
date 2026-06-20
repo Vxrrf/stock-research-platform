@@ -201,9 +201,11 @@ def main():
         # conviction (0–10) + hunting engines (compounder/accelerator/future-leader)
         conviction_mod.compute(rec, cfg)
         engines_mod.classify(rec, cfg)
+        rec["rank_score"] = scoring.overall_rank(rec, cfg)   # holistic best-overall
 
     # ── 5) watchlist memory (rising/fallen + new/returning) ──
-    ranked = sorted(records, key=lambda r: (r.get("total_score") or 0), reverse=True)
+    # rank by the holistic overall score → #1 is the best across everything
+    ranked = sorted(records, key=lambda r: (r.get("rank_score") or 0), reverse=True)
     mem, deltas = memory_mod.update(cfg, records, run_date, [r["ticker"] for r in ranked])
 
     # ── 5b) lifecycle status (never drop a name just because it's not new) ──
@@ -352,9 +354,9 @@ def main():
     print(f"📊 dashboard : {os.path.join(out_dir, 'dashboard.html')}")
     print(f"🗂️  CSVs      : {out_dir}/ (ranked_stocks, watchlist, new_discoveries, …)")
     print(f"📝 report    : {os.path.join(out_dir, 'recommendation_report.md')}")
-    print("\nTop 8 by total score:")
+    print("\nTop 8 (best overall — holistic rank):")
     for i, r in enumerate(ranked[:8], 1):
-        print(f"  {i}. {r['ticker']:6} {r.get('total_score'):>5} | {r['action']:<18} | "
+        print(f"  {i}. {r['ticker']:6} rank={r.get('rank_score'):>5} conv={r.get('conviction_score')} | {r['action']:<18} | "
               f"halal={r.get('halal_status'):<7} | {r.get('data_freshness_status')}/{r.get('confidence')}")
     print("\n✅ done. This is research, not advice. Confirm halal on Zoya/Musaffa. No price is promised.")
     return 0
