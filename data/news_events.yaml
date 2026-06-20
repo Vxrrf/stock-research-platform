@@ -1,0 +1,31 @@
+# ════════════════════════════════════════════════════════════════════
+#  news_events.yaml — macro / market events for the Smart News module (§9)
+#
+#  Maintain this list yourself (Fed decisions, CPI/PPI prints, oil, geo, etc.).
+#  Each event nudges market_risk_today and lightly tilts sentiment for stocks
+#  in the affected sectors. Per-stock news impact can move the total score by
+#  AT MOST news.max_weight_pct (default 5%).
+#
+#  fields:
+#    event_name, date (YYYY-MM-DD), affected_sectors (list or 'all'),
+#    impact_score (1-10), impact_direction (positive|negative|neutral),
+#    time_horizon (short|medium|long), source, notes
+# ════════════════════════════════════════════════════════════════════
+events:
+  - event_name: "Fed holds rates, signals data-dependence"
+    date: "2026-06-18"
+    affected_sectors: "all"
+    impact_score: 5
+    impact_direction: "neutral"
+    time_horizon: "medium"
+    source: "FOMC statement"
+    notes: "No surprise; rate path unchanged. Risk-neutral for growth names."
+
+  - event_name: "AI datacenter capex guidance raised by hyperscalers"
+    date: "2026-06-10"
+    affected_sectors: ["Technology", "ai", "semiconductors", "data_centers"]
+    impact_score: 7
+    impact_direction: "positive"
+    time_horizon: "long"
+    source: "earnings commentary"
+    notes: "Supports AI infrastructure picks-and-shovels demand."

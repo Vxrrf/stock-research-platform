@@ -1,0 +1,472 @@
+# -*- coding: utf-8 -*-
+"""
+dashboard.py — لوحة عربية (RTL) سهلة للمبتدئ (spec §19).
+
+كل مصطلح فيه علامة (؟) — تضغط عليها يطلع شرح: وش يعني + فايدته + مثال بسيط.
+تعرض: المرشّحين، تأكّد من الحلال أولاً، مزدحم/متأخر، قائمتي، تجنّب، أعلى 20،
+نموذج المحفظة، التعرّض (قطاع/ثيم/ذكاء/مخاطرة)، أثر الأخبار، النشاط السياسي،
+وحالة نضارة البيانات. ملف واحد مستقل (CSS مدمج).
+"""
+
+import html
+import json
+from collections import Counter
+
+
+def _h(x):
+    return html.escape(str(x)) if x is not None else "—"
+
+
+def _pct(x, plus=True):
+    if not isinstance(x, (int, float)):
+        return "—"
+    return f"{x:+.0%}" if plus else f"{x:.0%}"
+
+
+def _money(x):
+    return f"${x:,.0f}" if isinstance(x, (int, float)) else "—"
+
+
+def _cap(x):
+    if not isinstance(x, (int, float)):
+        return "—"
+    return f"${x/1e9:.1f}B" if x >= 1e9 else f"${x/1e6:.0f}M"
+
+
+def _num(x, d=1):
+    return f"{x:.{d}f}" if isinstance(x, (int, float)) else "—"
+
+
+# ── الترجمات العربية للقيم ──
+ACTION_AR = {
+    "Candidate": "مرشّح قوي", "Research More": "ابحث أكثر", "Watch": "راقب",
+    "Verify Halal First": "تأكّد من الحلال أولاً", "Avoid": "تجنّب",
+}
+HALAL_AR = {"pass": "حلال مبدئياً", "unknown": "غير مؤكّد", "fail": "غير متوافق"}
+FRESH_AR = {"FRESH": "حديثة", "STALE": "قديمة", "MISSING": "ناقصة"}
+CONF_AR = {"HIGH": "عالية", "MEDIUM": "متوسطة", "LOW": "منخفضة"}
+THEME_AR = {
+    "ai": "ذكاء اصطناعي", "semiconductors": "أشباه موصلات", "data_centers": "مراكز بيانات",
+    "cloud": "حوسبة سحابية", "cybersecurity": "أمن سيبراني", "robotics": "روبوتات",
+    "defense_tech": "تقنية دفاع", "digital_health": "صحة رقمية",
+    "energy_infrastructure": "بنية الطاقة", "critical_materials": "مواد حيوية", "space": "فضاء",
+}
+RISK_AR = {"Low": "منخفضة", "Medium": "متوسطة", "High": "عالية", "Extreme": "قصوى"}
+
+_ACTION_CLASS = {
+    "Candidate": "a-cand", "Research More": "a-res", "Watch": "a-watch",
+    "Verify Halal First": "a-verify", "Avoid": "a-avoid",
+}
+_HALAL_CLASS = {"pass": "h-pass", "unknown": "h-unknown", "fail": "h-fail"}
+_FRESH_CLASS = {"FRESH": "f-fresh", "STALE": "f-stale", "MISSING": "f-missing"}
+
+
+# ════════════════════════════════════════════════════════════════════
+#  القاموس — شرح كل مصطلح: t=المصطلح، w=وش يعني، b=الفايدة، e=مثال
+# ════════════════════════════════════════════════════════════════════
+GLOSSARY = {
+    "total": {"t": "النقاط الكلية (0–100)",
+              "w": "رقم واحد يلخّص قوة السهم: نقاط الأساس + إضافات (ثيم، تأكيدات، أرباح) ناقص العقوبات.",
+              "b": "يخليك ترتّب مئات الأسهم بسرعة وتشوف الأقوى فوق.",
+              "e": "سهم نقاطه 88 إجمالاً أقوى من سهم نقاطه 60."},
+    "fund": {"t": "نقاط الأساس (جودة الشركة)",
+             "w": "تقييم صحّة الشركة نفسها: نمو المبيعات، الأرباح، الديون، الهوامش، كفاءة الإدارة.",
+             "b": "يقيس جودة الشركة الحقيقية بعيداً عن الضجّة والإعلام.",
+             "e": "شركة تنمو 30% سنوياً بأرباح قوية وديون قليلة = نقاط أساس عالية."},
+    "opp": {"t": "نقاط الفرصة (المكافأة المحتملة)",
+            "w": "كم ممكن يرتفع السهم: الصعود المتوقع + النمو + ارتباطه بالـAI + مجال الصعود.",
+            "b": "تشوف بسرعة وين احتمال الربح أكبر.",
+            "e": "صعود متوقع كبير + نمو قوي + AI = فرصة عالية."},
+    "risk": {"t": "نقاط المخاطرة (الخطر)",
+             "w": "كم السهم خطر: تقييم غالي، ديون عالية، تذبذب، ارتفاع مبالغ، بيانات ناقصة. (أعلى = أخطر)",
+             "b": "ينبّهك قبل لا تدخل سهم خطر حتى لو فرصته مغرية.",
+             "e": "سهم طار 300% بسنة بتقييم مجنون = مخاطرة عالية."},
+    "ai": {"t": "درجة الذكاء الاصطناعي (0–10)",
+           "w": "قد ايش الشركة مرتبطة بموجة الـAI. 10=قلب البنية التحتية، 9=شرائح AI، 6=برمجيات AI، 0=لا علاقة.",
+           "b": "تركّز على أقوى اتجاه في السوق حالياً.",
+           "e": "10 = شركة تصنع المعالجات الي تشغّل الـAI؛ 0 = مطعم عادي."},
+    "revg": {"t": "نمو الإيرادات (المبيعات)",
+             "w": "كم زادت مبيعات الشركة مقارنة بالسنة الي قبل.",
+             "b": "الشركة الي مبيعاتها تكبر = تتوسّع وتكسب حصة سوق.",
+             "e": "‎+27% يعني باعت أكثر بـ27% عن السنة السابقة."},
+    "fpe": {"t": "مكرّر الربحية المتوقع (Forward P/E)",
+            "w": "سعر السهم مقسوم على أرباحه المتوقعة للسنة الجاية. كل ما قلّ = أرخص.",
+            "b": "يبيّن لك هل السهم غالي أو رخيص مقابل أرباحه.",
+            "e": "سهم P/E=15 أرخص من سهم P/E=80 لنفس النمو."},
+    "upside": {"t": "الصعود المتوقع",
+               "w": "الفرق بين السعر الحالي ومتوسط هدف المحللين.",
+               "b": "تعرف كم يتوقّع الخبراء السهم يرتفع.",
+               "e": "‎+30% يعني المحللون يشوفونه يرتفع 30% للهدف."},
+    "conf_groups": {"t": "التأكيدات المستقلة",
+                    "w": "كم مصدر مستقل يعجبه السهم — نحسب «مجموعات» مو قوائم: (ProPicks+AI) + المحللون + قائمتك.",
+                    "b": "اتفاق عدة مصادر مختلفة = إشارة أقوى من مصدر واحد.",
+                    "e": "3 = أعجب نماذج Investing + المحللين + قائمتك الشخصية."},
+    "halal": {"t": "الحالة الشرعية",
+              "w": "فلترة تقريبية: «حلال مبدئياً» / «غير مؤكّد» / «غير متوافق». ما نخمّن أبداً.",
+              "b": "تحمي توافقك الشرعي قبل أي قرار.",
+              "e": "«غير مؤكّد» = ما قدرنا نتحقق من دخل الفائدة، راجع Zoya/Musaffa. «غير متوافق» = تجنّبه."},
+    "fresh": {"t": "نضارة البيانات + الثقة",
+              "w": "قد ايش البيانات حديثة. سعر أقدم من 48 ساعة أو أساسيات قديمة → الثقة تنزل «منخفضة».",
+              "b": "قرار على بيانات قديمة = خطر. هذا يخليك تثق بالرقم أو تحدّثه.",
+              "e": "«حديثة + ثقة عالية» = اعتمد عليها؛ «قديمة» = شغّل النظام من جديد."},
+    "action": {"t": "القرار (التوصية البحثية)",
+               "w": "خلاصة وش تسوي: مرشّح قوي / ابحث أكثر / راقب / تأكّد من الحلال أولاً / تجنّب. ما فيه «اشترِ الآن».",
+               "b": "يحوّل كل الأرقام لخطوة عملية واضحة.",
+               "e": "«تأكّد من الحلال أولاً» = السهم قوي بس راجع شرعيته قبل أي شي."},
+    "crowded": {"t": "مزدحم / متأخر",
+                "w": "السهم طار كثير (+150% بسنة) وقريب من أعلى سعر له — غالباً فاتت الفرصة.",
+                "b": "يحميك من الدخول المتأخر بعد ما يرتفع السهم.",
+                "e": "سهم صعد 200% وهو على بُعد 5% من قمته = دخول متأخر."},
+    "watchlist": {"t": "قائمتي",
+                  "w": "أسهمك الـ19 الي اخترتها بنفسك ونتابعها لك كل تشغيل.",
+                  "b": "تشوف حالة قناعاتك الشخصية بنظرة واحدة.",
+                  "e": "MRVL, AMD, NOW... مع نقاطها وقرارها اليوم."},
+    "theme": {"t": "الثيم (الاتجاه/القطاع)",
+              "w": "على أي موجة الشركة: ذكاء اصطناعي، أشباه موصلات، صحة رقمية، فضاء...",
+              "b": "تعرف على أي اتجاه كبير تراهن.",
+              "e": "«مراكز بيانات» = شركات تبني البنية الي تشغّل الـAI."},
+    "discoveries": {"t": "اكتشافات جديدة",
+                    "w": "أسهم قوية لقاها النظام في السوق (حجم 1–100 مليار $) خارج قائمتك.",
+                    "b": "يوسّع أفقك لفرص ما كنت تعرفها.",
+                    "e": "النظام لقى GMED (أجهزة طبية تنمو 27%) ما كانت بقائمتك."},
+    "portfolio": {"t": "نموذج المحفظة",
+                  "w": "توزيع مقترح لمستثمر 25 سنة، نمو عالي مع حماية: 55% أسهم نمو، 20% مؤشر عام، 10% AI، 5% صحة، 5% ذهب، 5% كاش.",
+                  "b": "يوزّع المخاطر بدل ما تحط كل فلوسك بسهم واحد.",
+                  "e": "ذهب 5% يحميك وقت الأزمات؛ كاش 5% فرصة للشراء بالهبوط."},
+    "exposure": {"t": "التعرّض (التوزيع)",
+                 "w": "كم من المرشّحين في كل قطاع/ثيم، ومتوسط الذكاء والمخاطرة.",
+                 "b": "تتأكد إنك مو كله مركّز بقطاع واحد.",
+                 "e": "لو كل أسهمك «أشباه موصلات» = تركيز خطر بقطاع واحد."},
+    "news": {"t": "أثر الأخبار",
+             "w": "أحداث الاقتصاد الكبيرة (فائدة الفيدرالي، التضخم...) وتأثيرها. تحرّك النقاط 5% كحد أقصى.",
+             "b": "تربط الصورة الكبيرة بالأسهم بدون مبالغة.",
+             "e": "رفع الفيدرالي الفائدة = ضغط خفيف على أسهم النمو."},
+    "political": {"t": "النشاط السياسي",
+                  "w": "صفقات أعضاء الكونغرس الأمريكي على الأسهم. إشارة ضعيفة جداً فقط.",
+                  "b": "معلومة جانبية للفضول — مو سبب للشراء أبداً.",
+                  "e": "عضو كونغرس اشترى سهم ≠ السهم حلو؛ نعرضه كاهتمام فقط."},
+    "top20": {"t": "أعلى 20 سهم",
+              "w": "أقوى 20 سهم بالنقاط الكلية من كل الي فحصناهم اليوم.",
+              "b": "نقطة بداية سريعة لأقوى الأسماء.",
+              "e": "تبدأ بحثك العميق من هالـ20 بدل آلاف الأسهم."},
+    "marketrisk": {"t": "مخاطر السوق اليوم",
+                   "w": "حالة السوق العامة: منخفضة / متوسطة / عالية / قصوى — من الأحداث الاقتصادية.",
+                   "b": "تعرف الجو العام قبل أي قرار.",
+                   "e": "«قصوى» = يوم متقلّب، خفّف المخاطرة."},
+}
+
+
+def _i(key):
+    """علامة (؟) قابلة للضغط تفتح شرح المصطلح."""
+    return f'<span class="i" onclick="g(\'{key}\')" title="اضغط للشرح">؟</span>'
+
+
+def _chip(text, cls):
+    return f'<span class="chip {cls}">{_h(text)}</span>'
+
+
+def _bar(val, kind="good"):
+    """شريط بصري بدل الرقم المجرّد. kind: good (أخضر/أزرق) أو risk (أخضر→أحمر)."""
+    if not isinstance(val, (int, float)):
+        return "<span class='dim'>—</span>"
+    v = max(0.0, min(100.0, float(val)))
+    if kind == "risk":            # أعلى = أسوأ
+        col = "#5ee7a0" if v < 40 else ("#e8cf5a" if v < 65 else "#ff7a8a")
+    else:                          # أعلى = أفضل
+        col = "#5ee7a0" if v >= 70 else ("#6cc4ff" if v >= 55 else "#8b97a8")
+    return (f"<div class='sbwrap'><div class='sb'><i style='width:{v:.0f}%;background:{col}'></i></div>"
+            f"<b class='n'>{val:.0f}</b></div>")
+
+
+def _aibar(s):
+    """شريط الذكاء الاصطناعي 0–10."""
+    if not isinstance(s, (int, float)):
+        return "<span class='dim'>—</span>"
+    w = max(0, min(10, s)) * 10
+    return (f"<div class='sbwrap'><div class='sb'><i style='width:{w:.0f}%;background:#a78bfa'></i></div>"
+            f"<b class='n'>{int(s)}</b></div>")
+
+
+def _pctc(x):
+    """نسبة ملوّنة: أخضر موجب، أحمر سالب."""
+    if not isinstance(x, (int, float)):
+        return "<span class='dim'>—</span>"
+    col = "#5ee7a0" if x > 0.001 else ("#ff8a9a" if x < -0.001 else "#9fb0c6")
+    return f"<span class='n' style='color:{col};font-weight:700'>{x:+.0%}</span>"
+
+
+def _stock_rows(records):
+    out = []
+    for i, r in enumerate(records, 1):
+        act = r.get("action")
+        hal = r.get("halal_status")
+        fr = r.get("data_freshness_status")
+        theme = r.get("primary_theme")
+        theme_chip = (f"<span class='tchip'>{_h(THEME_AR.get(theme, theme))}</span>" if theme else "")
+        out.append(
+            "<tr>"
+            f"<td class='dim'>{i}</td>"
+            f"<td><b class='n'>{_h(r.get('ticker'))}</b><div class='dim sm'>{_h((r.get('name') or '')[:22])}</div>{theme_chip}</td>"
+            f"<td>{_chip(ACTION_AR.get(act, act), _ACTION_CLASS.get(act,''))}</td>"
+            f"<td>{_bar(r.get('total_score'))}</td>"
+            f"<td>{_bar(r.get('fundamental_score'))}</td>"
+            f"<td>{_bar(r.get('opportunity_score'))}</td>"
+            f"<td>{_bar(r.get('risk_score'), 'risk')}</td>"
+            f"<td>{_aibar(r.get('ai_exposure_score'))}</td>"
+            f"<td class='r'>{_pctc(r.get('rev_growth'))}</td>"
+            f"<td class='r'>{_pctc(r.get('analyst_upside_percent'))}</td>"
+            f"<td class='r n'>{_num(r.get('forward_pe'),1)}</td>"
+            f"<td>{_chip(HALAL_AR.get(hal, hal), _HALAL_CLASS.get(hal,''))}</td>"
+            f"<td>{_chip(FRESH_AR.get(fr, fr), _FRESH_CLASS.get(fr,''))}"
+            f"<div class='dim sm'>{_h(CONF_AR.get(r.get('confidence'), r.get('confidence')))}</div></td>"
+            "</tr>"
+        )
+    return "\n".join(out)
+
+
+def _thead():
+    return (
+        "<thead><tr>"
+        "<th>#</th><th>السهم</th>"
+        f"<th>القرار {_i('action')}</th>"
+        f"<th>النقاط {_i('total')}</th>"
+        f"<th>الأساس {_i('fund')}</th>"
+        f"<th>الفرصة {_i('opp')}</th>"
+        f"<th>المخاطرة {_i('risk')}</th>"
+        f"<th>الذكاء {_i('ai')}</th>"
+        f"<th>النمو {_i('revg')}</th>"
+        f"<th>الصعود {_i('upside')}</th>"
+        f"<th>م.ربحية {_i('fpe')}</th>"
+        f"<th>الحلال {_i('halal')}</th>"
+        f"<th>البيانات {_i('fresh')}</th>"
+        "</tr></thead>"
+    )
+
+
+def _section_table(emoji, title, info_key, records, subtitle="", limit=30):
+    badge = _i(info_key) if info_key else ""
+    total = len(records)
+    shown = records[:limit]
+    if not shown:
+        body = "<p class='dim'>لا يوجد في هذا التشغيل.</p>"
+    else:
+        body = (f"<div class='tablewrap'><table>{_thead()}"
+                f"<tbody>{_stock_rows(shown)}</tbody></table></div>")
+        if total > limit:
+            subtitle = (subtitle + f" — يُعرض أقوى {limit} من {total} (البقية في الملف).").strip(" —")
+    sub = f"<div class='dim sub2'>{_h(subtitle)}</div>" if subtitle else ""
+    return (f"<section><h2>{emoji} {_h(title)} {badge} "
+            f"<span class='count n'>{total}</span></h2>{sub}{body}</section>")
+
+
+def _exposure(records):
+    cand = [r for r in records if r.get("action") in ("Candidate", "Research More", "Watch", "Verify Halal First")]
+    sectors = Counter((r.get("sector") or "—") for r in cand)
+    themes = Counter(THEME_AR.get(t, t) for r in cand for t in (r.get("themes") or []))
+    ai_vals = [r.get("ai_exposure_score", 0) or 0 for r in cand]
+    risks = [r.get("risk_score") for r in cand if r.get("risk_score") is not None]
+    avg_ai = sum(ai_vals) / len(ai_vals) if ai_vals else 0
+    avg_risk = sum(risks) / len(risks) if risks else 0
+    high_risk = sum(1 for x in risks if x >= 65)
+
+    def bars(counter, n=8):
+        if not counter:
+            return "<p class='dim'>—</p>"
+        mx = max(counter.values())
+        rows = []
+        for k, v in counter.most_common(n):
+            w = int(100 * v / mx)
+            rows.append(f"<div class='bar'><span>{_h(k)}</span>"
+                        f"<div class='track'><i style='width:{w}%'></i></div><b class='n'>{v}</b></div>")
+        return "".join(rows)
+
+    return f"""
+    <section><h2>📈 التعرّض (التوزيع) {_i('exposure')}</h2>
+    <div class="grid3">
+      <div class="card"><h3>حسب القطاع</h3>{bars(sectors)}</div>
+      <div class="card"><h3>حسب الثيم</h3>{bars(themes)}</div>
+      <div class="card"><h3>الذكاء والمخاطرة</h3>
+        <div class="metric"><b class='n'>{avg_ai:.1f}</b><span>متوسط الذكاء الاصطناعي /10</span></div>
+        <div class="metric"><b class='n'>{avg_risk:.0f}</b><span>متوسط المخاطرة /100</span></div>
+        <div class="metric"><b class='n'>{high_risk}</b><span>أسهم عالية المخاطرة (≥65)</span></div>
+      </div>
+    </div></section>"""
+
+
+def _portfolio(rows):
+    body = "".join(
+        f"<tr><td>{_h(r['bucket'])}</td><td class='r'><b class='n'>{_h(r['allocation_pct'])}</b></td>"
+        f"<td class='n' dir='ltr'>{_h(r['suggested_holdings'])}</td><td class='dim'>{_h(r['notes'])}</td></tr>"
+        for r in rows
+    )
+    return (f"<section><h2>💼 نموذج المحفظة {_i('portfolio')}</h2><div class='tablewrap'><table>"
+            "<thead><tr><th>الفئة</th><th>النسبة</th><th>أسهم مقترحة</th><th>ملاحظات</th></tr></thead>"
+            f"<tbody>{body}</tbody></table></div></section>")
+
+
+def _news(rows):
+    if not rows:
+        return f"<section><h2>📰 أثر الأخبار {_i('news')}</h2><p class='dim'>لا توجد أحداث محمّلة.</p></section>"
+    dir_ar = {"positive": "إيجابي", "negative": "سلبي", "neutral": "محايد"}
+    body = "".join(
+        f"<tr><td>{_h(r['event_name'])}</td><td class='n'>{_h(r['date'])}</td>"
+        f"<td class='r n'>{_h(r['impact_score'])}</td>"
+        f"<td>{_chip(dir_ar.get(r['impact_direction'], r['impact_direction']), 'dir-'+str(r['impact_direction']))}</td></tr>"
+        for r in rows
+    )
+    return (f"<section><h2>📰 أثر الأخبار {_i('news')}</h2><div class='tablewrap'><table>"
+            "<thead><tr><th>الحدث</th><th>التاريخ</th><th>الأثر/10</th><th>الاتجاه</th></tr></thead>"
+            f"<tbody>{body}</tbody></table></div></section>")
+
+
+def _political(rows):
+    if not rows:
+        return (f"<section><h2>🏛️ النشاط السياسي {_i('political')} <span class='count'>0</span></h2>"
+                "<p class='dim'>لا توجد صفقات كونغرس حديثة لهذه الأسهم (إشارة ضعيفة فقط — ليست توصية).</p></section>")
+    body = "".join(
+        f"<tr><td>{_h(r['politician_name'])}</td><td><b class='n'>{_h(r['ticker'])}</b></td>"
+        f"<td>{_h(r['transaction_type'])}</td><td class='n'>{_h(r['transaction_date'])}</td>"
+        f"<td class='n'>{_h(r['estimated_value'])}</td></tr>"
+        for r in rows[:40]
+    )
+    return (f"<section><h2>🏛️ النشاط السياسي {_i('political')} <span class='count n'>{len(rows)}</span></h2>"
+            "<div class='dim sub2'>إشارة ضعيفة فقط — اهتمام سياسي، وليست أساس قرار استثماري.</div>"
+            "<div class='tablewrap'><table>"
+            "<thead><tr><th>السياسي</th><th>السهم</th><th>النوع</th><th>التاريخ</th><th>القيمة</th></tr></thead>"
+            f"<tbody>{body}</tbody></table></div></section>")
+
+
+CSS = """
+*{box-sizing:border-box} html{-webkit-text-size-adjust:100%}
+body{margin:0;background:#0b0f17;color:#e7ecf3;direction:rtl;
+font-family:-apple-system,'SF Arabic','Segoe UI',Tahoma,Arial,sans-serif;line-height:1.6}
+.wrap{max-width:1180px;margin:0 auto;padding:24px 16px 90px}
+h1{font-size:25px;margin:0 0 4px} h2{font-size:18px;margin:30px 0 8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+h3{font-size:13px;margin:0 0 12px;color:#aeb9c9}
+.count{font-size:12px;background:#1b2330;color:#8fa3bd;border-radius:20px;padding:1px 9px}
+.sub{color:#8a97a8;font-size:13px;margin-top:4px} .sub2{color:#8a97a8;font-size:12.5px;margin:2px 0 8px}
+.n{direction:ltr;unicode-bidi:isolate;display:inline-block}
+.banner{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0 6px}
+.kpi{background:linear-gradient(160deg,#141b27,#0f141d);border:1px solid #1d2735;border-radius:14px;padding:12px 16px;min-width:150px;flex:1}
+.kpi b{display:block;font-size:21px} .kpi span{color:#8a97a8;font-size:12px;display:flex;align-items:center;gap:5px}
+.tablewrap{overflow-x:auto;border:1px solid #1b2330;border-radius:14px}
+table{width:100%;border-collapse:collapse;font-size:13px;min-width:820px}
+th{position:sticky;top:0;background:#121a25;color:#9fb0c6;text-align:right;padding:9px 8px;font-weight:600;white-space:nowrap;font-size:12px}
+td{padding:9px 8px;border-top:1px solid #18202c;vertical-align:top;text-align:right}
+td.r{text-align:left} .dim{color:#74808f} .sm{font-size:11px}
+tbody tr:hover{background:#0f141d}
+.chip{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap}
+.a-cand{background:#0e3a25;color:#5ee7a0}.a-res{background:#123047;color:#6cc4ff}
+.a-watch{background:#3a3413;color:#e8cf5a}.a-verify{background:#3a2a12;color:#f0b46b}.a-avoid{background:#3a1820;color:#ff8a9a}
+.h-pass{background:#0e3a25;color:#5ee7a0}.h-unknown{background:#3a2a12;color:#f0b46b}.h-fail{background:#3a1820;color:#ff8a9a}
+.f-fresh{background:#0e3a25;color:#5ee7a0}.f-stale{background:#3a3413;color:#e8cf5a}.f-missing{background:#2a2f3a;color:#9aa6b5}
+.dir-positive{background:#0e3a25;color:#5ee7a0}.dir-negative{background:#3a1820;color:#ff8a9a}.dir-neutral{background:#222934;color:#9fb0c6}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}@media(max-width:820px){.grid3{grid-template-columns:1fr}table{font-size:12px}}
+.card{background:#0f141d;border:1px solid #1b2330;border-radius:14px;padding:16px}
+.bar{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:12px}
+.bar span{width:110px;color:#aeb9c9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar .track{flex:1;background:#161d28;border-radius:6px;height:8px;overflow:hidden}
+.bar .track i{display:block;height:100%;background:linear-gradient(90deg,#3a7bd5,#5ee7a0)}
+/* أشرطة النقاط داخل الجدول (بدل الأرقام المجرّدة) */
+.sbwrap{display:flex;align-items:center;gap:6px;justify-content:flex-end;direction:ltr}
+.sb{background:#161d28;border-radius:6px;height:8px;width:54px;overflow:hidden;position:relative;flex:0 0 auto}
+.sb i{position:absolute;top:0;bottom:0;right:0;border-radius:6px}
+.sbwrap b{font-size:12.5px;min-width:20px;text-align:left;color:#e7ecf3}
+.tchip{display:inline-block;margin-top:4px;background:#13202e;border:1px solid #24435e;color:#7fd0ff;border-radius:20px;padding:1px 8px;font-size:10.5px}
+.metric{display:flex;align-items:baseline;gap:8px;margin:8px 0}.metric b{font-size:20px}.metric span{color:#8a97a8;font-size:12px}
+.note{background:#10161f;border:1px solid #1b2330;border-radius:12px;padding:14px 16px;color:#9fb0c6;font-size:13px;margin-top:18px}
+footer{color:#5c6675;font-size:12px;margin-top:40px;text-align:center}
+/* علامة الشرح (؟) */
+.i{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:50%;
+background:#1f6feb;color:#fff;font-size:11px;font-weight:700;cursor:pointer;margin:0 2px;vertical-align:middle;
+flex:0 0 auto;user-select:none;line-height:1}
+.i:hover{background:#4a90ff}
+/* النافذة المنبثقة */
+.modal{display:none;position:fixed;inset:0;background:rgba(2,5,11,.72);z-index:99;align-items:center;justify-content:center;padding:18px}
+.box{background:#121a26;border:1px solid #28384b;border-radius:18px;max-width:440px;width:100%;padding:22px;box-shadow:0 18px 60px rgba(0,0,0,.5)}
+.box h3{font-size:18px;color:#e7ecf3;margin:0 0 14px;display:flex;justify-content:space-between;align-items:center}
+.box .x{cursor:pointer;color:#8a97a8;font-size:22px;line-height:1;padding:0 4px}
+.box .lbl{color:#5ee7a0;font-size:12px;font-weight:700;margin-top:12px}
+.box .val{color:#cdd6e2;font-size:14px;margin-top:3px}
+.box .ex{background:#0e1622;border-radius:10px;padding:10px 12px;margin-top:6px;color:#e7ecf3;font-size:13.5px}
+.hint{display:inline-block;background:#13202e;border:1px solid #24435e;color:#7fd0ff;border-radius:20px;
+padding:5px 12px;font-size:12.5px;margin:10px 0 0}
+"""
+
+JS = """
+function g(k){var d=GL[k];if(!d)return;
+ document.getElementById('gt').innerText=d.t;
+ document.getElementById('gw').innerText=d.w;
+ document.getElementById('gb').innerText=d.b;
+ document.getElementById('ge').innerText=d.e;
+ document.getElementById('gm').style.display='flex';}
+function gc(){document.getElementById('gm').style.display='none';}
+document.addEventListener('click',function(e){if(e.target.id==='gm')gc();});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')gc();});
+"""
+
+
+def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg):
+    app = (cfg.get("app", {}) or {})
+    name = app.get("name", "مرصد الأسهم")
+    subtitle = app.get("subtitle", "منصّة بحث استثماري شخصية — بحث، وليست توصية بالشراء")
+    top_n = (cfg.get("output", {}) or {}).get("top_n_dashboard", 20)
+    # نعرض فقط الأسهم المناسبة — نحذف غير المتوافق شرعياً و«تجنّب» نهائياً
+    def _vis(r):
+        return r.get("action") != "Avoid" and r.get("halal_status") != "fail"
+    visible = [r for r in records if _vis(r)]
+    ranked = sorted(visible, key=lambda r: (r.get("total_score") or 0), reverse=True)
+    fc = meta.get("fresh_counts", {})
+    risk = meta.get("market_risk_today", "—")
+    risk_cls = {"Low": "dir-positive", "Medium": "dir-neutral", "High": "a-watch", "Extreme": "a-avoid"}.get(risk, "dir-neutral")
+
+    banner = f"""
+    <div class="banner">
+      <div class="kpi"><b class="n">{_h(meta.get('data_source'))}</b><span>مصدر البيانات</span></div>
+      <div class="kpi"><b class="n">{fc.get('FRESH',0)}/{fc.get('STALE',0)}/{fc.get('MISSING',0)}</b><span>حديثة/قديمة/ناقصة {_i('fresh')}</span></div>
+      <div class="kpi"><b class="n">{meta.get('hi',0)}/{meta.get('med',0)}/{meta.get('low',0)}</b><span>ثقة عالية/متوسطة/منخفضة</span></div>
+      <div class="kpi"><b><span class="chip {risk_cls}">{_h(RISK_AR.get(risk, risk))}</span></b><span>مخاطر السوق اليوم {_i('marketrisk')}</span></div>
+      <div class="kpi"><b class="n">{len(visible)}</b><span>سهم مناسب (من {meta.get('examined',0)} مفحوص)</span></div>
+    </div>"""
+
+    parts = [
+        f"<h1>📊 {_h(name)}</h1>",
+        f"<div class='sub'>{_h(subtitle)} · حُدّث {_h(meta.get('generated_at'))} (توقيت قطر)</div>",
+        "<div class='hint'>💡 اضغط على أي علامة <b style='color:#fff'>؟</b> جنب أي مصطلح يطلع لك شرح بسيط: وش يعني + فايدته + مثال.</div>",
+        banner,
+        _section_table("✅", "مرشّحون أقوياء", "action", buckets.get("Candidate", []),
+                       "حلال مبدئياً + أساسيات قوية + مخاطرة مقبولة."),
+        _section_table("⚠️", "تأكّد من الحلال أولاً", "halal", buckets.get("Verify Halal First", []),
+                       "أسهم قوية لكن لازم تأكّد شرعيتها على Zoya/Musaffa قبل أي شي."),
+        _section_table("🔁", "مزدحم / متأخر", "crowded",
+                       [r for r in buckets.get("crowded", []) if _vis(r)],
+                       "صعد كثير وقريب من قمته — احذر الدخول المتأخر."),
+        _section_table("🔭", "ابحث أكثر", "action", buckets.get("Research More", []),
+                       "واعد، بس يحتاج بحث أعمق."),
+        _section_table("👀", "راقب", "action", buckets.get("Watch", [])),
+        _section_table("⭐", "قائمتي (قناعاتي)", "watchlist",
+                       [r for r in buckets.get("watchlist", []) if _vis(r)],
+                       "أسهمك — التفاصيل الكاملة في watchlist.csv."),
+        f"<section><h2>🏆 أعلى {top_n} سهم {_i('top20')}</h2>"
+        f"<div class='tablewrap'><table>{_thead()}<tbody>{_stock_rows(ranked[:top_n])}</tbody></table></div></section>",
+        _exposure(visible),
+        _portfolio(portfolio_rows),
+        _news(news_rows),
+        _political(political_rows),
+        "<div class='note'>هذا <b>نظام بحث</b>، وليس نصيحة استثمارية. لا مخرج هنا توصية شراء ولا وعد بسعر. "
+        "الحالة الشرعية تقريبية — أكّد كل سهم على Zoya/Musaffa. نضارة البيانات تحكم الثقة: بيانات قديمة أو ناقصة → الثقة «منخفضة». "
+        "بيانات الكونغرس إشارة ضعيفة فقط. القرار والمسؤولية عليك وحدك.</div>",
+        f"<footer>{_h(name)} · منصّة بحث استثماري شخصية · يُولَّد محلياً على جهازك</footer>",
+        # نافذة الشرح
+        "<div class='modal' id='gm'><div class='box'>"
+        "<h3><span id='gt'></span><span class='x' onclick='gc()'>×</span></h3>"
+        "<div class='lbl'>وش يعني؟</div><div class='val' id='gw'></div>"
+        "<div class='lbl'>الفايدة</div><div class='val' id='gb'></div>"
+        "<div class='lbl'>مثال</div><div class='ex' id='ge'></div>"
+        "</div></div>",
+        f"<script>var GL={json.dumps(GLOSSARY, ensure_ascii=False)};{JS}</script>",
+    ]
+    return (f"<!doctype html><html lang='ar' dir='rtl'><head><meta charset='utf-8'>"
+            f"<meta name='viewport' content='width=device-width,initial-scale=1'>"
+            f"<title>{_h(name)}</title><style>{CSS}</style></head>"
+            f"<body><div class='wrap'>{''.join(parts)}</div></body></html>")
