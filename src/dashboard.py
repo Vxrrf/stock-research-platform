@@ -214,6 +214,10 @@ GLOSSARY = {
                  "w": "نأخذ أقوى أسهمك اليوم ونشوف كيف كان أداؤها لو امتلكتها آخر ~3 سنوات، مقابل مؤشر SPY.",
                  "b": "مؤشر تعقّل: هل ترتيبنا يميل لأسماء أدّت كويس؟ — لكنه ليس إثباتاً.",
                  "e": "⚠️ فيه انحياز نظر للأمام (اخترناها ببيانات اليوم) وانحياز ناجين — اقرأ التحذيرات تحت الجدول."},
+    "bottleneck": {"t": "عنق الزجاجة (Bottleneck)",
+                   "w": "العنصر النادر في سلسلة ما، اللي الكل محتاجه ومحد يقدر يوفّره بسهولة. مالكه (chokepoint) يكسب أكثر من المزاحم. العنق ينتقل في السلسلة مع الوقت.",
+                   "b": "تصطاد المرحلة القادمة من الموجة قبل ما ينفجر سعرها — بدل ما تطارد الفائز بعد ما طار.",
+                   "e": "AI: العنق انتقل من الشرائح (NVDA) → للكهرباء (نووي مثل CEG) → للذاكرة (HBM). من يملك الكهرباء الحين يكسب."},
     "fair": {"t": "القيمة العادلة (تقاطُع المصادر)",
              "w": "تقدير تقريبي لقيمة السهم من ٣ مصادر مستقلة: إعادة تسعير مكرّر الربحية + DCF مبسّط + هدف المحللين. نأخذ المتّفق منها فقط.",
              "b": "تعرف هل السعر الحالي رخيص أو غالي مقابل تقدير متعدّد المصادر — مو مصدر واحد.",
@@ -501,6 +505,72 @@ def _political(rows):
             f"<tbody>{body}</tbody></table></div></section>")
 
 
+_BN_STATUS = {"acute": ("🔴 عنق حاد الآن", "bn-acute"), "building": ("🟠 قادم يتشكّل", "bn-build"),
+              "easing": ("🟢 خفّ (كان عنق)", "bn-ease"), "speculative": ("🔵 مضاربي بعيد", "bn-spec")}
+_BN_PROB = {"high": "مرجّح هيكلياً", "med": "محتمل", "low": "مضاربي"}
+_BN_CONF = {"high": "ثقة عالية بالأطروحة", "med": "ثقة متوسطة"}
+
+
+def _bn_chip(t):
+    sym, role = t.get("sym"), t.get("role")
+    hal, cov = t.get("halal"), t.get("covered")
+    icon = "🔑 " if role == "chokepoint" else ("🌱 " if role == "early" else "")
+    if not cov:
+        cls = "bnc-out"          # خارج نطاقنا / غير محمّل هالتشغيل
+    elif hal == "fail":
+        cls = "bnc-fail"
+    elif hal == "pass":
+        cls = "bnc-pass"
+    else:
+        cls = "bnc-unk"
+    conv = t.get("conviction")
+    cv = f"<b class='n'> {conv:.0f}</b>" if (cov and conv is not None) else ""
+    fail_mark = " ✗" if (cov and hal == "fail") else ""
+    key = " bnc-key" if role == "chokepoint" else ""
+    return f"<span class='bnc {cls}{key}' dir='ltr'>{icon}{_h(sym)}{cv}{fail_mark}</span>"
+
+
+def _bottleneck_section(chains):
+    head = (f"<section id='s-bn'><h2>🔗 عنق الزجاجة عبر القطاعات {_i('bottleneck')}</h2>"
+            "<div class='note' style='border-color:#5e4420;background:#231a10;color:#f0c89a'>"
+            "⚠️ <b>تحليل منطقي حتى مطلع 2026 — احتمالات مرجّحة، مو نبوءة ولا بيانات حيّة.</b> "
+            "الفكرة: نصطاد العنق <b>القادم</b> قبل لا ينفجر سعره. كل سهم هنا يبقى يتفلتر على نظامنا الشرعي — "
+            "<b>عنق ممتاز + حرام = مو لنا</b>.</div>"
+            "<div class='dim sub2'>🔑 مالك العنق (قوة تسعير) · 🌱 بذرة مضاربية · "
+            "<span style='color:#5ee7a0'>أخضر=حلال</span> · "
+            "<span style='color:#f0b46b'>أصفر=تأكّد الحلال</span> · "
+            "<span style='color:#ff8a9a'>أحمر=حرام عندنا ✗</span> · "
+            "<span style='color:#74808f'>رمادي=خارج نطاقنا</span> · الرقم=قناعتنا.</div>")
+    if not chains:
+        return head + "<p class='dim'>لا توجد خريطة عنق محمّلة.</p></section>"
+    cards = ""
+    for ch in chains:
+        conf = ch.get("confidence")
+        conf_badge = (f"<span class='chip {'a-cand' if conf == 'high' else 'a-watch'}'>{_BN_CONF.get(conf, conf)}</span>"
+                      if conf else "")
+        stages_html = ""
+        for st in ch.get("stages", []):
+            slab, scls = _BN_STATUS.get(st.get("status"), (st.get("status"), ""))
+            prob = _BN_PROB.get(st.get("prob"), "")
+            timing = st.get("timing")
+            chips = "".join(_bn_chip(t) for t in st.get("tickers", []))
+            cov_note = (f"<div class='dim sm' style='font-style:italic'>ℹ️ {_h(st.get('coverage_note'))}</div>"
+                        if st.get("coverage_note") else "")
+            stages_html += (
+                f"<div class='bn-stage'>"
+                f"<div class='bn-stage-h'><span class='chip {scls}'>{slab}</span>"
+                f"<b>{_h(st.get('name'))}</b>"
+                f"<span class='dim sm'>{_h(prob)}{' · ' + _h(timing) if timing else ''}</span></div>"
+                f"<div class='dim sm' style='margin:2px 0 6px'>{_h(st.get('note'))}</div>"
+                f"<div class='bn-chips'>{chips or '<span class=\"dim sm\">—</span>'}</div>{cov_note}</div>")
+        cards += (f"<div class='card bn-card'>"
+                  f"<h3 style='font-size:15px;color:#e7ecf3'>{ch.get('icon', '🔗')} {_h(ch.get('name'))} {conf_badge}</h3>"
+                  f"<div class='dim sm' style='margin-bottom:4px'>{_h(ch.get('thesis'))}</div>"
+                  f"<div class='sm' style='color:#9ce8c4;margin-bottom:8px'>🎯 <b>ليش يفيدنا:</b> {_h(ch.get('why_us'))}</div>"
+                  f"{stages_html}</div>")
+    return head + f"<div class='bn-grid'>{cards}</div></section>"
+
+
 def _mode_toggle(meta):
     nav = meta.get("modes_nav") or []
     if not nav:
@@ -642,6 +712,19 @@ padding:5px 12px;font-size:12.5px;margin:10px 0 0}
 .mpill{font-size:13px;color:#aeb9c9;background:#141b27;border:1px solid #1d2735;border-radius:20px;padding:6px 13px;text-decoration:none;font-weight:700}
 .mpill:hover{background:#1d2838;color:#fff}
 .mpill.on{background:#1f6feb;color:#fff;border-color:#1f6feb}
+/* عنق الزجاجة */
+.bn-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:820px){.bn-grid{grid-template-columns:1fr}}
+.bn-card{padding:16px}
+.bn-stage{border-top:1px solid #18202c;padding:9px 0}
+.bn-stage-h{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:13px}
+.bn-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:2px}
+.bnc{font-size:11.5px;border-radius:8px;padding:2px 8px;font-weight:700;border:1px solid transparent}
+.bnc-pass{background:#0e3a25;color:#5ee7a0}.bnc-unk{background:#3a2a12;color:#f0b46b}
+.bnc-fail{background:#3a1820;color:#ff8a9a;text-decoration:line-through}
+.bnc-out{background:#161d28;color:#74808f}
+.bnc-key{border-color:#caa24a;box-shadow:0 0 0 1px #caa24a55}
+.bn-acute{background:#3a1820;color:#ff8a9a}.bn-build{background:#3a2a12;color:#f0b46b}
+.bn-ease{background:#0e3a25;color:#5ee7a0}.bn-spec{background:#123047;color:#6cc4ff}
 """
 
 JS = """
@@ -697,6 +780,7 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
     nav = ("<nav class='qnav'>"
            "<a href='#s-hold'>💼 محفظتي</a>"
            "<a href='#s-movers'>🔀 تغيّرات</a>"
+           "<a href='#s-bn'>🔗 عنق الزجاجة</a>"
            "<a href='#s-future'>🌱 قادة المستقبل</a>"
            "<a href='#s-accel'>🚀 مُسرِّعون</a>"
            "<a href='#s-comp'>🏛️ مُركِّبون</a>"
@@ -720,6 +804,7 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
         nav,
         _holdings_section(meta.get("holdings_eval") or []),
         _movers_section(meta.get("movers") or []),
+        _bottleneck_section(meta.get("bottlenecks") or []),
         "<div class='hint' style='background:#10221a;border-color:#1d6340;color:#9ce8c4'>🎯 محرّكات الصيد الثلاثة: <b>قادة المستقبل</b> (x3–x10 على سنوات) · <b>مُسرِّعون</b> (6–24 شهر) · <b>مُركِّبون</b> (جودة تدوم). سهم واحد ممكن يكون في أكثر من محرّك.</div>",
         _section_table("🌱", "قادة المستقبل (صيد x3–x10)", "future_leader", buckets.get("future_leader", []),
                        "أسهم صغيرة/متوسطة، نمو قوي + ثيم مستقبلي + هوامش حقيقية، ولسه ما انفجرت — هنا الفرص الكبيرة على سنوات، بحصص صغيرة موزّعة.", sid="s-future"),

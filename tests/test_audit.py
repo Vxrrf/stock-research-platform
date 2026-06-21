@@ -20,8 +20,11 @@ import portfolio
 import halal_gate
 import price_targets
 import watchlist_memory
+import pipeline
+import themes
 
 CFG = config_loader.load_config()
+EXT = config_loader.load_external_lists()
 
 
 def _rec(**kw):
@@ -180,6 +183,75 @@ def test_movers_empty_on_first_run():
     mv = watchlist_memory.movers(mem)
     assert mv and mv[0]["ticker"] == "AAA" and mv[0]["direction"] == "up", "rank rise should surface as up-mover"
     print("✅ movers: empty on first run, surfaces driver on change")
+
+
+def test_pipeline_total_score_includes_adjustments():
+    """The shared pipeline must apply theme bonus + hype penalty so total_score is
+    NOT merely fundamental_score (the drift Codex flagged in the ad-hoc tool)."""
+    # a strong AI/semiconductor name → theme bonus should LIFT total above fundamental
+    ai = _rec(ticker="AIX", sector="Technology", industry="Semiconductors",
+              name="AI Chips", rev_growth=0.4, rev_cagr_3y=0.3, roic=0.25, roe=0.3,
+              gross_margin=0.6, operating_margin=0.35, forward_pe=28, eps_growth_fwd=0.25,
+              market_cap=4e10, num_analysts=30, analyst_upside_percent=0.2, rec_mean=1.6,
+              one_year_return=0.25, pct_below_52w_high=0.15, confidence="HIGH")
+    pipeline.enrich_record(ai, CFG, EXT)
+    pipeline.finalize_scores(ai, CFG)
+    assert ai["total_score"] is not None and ai["fundamental_score"] is not None
+    assert ai["total_score"] > ai["fundamental_score"], \
+        f"theme bonus should lift total ({ai['total_score']}) above fundamental ({ai['fundamental_score']})"
+    assert isinstance(ai.get("engines"), list) and ai.get("conviction_score") is not None
+    assert ai.get("rank_score") is not None
+
+    # a hyped name (+250% in 1y, near highs) → hype penalty should DROP total below fundamental
+    hype = _rec(ticker="HYP", sector="Technology", name="Hype", rev_growth=0.3,
+                operating_margin=0.2, gross_margin=0.5, forward_pe=40, market_cap=8e9,
+                one_year_return=2.6, pct_below_52w_high=0.02, confidence="HIGH")
+    pipeline.enrich_record(hype, CFG, EXT)
+    pipeline.finalize_scores(hype, CFG)
+    assert hype["total_score"] <= hype["fundamental_score"], \
+        "a +250% near-highs name should be penalised, not lifted"
+    print(f"✅ shared pipeline applies adjustments (AI {ai['fundamental_score']}→{ai['total_score']}; "
+          f"hype {hype['fundamental_score']}→{hype['total_score']})")
+
+
+def test_pipeline_matches_main_contract():
+    """enrich+finalize populate every field downstream consumers (actions/gates/dashboard) read."""
+    r = _rec(ticker="ZZZ", sector="Technology", name="Z", rev_growth=0.2, market_cap=1e10,
+             forward_pe=25, num_analysts=10, analyst_upside_percent=0.15, confidence="HIGH")
+    pipeline.enrich_record(r, CFG, EXT)
+    pipeline.finalize_scores(r, CFG)
+    for f in ("fundamental_score", "total_score", "opportunity_score", "risk_score",
+              "rank_score", "conviction_score", "halal_status", "engines", "weaknesses",
+              "suggested_hold_months"):
+        assert f in r and r[f] is not None or f in ("engines", "weaknesses"), f"pipeline left {f} unset"
+    print("✅ pipeline populates the full downstream contract")
+
+
+def test_iren_override_from_yaml():
+    """The real halal_overrides.yaml marks IREN compliant (user verified on Zoya)."""
+    ov = config_loader.load_halal_overrides()
+    assert ov.get("IREN", {}).get("status") == "pass", "IREN should be a pass override"
+    r = _rec(ticker="IREN", sector="Financial Services", industry="Capital Markets", market_cap=1e10)
+    halal_gate.apply(r, CFG, extra={}, overrides=ov)
+    assert r["halal_status"] == "pass" and r["halal_source"].startswith("manual:"), \
+        "Zoya override must flip IREN to pass and tag the source"
+    print("✅ IREN override (Zoya) flips auto-fail → pass, source-tagged")
+
+
+def test_bottleneck_classify_and_summary():
+    """A chokepoint owner at an acute high-prob stage is flagged; an unlisted name isn't."""
+    import bottlenecks
+    data = bottlenecks.load()
+    assert data.get("chains"), "bottlenecks.yaml should load chains"
+    recs = [_rec(ticker="CEG", conviction_score=7), _rec(ticker="ZZNOTinMAP")]
+    bottlenecks.classify(recs, data)
+    ceg = recs[0]
+    assert ceg["bottlenecks"], "CEG should be tagged (AI power)"
+    assert ceg["bottleneck_owner"] is True, "CEG is an acute high-prob chokepoint → owner"
+    assert recs[1]["bottlenecks"] == [] and recs[1]["bottleneck_owner"] is False
+    summary = bottlenecks.build_summary(data, {"CEG": ceg})
+    assert any(c["id"] == "ai_power" for c in summary), "summary must include the ai_power chain"
+    print("✅ bottleneck lens: tags chokepoint owners, ignores unlisted, builds summary")
 
 
 def main():

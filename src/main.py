@@ -30,6 +30,7 @@ import datasource
 import themes
 import halal_gate
 import scoring
+import pipeline
 import conviction as conviction_mod
 import engines as engines_mod
 import cross_source
@@ -47,6 +48,7 @@ import gates as gates_mod
 import recommendation
 import portfolio as portfolio_mod
 import backtest as backtest_mod
+import bottlenecks as bottlenecks_mod
 import outputs
 import dashboard
 
@@ -172,17 +174,9 @@ def main():
         print("No data fetched (network/rate-limit?). Try again or set --watchlist.")
         return 1
 
-    # ── 2) per-record core enrichment ──
+    # ── 2) per-record core enrichment (shared pipeline) ──
     for rec in records:
-        themes.classify(rec)
-        halal_gate.apply(rec, cfg, extra={}, overrides=halal_overrides)   # manual verdict wins; yfinance can't verify interest income
-        rec["fundamental_score"] = scoring.fundamental_score(rec, cfg)
-        cross_source.apply(rec, cfg, ext)
-        rec["opportunity_score"] = scoring.opportunity_score(rec, cfg)
-        rec["risk_score"] = scoring.risk_score(rec, cfg)
-        price_targets.apply(rec, cfg)
-        flags.crowding_flag(rec, cfg)
-        flags.popular_not_cheap_flag(rec, cfg)
+        pipeline.enrich_record(rec, cfg, ext, overrides=halal_overrides)  # manual halal verdict wins
         rec["_discovery_eligible"] = discovery_eligible(rec, cfg, watchlist)
 
     # ── 3) focused set for the heavier trackers ──
@@ -225,28 +219,13 @@ def main():
             except Exception as e:
                 print(f"  political tracker skipped: {e}")
 
-    # ── 4) total score (fundamental primary + capped bonuses − penalties) ──
-    news_max = (cfg.get("news", {}) or {}).get("max_weight_pct", 0.05)
+    # ── 4) total score + conviction + engines + rank (shared pipeline) ──
     for rec in records:
-        base = rec.get("fundamental_score") or 0.0
-        theme_b = themes.theme_bonus(rec, cfg)
-        ext_b = rec.get("external_bonus", 0) or 0
-        earn = rec.get("earnings_score_adj", 0) or 0
-        isc = rec.get("insider_confidence_score")
-        ins = max(-2.0, min(2.0, (isc - 5) * 0.4)) if isc is not None else 0.0
-        pol = political_mod.political_bonus(rec, buys, cfg) if buys else 0
-        rec["political_bonus"] = pol
-        sent = rec.get("_news_sentiment") or 0.0
-        news_adj = round(sent * (news_max * base), 2)     # ≤ 5% of base
-        rec["news_impact_score"] = news_adj
-        hype = flags.hype_penalty(rec, cfg)
-        total = _clamp(base + theme_b + ext_b + earn + ins + pol + news_adj - hype)
-        rec["total_score"] = round(total, 1)
-        rec["weaknesses"] = scoring.weaknesses(rec, cfg)
-        # conviction (0–10) + hunting engines (compounder/accelerator/future-leader)
-        conviction_mod.compute(rec, cfg)
-        engines_mod.classify(rec, cfg)
-        rec["rank_score"] = scoring.overall_rank(rec, cfg)   # holistic best-overall
+        pipeline.finalize_scores(rec, cfg, buys=buys)
+
+    # ── 4b) bottleneck lens: tag each stock with the supply-chain chokepoint(s) it sits in ──
+    bn_data = bottlenecks_mod.load()
+    bottlenecks_mod.classify(records, bn_data)
 
     # ── 5) watchlist memory (rising/fallen + new/returning) ──
     # rank by the holistic overall score → #1 is the best across everything
@@ -397,6 +376,7 @@ def main():
         "market_risk_today": market_risk, "examined": len(records), "universe": len(tickers),
         "signals_rows": signals_mod.rows(rby, cfg)[1],
         "movers": moves, "backtest": bt,
+        "bottlenecks": bottlenecks_mod.build_summary(bn_data, rby),
     }
     modes = cfg.get("modes") or {"balanced": {"label": "⚖️ متوازن", "rank": None, "allocation": None}}
     mode_files = {"balanced": "index.html", "aggressive": "aggressive.html", "conservative": "conservative.html"}
