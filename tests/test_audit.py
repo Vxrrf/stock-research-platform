@@ -254,6 +254,45 @@ def test_bottleneck_classify_and_summary():
     print("✅ bottleneck lens: tags chokepoint owners, ignores unlisted, builds summary")
 
 
+def test_sanity_flags_artifacts_and_funds():
+    """Implausible data is flagged (not trusted as signal); ETFs are detected."""
+    import sanity
+    bad = _rec(ticker="SNDK", one_year_return=45.53, confidence="HIGH")   # +4553% = artifact
+    sanity.flag_suspect(bad)
+    assert bad["data_suspect"] and bad["confidence"] == "MEDIUM", "huge return must be flagged + soften confidence"
+    clean = _rec(ticker="ABC", one_year_return=0.4, rev_growth=0.3, confidence="HIGH")
+    sanity.flag_suspect(clean)
+    assert not clean["data_suspect"] and clean["confidence"] == "HIGH"
+    assert sanity.is_fund(_rec(ticker="HLAL", name="Wahed FTSE USA Shariah ETF")), "HLAL must be a fund"
+    assert not sanity.is_fund(_rec(ticker="NVDA", sector="Technology", rev_growth=0.5))
+    # broken P&L (held price 10x) is suspect
+    assert sanity.pnl_is_suspect(1133.0, 133.0) and not sanity.pnl_is_suspect(140.0, 130.0)
+    print("✅ sanity: flags artifacts + softens confidence; detects funds; catches broken P&L")
+
+
+def test_action_respects_investable_fund_and_suspect():
+    """Funds → core Watch; not-investable & suspect can never be Candidate."""
+    fund = _rec(halal_status="pass", is_fund=True, fundamental_score=90, total_score=90, confidence="HIGH")
+    actions.apply(fund, CFG)
+    assert fund["action"] == "Watch" and "صندوق" in fund["action_reason"], "fund must be a core hold"
+    noninv = _rec(halal_status="pass", investable=False, not_investable_reasons=["few analysts"],
+                  fundamental_score=90, total_score=90, confidence="HIGH")
+    actions.apply(noninv, CFG)
+    assert noninv["action"] == "Watch", "not-investable must never be a Candidate"
+    susp = _rec(halal_status="pass", data_suspect=True, data_suspect_reasons=["عائد شاذ"],
+                fundamental_score=90, total_score=90, confidence="HIGH")
+    actions.apply(susp, CFG)
+    assert susp["action"] == "Watch", "suspect data must never be a Candidate"
+    # and the rank floor applies
+    base = scoring.overall_rank(_rec(conviction_score=8, opportunity_score=80, risk_score=20,
+                                     fundamental_score=70, total_score=70, confidence="HIGH"), CFG)
+    floored = scoring.overall_rank(_rec(conviction_score=8, opportunity_score=80, risk_score=20,
+                                        fundamental_score=70, total_score=70, confidence="HIGH",
+                                        investable=False), CFG)
+    assert floored < base, "not-investable must floor the rank"
+    print("✅ actions: funds→core, not-investable/suspect never Candidate, rank floored")
+
+
 def main():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = 0

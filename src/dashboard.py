@@ -216,720 +216,515 @@ ENGINE_AR = {"compounder": "🏛️ مُركِّب", "accelerator": "🚀 مُس
 ENGINE_CLASS = {"compounder": "e-comp", "accelerator": "e-accel", "future_leader": "e-future"}
 
 
+
 def _i(key):
-    """علامة (؟) قابلة للضغط تفتح شرح المصطلح."""
-    return f'<span class="i" onclick="g(\'{key}\')" title="اضغط للشرح">؟</span>'
+    """علامة (؟) صغيرة هادئة تفتح شرح المصطلح."""
+    return "<span class='i' onclick=\"event.stopPropagation();g('%s')\">؟</span>" % key
 
 
-def _chip(text, cls):
-    return f'<span class="chip {cls}">{_h(text)}</span>'
-
-
-def _bar(val, kind="good"):
-    """شريط بصري بدل الرقم المجرّد. kind: good (أخضر/أزرق) أو risk (أخضر→أحمر)."""
-    if not isinstance(val, (int, float)):
-        return "<span class='dim'>—</span>"
-    v = max(0.0, min(100.0, float(val)))
-    if kind == "risk":            # أعلى = أسوأ
-        col = "#5ee7a0" if v < 40 else ("#e8cf5a" if v < 65 else "#ff7a8a")
-    else:                          # أعلى = أفضل
-        col = "#5ee7a0" if v >= 70 else ("#6cc4ff" if v >= 55 else "#8b97a8")
-    return (f"<div class='sbwrap'><div class='sb'><i style='width:{v:.0f}%;background:{col}'></i></div>"
-            f"<b class='n'>{val:.0f}</b></div>")
-
-
-def _convbar(s):
-    """شريط القناعة 0–10 — الرقم الرئيسي."""
+def _conv(s):
+    """رقم القناعة بلون هادئ + شريط رفيع."""
     if not isinstance(s, (int, float)):
-        return "<span class='dim'>—</span>"
-    w = max(0, min(10, s)) * 10
-    col = "#5ee7a0" if s >= 8 else ("#6cc4ff" if s >= 6 else "#8b97a8")
-    return (f"<div class='sbwrap'><div class='sb sb-lg'><i style='width:{w:.0f}%;background:{col}'></i></div>"
-            f"<b class='n' style='font-size:13.5px'>{s:.1f}</b></div>")
+        return "<span class='cv cv-na'>—</span>"
+    c = "cv-hi" if s >= 8 else ("cv-mid" if s >= 6.5 else "cv-lo")
+    w = int(max(0, min(10, s)) * 10)
+    return ("<span class='cv %s'><b class='n'>%.1f</b><i style='width:%d%%'></i></span>" % (c, s, w))
 
 
-def _engine_badges(rec):
-    out = ""
-    if rec.get("cyclical"):
-        out += "<span class='ebadge e-cyc'>🔄 دوري/تحوّط</span>"
-    out += "".join(f"<span class='ebadge {ENGINE_CLASS.get(e,'')}'>{ENGINE_AR.get(e,e)}</span>"
-                   for e in (rec.get("engines") or []))
-    # merge the bottleneck lens INTO research: flag stocks that OWN a live bottleneck
-    if rec.get("bottleneck_owner"):
-        chains = rec.get("bottlenecks") or []
-        tip = "؛ ".join(dict.fromkeys(t.get("chain", "") for t in chains if t.get("role") == "chokepoint"))
-        out += f"<span class='ebadge e-bn' title='مالك عنق زجاجة: {_h(tip)}'>🔑 عنق</span>"
-    return out
+_HDOT = {"pass": "d-ok", "unknown": "d-unk", "fail": "d-no"}
 
 
-def _pctc(x):
-    """نسبة ملوّنة: أخضر موجب، أحمر سالب."""
-    if not isinstance(x, (int, float)):
-        return "<span class='dim'>—</span>"
-    col = "#5ee7a0" if x > 0.001 else ("#ff8a9a" if x < -0.001 else "#9fb0c6")
-    return f"<span class='n' style='color:{col};font-weight:700'>{x:+.0%}</span>"
+def _ldetail(r):
+    def pct(x):
+        return ("%+.0f%%" % (x * 100)) if isinstance(x, (int, float)) else "—"
+    rk = r.get("risk_score")
+    up = r.get("analyst_upside_percent")
+    rg = r.get("rev_growth")
+    hm = r.get("suggested_hold_months")
+    fv = r.get("fair_value_estimate")
+    pr = r.get("price")
+    fvtxt = "—"
+    if isinstance(fv, (int, float)) and isinstance(pr, (int, float)) and pr > 0:
+        fvtxt = "~%.0f (%+.0f%%)" % (fv, (fv / pr - 1) * 100)
+    rate = RATING_AR.get(r.get("rec_key"), "—") if r.get("rec_key") else "—"
+    cells = [
+        ("المخاطرة", ("%.0f/100" % rk) if isinstance(rk, (int, float)) else "—"),
+        ("الصعود المتوقع", pct(up)),
+        ("نمو المبيعات", pct(rg)),
+        ("مدة الاحتفاظ", ("~%d شهر" % hm) if hm else "—"),
+        ("القيمة العادلة", fvtxt),
+        ("تقييم المحللين", rate),
+    ]
+    return "<div class='ldetail'>" + "".join(
+        "<div class='dc'><span>%s</span><b class='n'>%s</b></div>" % (l, _h(v)) for l, v in cells) + "</div>"
 
 
-def _rating_cell(r):
-    k = r.get("rec_key")
-    if not k:
-        return "<span class='dim'>—</span>"
-    m = r.get("rec_mean")
-    n = r.get("num_analysts")
-    sub = []
-    if m:
-        sub.append(f"{m:.1f}/5")
-    if n:
-        sub.append(f"{int(n)} محلل")
-    s = (" · ".join(sub))
-    return (_chip(RATING_AR.get(k, k), RATING_CLASS.get(k, ""))
-            + (f"<div class='dim sm n'>{s}</div>" if s else ""))
-
-
-def _stock_rows(records):
-    out = []
-    for i, r in enumerate(records, 1):
-        act = r.get("action")
-        hal = r.get("halal_status")
-        fr = r.get("data_freshness_status")
-        theme = r.get("primary_theme")
-        theme_chip = (f"<span class='tchip'>{_h(THEME_AR.get(theme, theme))}</span>" if theme else "")
-        hsrc = r.get("halal_source") or "auto"
-        hsrc_badge = (f"<div class='dim sm' style='color:#7fd0ff'>✍️ {_h(hsrc.split(':', 1)[1])}</div>"
-                      if hsrc.startswith("manual") else "")
-        out.append(
-            "<tr>"
-            f"<td class='dim'>{i}</td>"
-            f"<td><b class='n'>{_h(r.get('ticker'))}</b>{_name_sub(r.get('ticker'), r.get('name'))}{theme_chip}{_engine_badges(r)}</td>"
-            f"<td>{_chip(ACTION_AR.get(act, act), _ACTION_CLASS.get(act,''))}</td>"
-            f"<td>{_convbar(r.get('conviction_score'))}</td>"
-            f"<td>{_bar(r.get('risk_score'), 'risk')}</td>"
-            f"<td>{_rating_cell(r)}</td>"
-            f"<td class='r'>{_pctc(r.get('analyst_upside_percent'))}</td>"
-            f"<td class='r'>{_pctc(r.get('rev_growth'))}</td>"
-            f"<td class='dim sm n'>{('~'+str(r.get('suggested_hold_months'))+' شهر') if r.get('suggested_hold_months') else '—'}</td>"
-            f"<td>{_chip(HALAL_AR.get(hal, hal), _HALAL_CLASS.get(hal,''))}{hsrc_badge}</td>"
-            f"<td>{_chip(FRESH_AR.get(fr, fr), _FRESH_CLASS.get(fr,''))}"
-            f"<div class='dim sm'>{_h(CONF_AR.get(r.get('confidence'), r.get('confidence')))}</div></td>"
-            "</tr>"
-        )
-    return "\n".join(out)
-
-
-def _thead():
+def _lrow(r, idx=None):
+    t = r.get("ticker")
+    hal = r.get("halal_status")
+    src = "✓" if str(r.get("halal_source") or "").startswith("manual") else ""
+    theme = THEME_AR.get(r.get("primary_theme"), r.get("primary_theme") or "")
+    act = ACTION_AR.get(r.get("action"), r.get("action") or "")
+    bn = "<span class='kk' title='مالك عنق زجاجة'>🔑</span>" if r.get("bottleneck_owner") else ""
+    eng = "".join("<span class='eg'>%s</span>" % ENGINE_AR.get(e, e) for e in (r.get("engines") or []))
+    name = (r.get("name") or "").strip()
+    nm = ("<span class='nm'>%s</span>" % _h(name[:18])) if name and name.upper() != str(t).upper() else ""
+    sub = " · ".join(x for x in [theme, act] if x)
+    rank = ("<span class='rk'>%s</span>" % idx) if idx else ""
     return (
-        "<thead><tr>"
-        "<th>#</th><th>السهم</th>"
-        f"<th>القرار {_i('action')}</th>"
-        f"<th>القناعة {_i('conviction')}</th>"
-        f"<th>المخاطرة {_i('risk')}</th>"
-        f"<th>التقييم {_i('rating')}</th>"
-        f"<th>الصعود {_i('upside')}</th>"
-        f"<th>النمو {_i('revg')}</th>"
-        f"<th>مدة الاحتفاظ {_i('hold')}</th>"
-        f"<th>الحلال {_i('halal')}</th>"
-        f"<th>البيانات {_i('fresh')}</th>"
-        "</tr></thead>"
+        "<div class='lrow' onclick='exp(this)'>"
+        + rank
+        + "<span class='hd %s' title='%s'>%s</span>" % (_HDOT.get(hal, "d-unk"), _h(HALAL_AR.get(hal, hal)), src)
+        + "<div class='lmain'><div class='lt'><b class='n'>%s</b>%s%s%s</div>" % (_h(t), nm, bn, eng)
+        + "<div class='lsub'>%s</div></div>" % _h(sub)
+        + _conv(r.get("conviction_score"))
+        + "<span class='chev'>⌄</span></div>"
+        + _ldetail(r)
     )
 
 
-def _section_table(emoji, title, info_key, records, subtitle="", limit=12, sid=""):
-    badge = _i(info_key) if info_key else ""
-    total = len(records)
-    shown = records[:limit]
-    if not shown:
-        body = "<p class='dim'>لا يوجد في هذا التشغيل.</p>"
-    else:
-        body = (f"<div class='tablewrap'><table class='stocktbl'>{_thead()}"
-                f"<tbody>{_stock_rows(shown)}</tbody></table></div>")
-        if total > limit:
-            subtitle = (subtitle + f" — يُعرض أقوى {limit} من {total} (الباقي في الملف).").strip(" —")
-    sub = f"<div class='dim sub2'>{_h(subtitle)}</div>" if subtitle else ""
-    idattr = f" id='{sid}'" if sid else ""
-    count = f"{len(shown)}/{total}" if total > limit else str(total)
-    return (f"<section{idattr}><h2>{emoji} {_h(title)} {badge} "
-            f"<span class='count n'>{count}</span></h2>{sub}{body}</section>")
+def _stock_list(records, numbered=True):
+    if not records:
+        return "<p class='muted pad'>لا يوجد في هذا التشغيل.</p>"
+    return "<div class='list'>" + "".join(
+        _lrow(r, (i if numbered else None)) for i, r in enumerate(records, 1)) + "</div>"
 
 
-def _today_card(lines):
-    """The 'what do I do today' card — the answer in 3-5 lines at the very top."""
+def _today_hero(lines):
     if not lines:
         return ""
-    items = "".join(f"<div class='today-row'><span class='te'>{e}</span><div>{t}</div></div>"
-                    for e, t in lines)
-    return ("<section id='s-today'><div class='today'>"
-            "<div class='today-h'>📌 اليوم — وش أسوّي؟</div>" + items + "</div></section>")
+    items = "".join("<div class='th-row'><span class='te'>%s</span><div>%s</div></div>" % (e, t) for e, t in lines)
+    return "<div class='today'><div class='th-h'>📌 اليوم</div>%s</div>" % items
 
 
-def _exposure(records):
-    cand = [r for r in records if r.get("action") in ("Candidate", "Research More", "Watch", "Verify Halal First")]
-    sectors = Counter((r.get("sector") or "—") for r in cand)
-    themes = Counter(THEME_AR.get(t, t) for r in cand for t in (r.get("themes") or []))
-    ai_vals = [r.get("ai_exposure_score", 0) or 0 for r in cand]
-    risks = [r.get("risk_score") for r in cand if r.get("risk_score") is not None]
-    avg_ai = sum(ai_vals) / len(ai_vals) if ai_vals else 0
-    avg_risk = sum(risks) / len(risks) if risks else 0
-    high_risk = sum(1 for x in risks if x >= 65)
-
-    def bars(counter, n=8):
-        if not counter:
-            return "<p class='dim'>—</p>"
-        mx = max(counter.values())
-        rows = []
-        for k, v in counter.most_common(n):
-            w = int(100 * v / mx)
-            rows.append(f"<div class='bar'><span>{_h(k)}</span>"
-                        f"<div class='track'><i style='width:{w}%'></i></div><b class='n'>{v}</b></div>")
-        return "".join(rows)
-
-    return f"""
-    <section><h2>📈 التعرّض (التوزيع) {_i('exposure')}</h2>
-    <div class="grid3">
-      <div class="card"><h3>حسب القطاع</h3>{bars(sectors)}</div>
-      <div class="card"><h3>حسب الثيم</h3>{bars(themes)}</div>
-      <div class="card"><h3>الذكاء والمخاطرة</h3>
-        <div class="metric"><b class='n'>{avg_ai:.1f}</b><span>متوسط الذكاء الاصطناعي /10</span></div>
-        <div class="metric"><b class='n'>{avg_risk:.0f}</b><span>متوسط المخاطرة /100</span></div>
-        <div class="metric"><b class='n'>{high_risk}</b><span>أسهم عالية المخاطرة (≥65)</span></div>
-      </div>
-    </div></section>"""
-
-
-def _portfolio(rows):
-    body = "".join(
-        f"<tr><td>{_h(r['bucket'])}</td><td class='r'><b class='n'>{_h(r['allocation_pct'])}</b></td>"
-        f"<td class='n' dir='ltr'>{_h(r['suggested_holdings'])}</td><td class='dim'>{_h(r['notes'])}</td></tr>"
-        for r in rows
-    )
-    return (f"<section><h2>💼 نموذج المحفظة {_i('portfolio')}</h2><div class='tablewrap'><table>"
-            "<thead><tr><th>الفئة</th><th>النسبة</th><th>أسهم مقترحة</th><th>ملاحظات</th></tr></thead>"
-            f"<tbody>{body}</tbody></table></div></section>")
-
-
-def _news(rows):
-    if not rows:
-        return f"<section><h2>📰 أثر الأخبار {_i('news')}</h2><p class='dim'>لا توجد أحداث محمّلة.</p></section>"
-    dir_ar = {"positive": "إيجابي", "negative": "سلبي", "neutral": "محايد"}
-    body = "".join(
-        f"<tr><td>{_h(r['event_name'])}</td><td class='n'>{_h(r['date'])}</td>"
-        f"<td class='r n'>{_h(r['impact_score'])}</td>"
-        f"<td>{_chip(dir_ar.get(r['impact_direction'], r['impact_direction']), 'dir-'+str(r['impact_direction']))}</td></tr>"
-        for r in rows
-    )
-    return (f"<section><h2>📰 أثر الأخبار {_i('news')}</h2>"
-            "<div class='dim sub2'>⚠️ <b>أحداث يدوية</b> (تُحدّث يدوياً في data/news_events.yaml حسب تاريخ كل حدث) — "
-            "وليست بثّاً حياً لحظياً. «مخاطر السوق اليوم» مشتقّة من هذي الأحداث اليدوية. "
-            "للأخبار الحيّة العميقة اطلب من كلود «حدّث الأخبار».</div>"
-            "<div class='tablewrap'><table>"
-            "<thead><tr><th>الحدث</th><th>التاريخ</th><th>الأثر/10</th><th>الاتجاه</th></tr></thead>"
-            f"<tbody>{body}</tbody></table></div></section>")
-
-
-def _signals_section(rows):
-    head = (f"<section id='s-signals'><h2>📡 إشارات المؤثرين {_i('signals')} "
-            f"<span class='count n'>{len(rows)}</span></h2>"
-            "<div class='dim sub2'>أسهم ذكرها مؤثرون تتابعهم — <b>إشارة ضعيفة للمراجعة فقط</b>، وكل سهم مفحوص على منصّتك قبل أي قرار. "
-            "اطلب من كلود «شوف المؤثرين» يجيب آخر منشوراتهم.</div>")
-    if not rows:
-        return head + "<p class='dim'>لا توجد إشارات بعد — قول لكلود «شوف المؤثرين» يفحص حساباتهم.</p></section>"
-    body = ""
-    for r in rows[:30]:
-        body += (f"<tr><td><b class='n'>{_h(r.get('ticker'))}</b></td>"
-                 f"<td class='dim'>{_h(r.get('account'))}<div class='dim sm n'>{_h(r.get('date'))}</div></td>"
-                 f"<td>{_h(r.get('sentiment'))}</td>"
-                 f"<td><b>{_h(r.get('platform_fit'))}</b><div class='dim sm'>{_h((r.get('note') or '')[:60])}</div></td></tr>")
-    return (head + "<div class='tablewrap'><table><thead><tr><th>السهم</th><th>المصدر</th><th>الرأي</th>"
-            "<th>هل يتوافق مع منصّتك؟</th></tr></thead>"
-            f"<tbody>{body}</tbody></table></div></section>")
-
-
-def _not_investable_section(records, limit=20):
-    if not records:
-        return ""
-    body = ""
-    for r in records[:limit]:
-        reasons = "، ".join(r.get("not_investable_reasons") or [])
-        body += (f"<tr><td><b class='n'>{_h(r.get('ticker'))}</b>{_name_sub(r.get('ticker'), r.get('name'))}</td>"
-                 f"<td class='dim'>{_h(reasons)}</td>"
-                 f"<td>{_chip(FRESH_AR.get(r.get('data_freshness_status'), r.get('data_freshness_status')), _FRESH_CLASS.get(r.get('data_freshness_status'),''))}</td></tr>")
-    return (f"<section><h2>🚫 غير قابل للاستثمار بعد {_i('notinv')} <span class='count n'>{len(records)}</span></h2>"
-            "<div class='dim sub2'>بيانات ناقصة/قديمة أو بوابات صارمة لم تُستوفَ — مفصولة عن المرشّحين (ليست محرّمة، بل غير مكتملة البيانات).</div>"
-            "<div class='tablewrap'><table><thead><tr><th>السهم</th><th>السبب</th><th>البيانات</th></tr></thead>"
-            f"<tbody>{body}</tbody></table></div></section>")
-
-
-def _holdings_section(rows):
-    head = ("<section id='s-hold'><h2>💼 محفظتي — أضِف / احتفظ / بيع</h2>"
-            "<div class='dim sub2'>توصية بحثية حسب الأداء والقناعة — مو «بيع/اشترِ الآن». «بديل أفضل» يظهر فقط لما نكون واثقين. "
-            "عبّي أسعار/تواريخ شرائك في data/holdings.csv.</div>")
-    if not rows:
-        return head + ("<p class='dim'>لا توجد محفظة محمّلة — عبّي أسهمك في "
-                       "<b>data/holdings.csv</b> (التذكرة، سعر الشراء، النسبة، تاريخ الشراء).</p></section>")
-    body = ""
-    for r in rows:
-        if r.get("pnl_suspect"):
-            pnl = "<span class='chip f-stale'>⚠️ سعر مشكوك</span>"
-        elif r.get("pnl") is not None:
-            pnl = f"<span class='n' style='color:{'#5ee7a0' if r['pnl']>=0 else '#ff8a9a'}'>{r['pnl']:+.0%}</span>"
-        else:
-            pnl = "<span class='dim'>—</span>"
-        conv = _convbar(r.get("conviction")) if r.get("conviction") is not None else "<span class='dim'>—</span>"
-        hold = _h(r.get("hold_label") or "—")
-        b = r.get("better")
-        better = (f"<b style='color:#f0b46b'>↑ {_h(b['ticker'])}</b><div class='dim sm'>{_h(b['why'])}</div>"
-                  if b else "<span class='dim sm'>✓ الأفضل في دوره</span>")
-        body += (f"<tr><td><b class='n'>{_h(r['ticker'])}</b>{_name_sub(r['ticker'], r.get('name'))}</td>"
-                 f"<td><b>{_h(r['verdict'])}</b><div class='dim sm'>{_h(r.get('why'))}</div></td>"
-                 f"<td>{conv}</td><td class='r'>{pnl}</td>"
-                 f"<td class='dim sm'>{hold}</td>"
-                 f"<td>{better}</td></tr>")
-    return (head + "<div class='tablewrap'><table class='holdtbl'><thead><tr><th>السهم</th><th>التوصية</th><th>القناعة</th><th>ربح/خسارة</th>"
-            f"<th>مدة الاحتفاظ {_i('hold')}</th><th>بديل أفضل؟ {_i('better')}</th></tr></thead>"
-            f"<tbody>{body}</tbody></table></div></section>")
-
-
-def _political(rows):
-    if not rows:
-        return (f"<section><h2>🏛️ النشاط السياسي {_i('political')} <span class='count'>0</span></h2>"
-                "<p class='dim'>لا توجد صفقات كونغرس حديثة لهذه الأسهم (إشارة ضعيفة فقط — ليست توصية).</p></section>")
-    body = "".join(
-        f"<tr><td>{_h(r['politician_name'])}</td><td><b class='n'>{_h(r['ticker'])}</b></td>"
-        f"<td>{_h(r['transaction_type'])}</td><td class='n'>{_h(r['transaction_date'])}</td>"
-        f"<td class='n'>{_h(r['estimated_value'])}</td></tr>"
-        for r in rows[:40]
-    )
-    return (f"<section><h2>🏛️ النشاط السياسي {_i('political')} <span class='count n'>{len(rows)}</span></h2>"
-            "<div class='dim sub2'>إشارة ضعيفة فقط — اهتمام سياسي، وليست أساس قرار استثماري.</div>"
-            "<div class='tablewrap'><table>"
-            "<thead><tr><th>السياسي</th><th>السهم</th><th>النوع</th><th>التاريخ</th><th>القيمة</th></tr></thead>"
-            f"<tbody>{body}</tbody></table></div></section>")
-
-
-_BN_STATUS = {"acute": ("🔴 عنق حاد الآن", "bn-acute"), "building": ("🟠 قادم يتشكّل", "bn-build"),
-              "easing": ("🟢 خفّ (كان عنق)", "bn-ease"), "speculative": ("🔵 مضاربي بعيد", "bn-spec")}
-_BN_PROB = {"high": "مرجّح هيكلياً", "med": "محتمل", "low": "مضاربي"}
-_BN_CONF = {"high": "ثقة عالية بالأطروحة", "med": "ثقة متوسطة"}
-
-
-def _bn_chip(t):
-    sym, role = t.get("sym"), t.get("role")
-    hal, cov = t.get("halal"), t.get("covered")
-    icon = "🔑 " if role == "chokepoint" else ("🌱 " if role == "early" else "")
-    if not cov:
-        cls = "bnc-out"          # خارج نطاقنا / غير محمّل هالتشغيل
-    elif hal == "fail":
-        cls = "bnc-fail"
-    elif hal == "pass":
-        cls = "bnc-pass"
-    else:
-        cls = "bnc-unk"
-    conv = t.get("conviction")
-    cv = f"<b class='n'> {conv:.0f}</b>" if (cov and conv is not None) else ""
-    fail_mark = " ✗" if (cov and hal == "fail") else ""
-    key = " bnc-key" if role == "chokepoint" else ""
-    return f"<span class='bnc {cls}{key}' dir='ltr'>{icon}{_h(sym)}{cv}{fail_mark}</span>"
-
-
-def _bottleneck_section(chains):
-    head = (f"<section id='s-bn'><h2>🔗 عنق الزجاجة عبر القطاعات {_i('bottleneck')}</h2>"
-            "<div class='note' style='border-color:#5e4420;background:#231a10;color:#f0c89a'>"
-            "⚠️ <b>تحليل منطقي حتى مطلع 2026 — احتمالات مرجّحة، مو نبوءة ولا بيانات حيّة.</b> "
-            "الفكرة: نصطاد العنق <b>القادم</b> قبل لا ينفجر سعره. كل سهم هنا يبقى يتفلتر على نظامنا الشرعي — "
-            "<b>عنق ممتاز + حرام = مو لنا</b>.</div>"
-            "<div class='dim sub2'>🔑 مالك العنق (قوة تسعير) · 🌱 بذرة مضاربية · "
-            "<span style='color:#5ee7a0'>أخضر=حلال</span> · "
-            "<span style='color:#f0b46b'>أصفر=تأكّد الحلال</span> · "
-            "<span style='color:#ff8a9a'>أحمر=حرام عندنا ✗</span> · "
-            "<span style='color:#74808f'>رمادي=خارج نطاقنا</span> · الرقم=قناعتنا.</div>")
-    if not chains:
-        return head + "<p class='dim'>لا توجد خريطة عنق محمّلة.</p></section>"
-    cards = ""
-    for ch in chains:
-        conf = ch.get("confidence")
-        conf_badge = (f"<span class='chip {'a-cand' if conf == 'high' else 'a-watch'}'>{_BN_CONF.get(conf, conf)}</span>"
-                      if conf else "")
-        stages_html = ""
-        for st in ch.get("stages", []):
-            slab, scls = _BN_STATUS.get(st.get("status"), (st.get("status"), ""))
-            prob = _BN_PROB.get(st.get("prob"), "")
-            timing = st.get("timing")
-            chips = "".join(_bn_chip(t) for t in st.get("tickers", []))
-            cov_note = (f"<div class='dim sm' style='font-style:italic'>ℹ️ {_h(st.get('coverage_note'))}</div>"
-                        if st.get("coverage_note") else "")
-            stages_html += (
-                f"<div class='bn-stage'>"
-                f"<div class='bn-stage-h'><span class='chip {scls}'>{slab}</span>"
-                f"<b>{_h(st.get('name'))}</b>"
-                f"<span class='dim sm'>{_h(prob)}{' · ' + _h(timing) if timing else ''}</span></div>"
-                f"<div class='dim sm' style='margin:2px 0 6px'>{_h(st.get('note'))}</div>"
-                f"<div class='bn-chips'>{chips or '<span class=\"dim sm\">—</span>'}</div>{cov_note}</div>")
-        cards += (f"<div class='card bn-card'>"
-                  f"<h3 style='font-size:15px;color:#e7ecf3'>{ch.get('icon', '🔗')} {_h(ch.get('name'))} {conf_badge}</h3>"
-                  f"<div class='dim sm' style='margin-bottom:4px'>{_h(ch.get('thesis'))}</div>"
-                  f"<div class='sm' style='color:#9ce8c4;margin-bottom:8px'>🎯 <b>ليش يفيدنا:</b> {_h(ch.get('why_us'))}</div>"
-                  f"{stages_html}</div>")
-    return head + f"<div class='bn-grid'>{cards}</div></section>"
-
-
-def _mode_toggle(meta):
+def _mode_bar(meta):
     nav = meta.get("modes_nav") or []
     if not nav:
         return ""
     active = meta.get("active_mode")
-    pills = "".join(
-        f"<a class='mpill {'on' if k == active else ''}' href='{_h(fname)}'>{_h(label)}</a>"
-        for k, label, fname in nav)
+    seg = "".join("<a class='seg %s' href='%s'>%s</a>" % ("on" if k == active else "", _h(f), _h(l))
+                  for k, l, f in nav)
     desc = meta.get("active_mode_desc") or ""
-    return (f"<div class='moderow'><span class='dim sm'>وضع المستثمر {_i('modes')}:</span>{pills}</div>"
-            f"<div class='dim sub2'>{_h(desc)}</div>")
+    return "<div class='modebar'>%s</div><div class='muted xs cset'>%s</div>" % (seg, _h(desc))
 
 
-def _movers_section(rows):
-    head = (f"<section id='s-movers'><h2>🔀 أبرز التغيّرات {_i('movers')} "
-            f"<span class='count n'>{len(rows or [])}</span></h2>"
-            "<div class='dim sub2'>أكثر الأسهم تحرّكاً في الترتيب منذ آخر تشغيل — ومعها السبب الرئيسي.</div>")
+def _holdings_list(rows):
     if not rows:
-        return head + "<p class='dim'>أول تشغيل أو لا تغييرات تُذكر — التشغيل الجاي يوضّح وش تغيّر ولماذا.</p></section>"
-    body = ""
-    for m in rows:
-        up = m.get("direction") == "up"
-        col = "#5ee7a0" if up else "#ff8a9a"
-        arrow = "▲" if up else "▼"
-        body += (f"<tr><td><b class='n'>{_h(m.get('ticker'))}</b>"
-                 f"<div class='dim sm'>{_h((m.get('name') or '')[:20])}</div></td>"
-                 f"<td class='n' style='color:{col};font-weight:700'>{arrow} {abs(m.get('rank_delta', 0)):.0f}</td>"
-                 f"<td class='dim'>{_h(m.get('driver'))}</td>"
-                 f"<td class='n'>{m.get('rank_now', 0):.0f}</td></tr>")
-    return (head + "<div class='tablewrap'><table><thead><tr><th>السهم</th><th>تغيّر الترتيب</th>"
-            "<th>السبب الرئيسي</th><th>الترتيب الآن</th></tr></thead>"
-            f"<tbody>{body}</tbody></table></div></section>")
+        return "<p class='muted pad'>لا محفظة محمّلة — عبّي أسهمك في <b>data/holdings.csv</b>.</p>"
+    out = ""
+    for r in rows:
+        if r.get("pnl_suspect"):
+            pnl = "<span class='warn'>⚠️ سعر مشكوك</span>"
+        elif r.get("pnl") is not None:
+            col = "#67c79a" if r["pnl"] >= 0 else "#d9777f"
+            pnl = "<span class='n' style='color:%s;font-weight:700'>%+.0f%%</span>" % (col, r["pnl"] * 100)
+        else:
+            pnl = "<span class='muted'>—</span>"
+        b = r.get("better")
+        better = ("<div class='muted xs'>↑ بديل أقوى في دوره: <b class='n'>%s</b></div>" % _h(b["ticker"])) if b else ""
+        out += (
+            "<div class='lrow' style='cursor:default'><div class='lmain'>"
+            "<div class='lt'><b class='n'>%s</b> <span class='vd'>%s</span></div>"
+            "<div class='lsub'>%s</div>%s</div>"
+            "<div class='hpnl'>%s<div class='muted xs'>%s</div></div></div>"
+            % (_h(r["ticker"]), _h(r["verdict"]), _h(r.get("why", "")), better,
+               pnl, _h(r.get("hold_label") or ""))
+        )
+    return "<div class='list'>" + out + "</div>"
 
 
-def _backtest_section(bt):
-    head = f"<section id='s-bt'><h2>🧪 اختبار بأثر رجعي {_i('backtest')}</h2>"
+def _portfolio_list(rows):
+    out = ""
+    for r in rows:
+        out += (
+            "<div class='prow'><div class='pl'><b>%s</b><div class='muted xs'>%s</div></div>"
+            "<div class='pr'><b class='n'>%s</b></div></div>"
+            "<div class='muted xs phold n' dir='ltr'>%s</div>"
+            % (_h(r["bucket"]), _h(r["notes"]), _h(r["allocation_pct"]), _h(r["suggested_holdings"]))
+        )
+    return "<div class='plist'>" + out + "</div>"
+
+
+def _bottleneck_v2(chains):
+    intro = ("<div class='bn-intro'>🔗 <b>عنق الزجاجة</b> = العنصر النادر اللي الكل محتاجه، ومن يملكه يكسب أكثر شي. "
+             "نصطاد العنق <b>القادم</b> قبل ما يغلى. "
+             "<span class='muted'>⚠️ تحليل مرجّح حتى 2026 — مو نبوءة. الحرام يطلع مشطوب. الرقم = قناعتنا.</span> %s</div>"
+             % _i("bottleneck"))
+    if not chains:
+        return intro + "<p class='muted pad'>لا توجد خريطة.</p>"
+    cards = ""
+    for ch in chains:
+        stages = ch.get("stages") or []
+        acute = next((s for s in stages if s.get("status") == "acute"), (stages[0] if stages else None))
+        allt = [t for s in stages for t in (s.get("tickers") or [])]
+        mine = sorted([t for t in allt if t.get("halal") != "fail" and t.get("covered")],
+                      key=lambda t: (t.get("role") != "chokepoint", -(t.get("conviction") or 0)))
+        pick = mine[0] if mine else None
+        alts = [t["sym"] for t in mine[1:4]]
+        strip = ""
+        for s in stages:
+            label = (s.get("name") or "").split("(")[0].strip()[:16]
+            on = "on" if s is acute else ""
+            strip += "<span class='stg %s'>%s</span>" % (on, _h(label))
+        confdot = {"high": "cd-hi", "med": "cd-mid"}.get(ch.get("confidence"), "cd-mid")
+        if pick:
+            cv = ("<span class='cv cv-mid mini'><b class='n'>%.1f</b></span>" % pick["conviction"]) if pick.get("conviction") is not None else ""
+            key = " <span class='kk'>🔑</span>" if pick.get("role") == "chokepoint" else ""
+            altline = ("<div class='muted xs'>بدائل: %s</div>" % " · ".join(alts)) if alts else ""
+            pk = "<div class='bn-pick'><span class='muted xs'>المتاح لك:</span> <b class='n big'>%s</b> %s%s%s</div>" % (
+                _h(pick["sym"]), cv, key, altline)
+        else:
+            pk = "<div class='bn-pick muted xs'>ما فيه مالك حلال متاح لك في هذا العنق حالياً.</div>"
+        cards += (
+            "<div class='bn2'><div class='bn2-h'><span class='cd %s'></span><b>%s %s</b></div>"
+            "<div class='muted sm bn2-idea'>%s</div>"
+            "<div class='strip'>%s</div>%s</div>"
+            % (confdot, ch.get("icon", "🔗"), _h(ch.get("name")), _h((ch.get("thesis") or "")[:115]), strip, pk)
+        )
+    return intro + "<div class='bn2-grid'>%s</div>" % cards
+
+
+def _exposure_compact(records):
+    cand = [r for r in records if r.get("action") in ("Candidate", "Research More", "Watch", "Verify Halal First")]
+    sectors = Counter((r.get("sector") or "—") for r in cand)
+    themes = Counter(THEME_AR.get(t, t) for r in cand for t in (r.get("themes") or []))
+
+    def bars(counter, n=6):
+        if not counter:
+            return "<p class='muted xs'>—</p>"
+        mx = max(counter.values())
+        return "".join(
+            "<div class='xbar'><span>%s</span><div class='xt'><i style='width:%d%%'></i></div><b class='n'>%d</b></div>"
+            % (_h(k), int(100 * v / mx), v) for k, v in counter.most_common(n))
+    return ("<div class='card2'><h4>حسب القطاع %s</h4>%s</div>"
+            "<div class='card2'><h4>حسب الثيم</h4>%s</div>" % (_i("exposure"), bars(sectors), bars(themes)))
+
+
+def _signals_compact(rows):
+    if not rows:
+        return "<p class='muted xs pad'>لا إشارات — قول لكلود «شوف المؤثرين».</p>"
+    out = ""
+    for r in rows[:20]:
+        out += ("<div class='srow'><b class='n'>%s</b><span class='muted xs'>%s</span>"
+                "<span class='fit'>%s</span></div>"
+                % (_h(r.get("ticker")), _h(r.get("account")), _h(r.get("platform_fit"))))
+    return "<div class='list'>" + out + "</div>"
+
+
+def _backtest_compact(bt):
     if not bt or not bt.get("ok"):
         reason = (bt or {}).get("reason") or "لم يُشغّل بعد"
-        return (head + f"<div class='dim sub2'>{_h(reason)} — للتشغيل على جهازك: "
-                "<b>python src/main.py --backtest</b> (يحمّل تاريخ ~3 سنوات، يحتاج إنترنت).</div></section>")
+        return "<p class='muted xs pad'>%s — شغّل <b>python src/main.py --backtest</b>.</p>" % _h(reason)
+    def p(x):
+        return ("%+.0f%%" % (x * 100)) if isinstance(x, (int, float)) else "—"
+    line = ("<div class='bt-line'>سلّة أقوى %s سهم: <b class='n' style='color:#67c79a'>%s</b> "
+            "مقابل %s <b class='n'>%s</b> · الفرق <b class='n'>%s</b> "
+            "<span class='muted xs'>(%s سنة)</span></div>"
+            % (bt.get("n_stocks"), p(bt.get("basket_return")), _h(bt.get("benchmark")),
+               p(bt.get("benchmark_return")), p(bt.get("outperformance")), bt.get("years")))
+    caveats = "".join("<li>%s</li>" % _h(c) for c in (bt.get("caveats") or []))
+    return (line + "<details class='mini'><summary>⚠️ اقرأ قبل تثق بالأرقام</summary>"
+            "<ul class='cav'>%s</ul></details>" % caveats)
 
-    def _p(x):
-        return f"{x:+.0%}" if isinstance(x, (int, float)) else "—"
 
-    out = "#5ee7a0" if (bt.get("outperformance") or 0) >= 0 else "#ff8a9a"
-    kpis = f"""<div class="banner">
-      <div class="kpi"><b class="n" style="color:{out}">{_p(bt.get('basket_return'))}</b><span>سلّة أفضل {bt.get('n_stocks')} سهم ({bt.get('years')} سنة)</span></div>
-      <div class="kpi"><b class="n">{_p(bt.get('benchmark_return'))}</b><span>مؤشر {_h(bt.get('benchmark'))} (نفس الفترة)</span></div>
-      <div class="kpi"><b class="n" style="color:{out}">{_p(bt.get('outperformance'))}</b><span>الفرق (تفوّق/تخلّف)</span></div>
-      <div class="kpi"><b class="n">{_p(bt.get('basket_cagr'))}</b><span>نمو سنوي مركّب للسلّة<br><span class='dim sm'>المؤشر {_p(bt.get('benchmark_cagr'))}</span></span></div>
-      <div class="kpi"><b class="n" style="color:#ff8a9a">{_p(bt.get('basket_max_drawdown'))}</b><span>أقصى هبوط للسلّة<br><span class='dim sm'>المؤشر {_p(bt.get('benchmark_max_drawdown'))}</span></span></div>
-    </div>"""
-    per = bt.get("per_stock") or {}
-    chips = "".join(
-        f"<span class='tchip' style='color:{'#5ee7a0' if v >= 0 else '#ff8a9a'};border-color:#2a3645'>{_h(k)} {v:+.0%}</span>"
-        for k, v in sorted(per.items(), key=lambda kv: -kv[1]))
-    caveats = "".join(f"<li>{_h(c)}</li>" for c in (bt.get("caveats") or []))
-    return (head
-            + "<div class='dim sub2'>سلّة وزن متساوٍ من أقوى أسهمك حالياً، شراء واحتفاظ، مقابل المؤشر.</div>"
-            + kpis
-            + (f"<div style='margin:8px 0'>{chips}</div>" if chips else "")
-            + "<div class='note' style='border-color:#5e4420;background:#231a10;color:#f0c89a'>"
-            "⚠️ <b>اقرأ قبل تثق بالأرقام:</b><ul style='margin:8px 18px 0;padding:0'>"
-            + caveats + "</ul></div></section>")
+def _news_compact(rows):
+    if not rows:
+        return "<p class='muted xs pad'>لا أحداث محمّلة.</p>"
+    dir_ar = {"positive": "إيجابي", "negative": "سلبي", "neutral": "محايد"}
+    out = ""
+    for r in rows[:12]:
+        out += ("<div class='srow'><b>%s</b><span class='muted xs'>%s</span>"
+                "<span class='muted xs'>%s</span></div>"
+                % (_h(r["event_name"]), _h(r["date"]), _h(dir_ar.get(r["impact_direction"], r["impact_direction"]))))
+    return "<div class='list'>" + out + "</div>"
+
+
+def _political_compact(rows):
+    if not rows:
+        return "<p class='muted xs pad'>لا صفقات كونغرس حديثة (إشارة ضعيفة فقط).</p>"
+    out = ""
+    for r in rows[:20]:
+        out += ("<div class='srow'><b class='n'>%s</b><span class='muted xs'>%s</span>"
+                "<span class='muted xs'>%s</span></div>"
+                % (_h(r["ticker"]), _h(r["politician_name"]), _h(r["transaction_type"])))
+    return "<div class='list'>" + out + "</div>"
+
+
+def _not_inv_compact(records):
+    if not records:
+        return ""
+    out = ""
+    for r in records[:20]:
+        reasons = "، ".join(r.get("not_investable_reasons") or [])
+        out += ("<div class='srow'><b class='n'>%s</b><span class='muted xs'>%s</span></div>"
+                % (_h(r.get("ticker")), _h(reasons[:50])))
+    return ("<h4>🚫 غير قابلة للاستثمار بعد %s</h4><div class='muted xs'>بيانات ناقصة/مشكوكة — ليست محرّمة.</div>"
+            "<div class='list'>%s</div>" % (_i("notinv"), out))
 
 
 CSS = """
-*{box-sizing:border-box} html{-webkit-text-size-adjust:100%}
-body{margin:0;background:#0b0f17;color:#e7ecf3;direction:rtl;
-font-family:-apple-system,'SF Arabic','Segoe UI',Tahoma,Arial,sans-serif;line-height:1.6}
-.wrap{max-width:1180px;margin:0 auto;padding:24px 16px 90px}
-h1{font-size:25px;margin:0 0 4px} h2{font-size:18px;margin:30px 0 8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-h3{font-size:13px;margin:0 0 12px;color:#aeb9c9}
-.count{font-size:12px;background:#1b2330;color:#8fa3bd;border-radius:20px;padding:1px 9px}
-.sub{color:#8a97a8;font-size:13px;margin-top:4px} .sub2{color:#8a97a8;font-size:12.5px;margin:2px 0 8px}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+body{margin:0;background:#0d1014;color:#e7ebf0;direction:rtl;
+font-family:-apple-system,'SF Arabic','Segoe UI',Tahoma,Arial,sans-serif;line-height:1.6;font-size:15px}
+.wrap{max-width:780px;margin:0 auto;padding:14px 14px 90px}
 .n{direction:ltr;unicode-bidi:isolate;display:inline-block}
-.banner{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0 6px}
-.kpi{background:linear-gradient(160deg,#141b27,#0f141d);border:1px solid #1d2735;border-radius:14px;padding:12px 16px;min-width:150px;flex:1}
-.kpi b{display:block;font-size:21px} .kpi span{color:#8a97a8;font-size:12px;display:flex;align-items:center;gap:5px;flex-wrap:wrap}
-.qnav{position:sticky;top:0;z-index:30;display:flex;gap:6px;flex-wrap:wrap;background:rgba(11,15,23,.93);
-backdrop-filter:blur(8px);padding:10px 4px;margin:8px -4px 6px;border-bottom:1px solid #1b2330}
-.qnav a{font-size:12.5px;color:#aeb9c9;background:#141b27;border:1px solid #1d2735;border-radius:20px;
-padding:6px 11px;text-decoration:none;white-space:nowrap}
-.qnav a:hover{background:#1d2838;color:#fff}
-section{scroll-margin-top:64px}
-.tablewrap{overflow-x:auto;border:1px solid #1b2330;border-radius:14px}
-table{width:100%;border-collapse:collapse;font-size:13px;min-width:820px}
-th{position:sticky;top:0;background:#121a25;color:#9fb0c6;text-align:right;padding:9px 8px;font-weight:600;white-space:nowrap;font-size:12px}
-td{padding:9px 8px;border-top:1px solid #18202c;vertical-align:top;text-align:right}
-td.r{text-align:left} .dim{color:#94a0b0} .sm{font-size:11px}
-tbody tr:hover{background:#0f141d}
-.chip{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap}
-.a-cand{background:#0e3a25;color:#5ee7a0}.a-res{background:#123047;color:#6cc4ff}
-.a-watch{background:#3a3413;color:#e8cf5a}.a-verify{background:#3a2a12;color:#f0b46b}.a-avoid{background:#3a1820;color:#ff8a9a}
-.h-pass{background:#0e3a25;color:#5ee7a0}.h-unknown{background:#3a2a12;color:#f0b46b}.h-fail{background:#3a1820;color:#ff8a9a}
-.f-fresh{background:#0e3a25;color:#5ee7a0}.f-stale{background:#3a3413;color:#e8cf5a}.f-missing{background:#2a2f3a;color:#9aa6b5}
-.dir-positive{background:#0e3a25;color:#5ee7a0}.dir-negative{background:#3a1820;color:#ff8a9a}.dir-neutral{background:#222934;color:#9fb0c6}
-.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}@media(max-width:820px){.grid3{grid-template-columns:1fr}table{font-size:12px}}
-.card{background:#0f141d;border:1px solid #1b2330;border-radius:14px;padding:16px}
-.bar{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:12px}
-.bar span{width:110px;color:#aeb9c9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bar .track{flex:1;background:#161d28;border-radius:6px;height:8px;overflow:hidden}
-.bar .track i{display:block;height:100%;background:linear-gradient(90deg,#3a7bd5,#5ee7a0)}
-/* أشرطة النقاط داخل الجدول (بدل الأرقام المجرّدة) */
-.sbwrap{display:flex;align-items:center;gap:6px;justify-content:flex-end;direction:ltr}
-.sb{background:#161d28;border-radius:6px;height:8px;width:54px;overflow:hidden;position:relative;flex:0 0 auto}
-.sb i{position:absolute;top:0;bottom:0;right:0;border-radius:6px}
-.sbwrap b{font-size:12.5px;min-width:20px;text-align:left;color:#e7ecf3}
-.tchip{display:inline-block;margin-top:4px;background:#13202e;border:1px solid #24435e;color:#7fd0ff;border-radius:20px;padding:1px 8px;font-size:10.5px}
-.sb-lg{width:64px;height:10px}
-.ebadge{display:inline-block;margin:4px 0 0 4px;border-radius:20px;padding:1px 7px;font-size:10px;font-weight:700}
-.e-comp{background:#0e2a3a;color:#6cc4ff;border:1px solid #1d4a63}
-.e-accel{background:#241a3a;color:#c4a0ff;border:1px solid #4a2d6b}
-.e-future{background:#0e3a25;color:#5ee7a0;border:1px solid #1d6340}
-.e-cyc{background:#3a2a12;color:#f0b46b;border:1px solid #5e4420}
-.e-bn{background:#2a230e;color:#e8c454;border:1px solid #caa24a}
-.metric{display:flex;align-items:baseline;gap:8px;margin:8px 0}.metric b{font-size:20px}.metric span{color:#8a97a8;font-size:12px}
-.note{background:#10161f;border:1px solid #1b2330;border-radius:12px;padding:14px 16px;color:#9fb0c6;font-size:13px;margin-top:18px}
-footer{color:#5c6675;font-size:12px;margin-top:40px;text-align:center}
-/* علامة الشرح (؟) */
-.i{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:50%;
-background:#1f6feb;color:#fff;font-size:11px;font-weight:700;cursor:pointer;margin:0 2px;vertical-align:middle;
-flex:0 0 auto;user-select:none;line-height:1}
-.i:hover{background:#4a90ff}
-/* النافذة المنبثقة */
-.modal{display:none;position:fixed;inset:0;background:rgba(2,5,11,.72);z-index:99;align-items:center;justify-content:center;padding:18px}
-.box{background:#121a26;border:1px solid #28384b;border-radius:18px;max-width:440px;width:100%;padding:22px;box-shadow:0 18px 60px rgba(0,0,0,.5)}
-.box h3{font-size:18px;color:#e7ecf3;margin:0 0 14px;display:flex;justify-content:space-between;align-items:center}
-.box .x{cursor:pointer;color:#8a97a8;font-size:22px;line-height:1;padding:0 4px}
-.box .lbl{color:#5ee7a0;font-size:12px;font-weight:700;margin-top:12px}
-.box .val{color:#cdd6e2;font-size:14px;margin-top:3px}
-.box .ex{background:#0e1622;border-radius:10px;padding:10px 12px;margin-top:6px;color:#e7ecf3;font-size:13.5px}
-.hint{display:inline-block;background:#13202e;border:1px solid #24435e;color:#7fd0ff;border-radius:20px;
-padding:5px 12px;font-size:12.5px;margin:10px 0 0}
-.updrow{display:flex;gap:10px;margin:14px 0 4px;flex-wrap:wrap}
-.upd{background:#1f6feb;color:#fff;border:0;border-radius:12px;padding:12px 22px;font-size:15px;font-weight:800;cursor:pointer}
-.upd:hover{background:#3a82ff}.upd:disabled{opacity:.6;cursor:wait}
-.upd2{background:#13351f;color:#5ee7a0;border:1px solid #1d6340;border-radius:12px;padding:12px 18px;font-size:14px;font-weight:700;text-decoration:none}
-.moderow{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:14px 0 2px}
-.mpill{font-size:13px;color:#aeb9c9;background:#141b27;border:1px solid #1d2735;border-radius:20px;padding:6px 13px;text-decoration:none;font-weight:700}
-.mpill:hover{background:#1d2838;color:#fff}
-.mpill.on{background:#1f6feb;color:#fff;border-color:#1f6feb}
-/* عنق الزجاجة */
-.bn-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:820px){.bn-grid{grid-template-columns:1fr}}
-.bn-card{padding:16px}
-.bn-stage{border-top:1px solid #18202c;padding:9px 0}
-.bn-stage-h{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:13px}
-.bn-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:2px}
-.bnc{font-size:11.5px;border-radius:8px;padding:2px 8px;font-weight:700;border:1px solid transparent}
-.bnc-pass{background:#0e3a25;color:#5ee7a0}.bnc-unk{background:#3a2a12;color:#f0b46b}
-.bnc-fail{background:#3a1820;color:#ff8a9a;text-decoration:line-through}
-.bnc-out{background:#161d28;color:#74808f}
-.bnc-key{border-color:#caa24a;box-shadow:0 0 0 1px #caa24a55}
-.bn-acute{background:#3a1820;color:#ff8a9a}.bn-build{background:#3a2a12;color:#f0b46b}
-.bn-ease{background:#0e3a25;color:#5ee7a0}.bn-spec{background:#123047;color:#6cc4ff}
-/* بطاقة «اليوم» */
-.today{background:linear-gradient(160deg,#10221a,#0c1a14);border:1px solid #1d6340;border-radius:16px;padding:15px 16px;margin-top:14px}
-.today-h{font-size:16px;font-weight:800;color:#9ce8c4;margin-bottom:8px}
-.today-row{display:flex;gap:9px;align-items:flex-start;margin:6px 0;font-size:13.5px;color:#dbe6ef;line-height:1.5}
-.today-row .te{font-size:15px;flex:0 0 auto}
-/* أكورديون «المزيد» + عنق الزجاجة */
-.acc{border:1px solid #1b2330;border-radius:14px;margin-top:18px;background:#0c1119}
-.acc>summary{cursor:pointer;padding:13px 16px;font-weight:700;color:#aeb9c9;list-style:none;font-size:14px}
-.acc>summary::-webkit-details-marker{display:none}
-.acc>summary::before{content:'⌄ ';color:#6cc4ff}
-.acc[open]>summary{border-bottom:1px solid #1b2330;color:#fff}
-.acc[open]>summary::before{content:'⌃ '}
-.acc>section,.acc>div{padding-left:14px;padding-right:14px}
-/* هدف لمس أكبر لعلامة ؟ (المرئي 17px، القابل للّمس ~41px) */
-.i::after{content:'';position:absolute;inset:-12px}.i{position:relative}
-/* scroll-spy active */
-.qnav a.on{background:#1f6feb;color:#fff;border-color:#1f6feb}
-/* الجوال: جدول الأسهم بدون تمرير أفقي — نخفي الأعمدة الثانوية */
-@media(max-width:600px){
-  .wrap{padding:16px 12px 80px}h1{font-size:22px}
-  .stocktbl{min-width:0!important;font-size:12.5px}
-  .stocktbl th:nth-child(5),.stocktbl td:nth-child(5),
-  .stocktbl th:nth-child(6),.stocktbl td:nth-child(6),
-  .stocktbl th:nth-child(7),.stocktbl td:nth-child(7),
-  .stocktbl th:nth-child(8),.stocktbl td:nth-child(8),
-  .stocktbl th:nth-child(9),.stocktbl td:nth-child(9),
-  .stocktbl th:nth-child(11),.stocktbl td:nth-child(11){display:none}
-  .holdtbl{min-width:0!important;font-size:12.5px}
-  .holdtbl th:nth-child(5),.holdtbl td:nth-child(5),
-  .holdtbl th:nth-child(6),.holdtbl td:nth-child(6){display:none}
-  .qnav{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
-  .qnav::-webkit-scrollbar{display:none}
-  .kpi{min-width:130px}
-  /* tighten the stock table so all 5 kept columns fit 375px with no scroll */
-  .stocktbl td,.stocktbl th{padding:7px 5px}
-  .stocktbl .sb-lg{width:40px;height:9px}.stocktbl .sb{width:42px}.stocktbl .sbwrap{gap:4px}
-  .stocktbl .chip{padding:2px 6px;font-size:10px}
-  .stocktbl .ebadge,.stocktbl .tchip{font-size:9.5px;padding:1px 5px;margin:3px 0 0 3px}
-  .stocktbl .sbwrap b{font-size:11px;min-width:16px}
-}
+.muted{color:#8a94a3}.xs{font-size:11.5px}.sm{font-size:12.5px}.pad{padding:14px}
+b{font-weight:700}
+/* header */
+.top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px}
+.top h1{font-size:19px;margin:0;font-weight:800}
+.sub{color:#7a8493;font-size:11.5px;margin-bottom:10px}
+.btns{display:flex;gap:8px}
+.ico{background:#171c23;border:1px solid #262d37;color:#cfd6df;border-radius:11px;padding:8px 13px;font-size:13px;
+font-weight:700;cursor:pointer;text-decoration:none}
+.ico:hover{background:#1d232c}.ico.pri{background:#2b5b86;border-color:#2b5b86;color:#fff}
+#updmsg{font-size:12px;color:#8a94a3;margin:6px 0}
+/* status strip */
+.strip0{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0 4px}
+.pill{background:#171c23;border:1px solid #262d37;border-radius:20px;padding:5px 11px;font-size:12px;color:#b5bdc8}
+.pill b{color:#e7ebf0}
+.pill.risk-High,.pill.risk-Extreme{border-color:#5e3a3f;color:#e0a3a8}
+.pill.risk-Low{border-color:#2f5544;color:#9fd9bd}
+/* mode segmented */
+.modebar{display:inline-flex;background:#13181e;border:1px solid #262d37;border-radius:12px;padding:3px;margin:10px 0 0;gap:2px}
+.seg{font-size:12.5px;color:#9aa4b2;padding:6px 13px;border-radius:9px;text-decoration:none;font-weight:700}
+.seg:hover{color:#fff}.seg.on{background:#2b5b86;color:#fff}
+.cset{margin:5px 0 0}
+/* today */
+.today{background:#12171d;border:1px solid #233040;border-radius:16px;padding:14px 16px;margin:12px 0}
+.th-h{font-size:13px;font-weight:800;color:#8fb7da;letter-spacing:.5px;margin-bottom:8px}
+.th-row{display:flex;gap:9px;align-items:flex-start;margin:7px 0;font-size:14px;color:#dde3ea}
+.th-row .te{flex:0 0 auto;font-size:15px}
+/* tabs */
+.tabs{position:sticky;top:0;z-index:20;display:flex;gap:4px;background:rgba(13,16,20,.95);backdrop-filter:blur(8px);
+padding:9px 0;margin:6px 0 2px;border-bottom:1px solid #1c232c;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabbtn{flex:0 0 auto;background:none;border:0;color:#8a94a3;font-size:14px;font-weight:700;padding:8px 13px;
+border-radius:10px;cursor:pointer;white-space:nowrap;font-family:inherit}
+.tabbtn.on{background:#1a212a;color:#fff}
+.tabpanel{display:none;animation:fade .2s ease}.tabpanel.show{display:block}
+@keyframes fade{from{opacity:.4}to{opacity:1}}
+h3.sec{font-size:15px;margin:18px 0 4px;font-weight:800}h3.sec .c{color:#7a8493;font-weight:600;font-size:12px}
+h4{font-size:13.5px;margin:16px 0 6px;color:#c4ccd6;font-weight:700}
+.lead{color:#8a94a3;font-size:12.5px;margin:0 0 8px}
+/* list rows */
+.list{border:1px solid #1d242d;border-radius:14px;overflow:hidden;background:#12161c}
+.lrow{display:flex;align-items:center;gap:10px;padding:11px 13px;border-top:1px solid #1a212a;cursor:pointer}
+.lrow:first-child{border-top:0}.lrow:hover{background:#161c23}
+.rk{color:#5f6a78;font-size:12px;min-width:16px;text-align:center;direction:ltr}
+.hd{width:9px;height:9px;border-radius:50%;flex:0 0 auto;font-size:7px;color:#0d1014;text-align:center;line-height:9px}
+.d-ok{background:#67c79a}.d-unk{background:#d9b066}.d-no{background:#d9777f}
+.lmain{flex:1;min-width:0}
+.lt{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.lt b{font-size:15px}
+.nm{color:#8a94a3;font-size:12px}
+.kk{font-size:11px}.eg{font-size:10.5px;color:#9aa4b2;background:#1a212a;border-radius:6px;padding:1px 6px}
+.lsub{color:#7a8493;font-size:12px;margin-top:2px}
+.cv{display:inline-flex;flex-direction:column;align-items:flex-end;gap:3px;flex:0 0 auto;min-width:38px}
+.cv b{font-size:15px}.cv i{display:block;height:3px;border-radius:3px;width:0}
+.cv-hi b{color:#67c79a}.cv-hi i{background:#67c79a}
+.cv-mid b{color:#6ea8de}.cv-mid i{background:#6ea8de}
+.cv-lo b{color:#8a94a3}.cv-lo i{background:#4a525d}
+.cv-na{color:#5f6a78}.cv.mini{flex-direction:row;min-width:0}.cv.mini i{display:none}
+.chev{color:#5f6a78;font-size:13px;flex:0 0 auto}
+.ldetail{display:none;grid-template-columns:1fr 1fr 1fr;gap:1px;background:#1a212a;padding:1px;border-top:1px solid #1a212a}
+.ldetail.open{display:grid}
+.dc{background:#12161c;padding:9px 11px}.dc span{display:block;color:#7a8493;font-size:11px}.dc b{font-size:13.5px}
+.vd{font-size:12.5px;color:#cfd6df;background:#1a212a;border-radius:7px;padding:2px 8px}
+.hpnl{text-align:left;flex:0 0 auto}
+.warn{color:#e0b06a;font-size:11.5px;font-weight:700}
+/* portfolio */
+.plist{border:1px solid #1d242d;border-radius:14px;overflow:hidden;background:#12161c}
+.prow{display:flex;justify-content:space-between;align-items:center;padding:11px 13px;border-top:1px solid #1a212a}
+.prow:first-child{border-top:0}.pl b{font-size:14px}.pr b{font-size:16px;color:#8fb7da}
+.phold{padding:0 13px 10px;margin-top:-4px}
+/* bottleneck v2 */
+.bn-intro{background:#12171d;border:1px solid #233040;border-radius:14px;padding:13px 15px;font-size:13.5px;margin-bottom:12px;line-height:1.7}
+.bn2-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.bn2{background:#12161c;border:1px solid #1d242d;border-radius:14px;padding:13px 14px}
+.bn2-h{display:flex;align-items:center;gap:7px;font-size:14.5px}
+.cd{width:8px;height:8px;border-radius:50%;flex:0 0 auto}.cd-hi{background:#67c79a}.cd-mid{background:#d9b066}
+.bn2-idea{margin:5px 0 9px;line-height:1.55}
+.strip{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px}
+.stg{font-size:10.5px;color:#6f7886;background:#161c23;border:1px solid #222a33;border-radius:7px;padding:2px 7px}
+.stg.on{background:#3a2225;border-color:#5e3a3f;color:#e0a3a8;font-weight:700}
+.bn-pick{background:#11161c;border-top:1px solid #1d242d;padding-top:9px}
+.bn-pick .big{font-size:17px;color:#fff}
+/* small cards / bars (more tab) */
+.card2{background:#12161c;border:1px solid #1d242d;border-radius:14px;padding:13px 15px;margin-bottom:10px}
+.xbar{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:12px}
+.xbar span{width:96px;color:#9aa4b2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.xt{flex:1;background:#1a212a;border-radius:5px;height:7px;overflow:hidden}
+.xt i{display:block;height:100%;background:#3f6f9c}
+.srow{display:flex;align-items:center;gap:9px;padding:9px 13px;border-top:1px solid #1a212a}
+.srow:first-child{border-top:0}.srow b{font-size:13.5px}.srow .fit{margin-right:auto;font-size:12px;color:#9aa4b2}
+.bt-line{font-size:13.5px;padding:4px 0 8px}
+details.mini{font-size:12px}details.mini summary{cursor:pointer;color:#9aa4b2}
+.cav{margin:6px 16px 0;padding:0;color:#caa37a;font-size:12px}.cav li{margin:3px 0}
+/* glossary marker + modal */
+.i{position:relative;display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;
+background:#233040;color:#8fb7da;font-size:10px;font-weight:700;cursor:pointer;vertical-align:middle;flex:0 0 auto;line-height:1}
+.i::after{content:'';position:absolute;inset:-11px}.i:hover{background:#2b5b86;color:#fff}
+.modal{display:none;position:fixed;inset:0;background:rgba(2,5,11,.74);z-index:99;align-items:center;justify-content:center;padding:18px}
+.box{background:#141a21;border:1px solid #283341;border-radius:18px;max-width:430px;width:100%;padding:20px}
+.box h3{font-size:17px;margin:0 0 12px;display:flex;justify-content:space-between;align-items:center}
+.box .x{cursor:pointer;color:#8a94a3;font-size:22px;padding:0 4px}
+.box .lbl{color:#67c79a;font-size:11.5px;font-weight:700;margin-top:11px}
+.box .val{color:#cdd6e2;font-size:13.5px;margin-top:3px}
+.box .ex{background:#0e141a;border-radius:10px;padding:9px 11px;margin-top:6px;font-size:13px}
+footer{color:#5a6473;font-size:11.5px;margin-top:32px;text-align:center}
+@media(max-width:620px){.bn2-grid{grid-template-columns:1fr}.ldetail.open{grid-template-columns:1fr 1fr}.wrap{padding:12px 11px 84px}}
 """
 
 JS = """
 function g(k){var d=GL[k];if(!d)return;
- document.getElementById('gt').innerText=d.t;
- document.getElementById('gw').innerText=d.w;
- document.getElementById('gb').innerText=d.b;
- document.getElementById('ge').innerText=d.e;
+ document.getElementById('gt').innerText=d.t;document.getElementById('gw').innerText=d.w;
+ document.getElementById('gb').innerText=d.b;document.getElementById('ge').innerText=d.e;
  document.getElementById('gm').style.display='flex';}
 function gc(){document.getElementById('gm').style.display='none';}
 document.addEventListener('click',function(e){if(e.target.id==='gm')gc();});
 document.addEventListener('keydown',function(e){if(e.key==='Escape')gc();});
+function tab(id,btn){var ps=document.querySelectorAll('.tabpanel');for(var i=0;i<ps.length;i++)ps[i].classList.remove('show');
+ document.getElementById(id).classList.add('show');
+ var bs=document.querySelectorAll('.tabbtn');for(var j=0;j<bs.length;j++)bs[j].classList.remove('on');
+ btn.classList.add('on');window.scrollTo({top:0,behavior:'smooth'});}
+function exp(el){var d=el.nextElementSibling;if(!d||!d.classList.contains('ldetail'))return;
+ var open=d.classList.toggle('open');var c=el.querySelector('.chev');if(c)c.textContent=open?'⌃':'⌄';}
 function updateAll(b){
-  if(location.protocol==='file:'){
-    document.getElementById('updmsg').innerHTML='⚠️ عشان الزر يشتغل افتح الداشبورد عبر الخادم: شغّل <b>python src/server.py</b> في التيرمنال.';return;}
-  if(location.hostname.indexOf('github.io')>=0 || location.hostname.indexOf('localhost')<0 && location.hostname.indexOf('127.0.0.1')<0){
-    document.getElementById('updmsg').innerHTML='📱 هذا <b>رابط عرض (snapshot)</b> — يفتح من أي مكان. للتحديث الحي شغّل <b>python src/server.py</b> على جهازك وافتح localhost:8800.';return;}
-  var o=b.innerText;b.disabled=true;b.innerText='⏳ يحدّث الكل...';
-  document.getElementById('updmsg').innerText='يحدّث أسهمك live + يفحص السوق. أول مرة باليوم تاخذ دقائق، بعدها أسرع...';
+  if(location.protocol==='file:'){document.getElementById('updmsg').innerHTML='⚠️ شغّل <b>python src/server.py</b> عشان الزر يشتغل.';return;}
+  if(location.hostname.indexOf('github.io')>=0||location.hostname.indexOf('localhost')<0&&location.hostname.indexOf('127.0.0.1')<0){
+    document.getElementById('updmsg').innerHTML='📱 <b>رابط عرض (snapshot)</b> — للتحديث الحي شغّل <b>python src/server.py</b> على جهازك.';return;}
+  var o=b.innerText;b.style.opacity=.6;b.innerText='⏳ يحدّث...';
+  document.getElementById('updmsg').innerText='يحدّث أسهمك + يفحص السوق...';
   fetch('/update').then(function(r){return r.json();}).then(function(d){
-    document.getElementById('updmsg').innerText=d.ok?'✅ تم — يعيد التحميل الآن':('⚠️ '+(d.summary||'خطأ'));
-    if(d.ok){setTimeout(function(){location.reload();},900);}else{b.disabled=false;b.innerText=o;}
-  }).catch(function(){document.getElementById('updmsg').innerText='⚠️ تعذّر الاتصال بالخادم — تأكد إنه شغّال';b.disabled=false;b.innerText=o;});
+    document.getElementById('updmsg').innerText=d.ok?'✅ تم':('⚠️ '+(d.summary||'خطأ'));
+    if(d.ok)setTimeout(function(){location.reload();},800);else{b.style.opacity=1;b.innerText=o;}
+  }).catch(function(){document.getElementById('updmsg').innerText='⚠️ تعذّر الاتصال بالخادم';b.style.opacity=1;b.innerText=o;});
 }
-// scroll-spy: highlight the nav pill of the section in view
-(function(){
-  var links={};document.querySelectorAll('.qnav a').forEach(function(a){var id=a.getAttribute('href');if(id&&id[0]==='#')links[id.slice(1)]=a;});
-  var ids=Object.keys(links);if(!ids.length||!('IntersectionObserver'in window))return;
-  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){
-    ids.forEach(function(i){links[i].classList.remove('on');});
-    if(links[e.target.id])links[e.target.id].classList.add('on');}});},{rootMargin:'-45% 0px -50% 0px'});
-  ids.forEach(function(i){var el=document.getElementById(i);if(el)io.observe(el);});
-})();
 """
 
 
 def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg):
     app = (cfg.get("app", {}) or {})
     name = app.get("name", "مرصد الأسهم")
-    subtitle = app.get("subtitle", "منصّة بحث استثماري شخصية — بحث، وليست توصية بالشراء")
     top_n = (cfg.get("output", {}) or {}).get("top_n_dashboard", 20)
-    # نعرض فقط الأسهم المناسبة — نحذف غير المتوافق شرعياً و«تجنّب» نهائياً
+
     def _vis(r):
         return r.get("action") != "Avoid" and r.get("halal_status") != "fail"
     visible = [r for r in records if _vis(r)]
-    # one ranking everywhere: holistic rank_score (consistency fix)
     ranked = sorted(visible, key=lambda r: (r.get("rank_score") or 0), reverse=True)
-    fc = meta.get("fresh_counts", {})
-    risk = meta.get("market_risk_today", "—")
-    risk_cls = {"Low": "dir-positive", "Medium": "dir-neutral", "High": "a-watch", "Extreme": "a-avoid"}.get(risk, "dir-neutral")
+    opps = [r for r in ranked if not r.get("is_fund")][:top_n]
 
-    # honest halal split — never call unknown-halal "suitable"
     h_pass = sum(1 for r in visible if r.get("halal_status") == "pass")
     h_unknown = sum(1 for r in visible if r.get("halal_status") == "unknown")
     suspect_n = sum(1 for r in records if r.get("data_suspect"))
-    banner = f"""
-    <div class="banner">
-      <div class="kpi"><b class="n">{len(visible)}</b><span>سهم في نطاق البحث (من {meta.get('examined',0)})<br>
-        <span class='dim sm'>✅ {h_pass} حلال مؤكّد · ⚠️ {h_unknown} تحتاج تأكيد حلال</span></span></div>
-      <div class="kpi"><b><span class="chip {risk_cls}">{_h(RISK_AR.get(risk, risk))}</span></b><span>مخاطر السوق اليوم {_i('marketrisk')}</span></div>
-      <div class="kpi"><b class="n">{fc.get('FRESH',0)}</b><span>بياناتها حديثة {_i('fresh')}<br><span class='dim sm'>قديمة {fc.get('STALE',0)} · ناقصة {fc.get('MISSING',0)}{' · مشكوكة '+str(suspect_n) if suspect_n else ''}</span></span></div>
-      <div class="kpi"><b class="n">{_h(meta.get('data_source'))}</b><span>مصدر البيانات</span></div>
-    </div>"""
+    fc = meta.get("fresh_counts", {})
+    risk = meta.get("market_risk_today", "—")
 
-    # ── "today" card: the answer in a few lines ──
+    # today lines
     he = meta.get("holdings_eval") or []
     sells = [h["ticker"] for h in he if "بيع" in (h.get("verdict") or "")]
-    opps = [h["ticker"] for h in he if "فرصة" in (h.get("verdict") or "") or h.get("better")]
+    opps_h = [h["ticker"] for h in he if "فرصة" in (h.get("verdict") or "") or h.get("better")]
     pass_cands = [r for r in ranked if r.get("halal_status") == "pass" and r.get("action") == "Candidate"]
-    strong_unknown = [r["ticker"] for r in ranked if r.get("halal_status") == "unknown" and not r.get("is_fund")][:3]
+    strong_unknown = [r["ticker"] for r in opps if r.get("halal_status") == "unknown"][:3]
     today = []
     if sells:
-        today.append(("⚠️", f"راجع في محفظتك: <b class='n'>{'، '.join(sells)}</b> — قناعتنا فيها ضعيفة، ابحث السبب."))
-    elif opps:
-        today.append(("🔵", f"فرص/بدائل في محفظتك: <b class='n'>{'، '.join(opps)}</b>."))
+        today.append(("⚠️", "راجع في محفظتك: <b class='n'>%s</b> — قناعتنا فيها ضعيفة." % "، ".join(sells)))
+    elif opps_h:
+        today.append(("🔵", "فرص/بدائل في محفظتك: <b class='n'>%s</b>." % "، ".join(opps_h)))
     else:
-        today.append(("✅", "محفظتك: لا إجراء عاجل اليوم — استمر بخطّتك."))
+        today.append(("✅", "محفظتك: لا إجراء عاجل اليوم."))
     if pass_cands:
-        today.append(("🟢", f"أقوى مرشّح حلال مؤكّد: <b class='n'>{_h(pass_cands[0]['ticker'])}</b> (قناعة {pass_cands[0].get('conviction_score')}/10)."))
+        today.append(("🟢", "أقوى مرشّح حلال مؤكّد: <b class='n'>%s</b> (قناعة %s)." % (
+            _h(pass_cands[0]["ticker"]), pass_cands[0].get("conviction_score"))))
     else:
-        today.append(("🔍", f"لا مرشّح حلال <b>مؤكّد</b> اليوم. الأقوى تحتاج تأكيد على Zoya/Musaffa: <b class='n'>{'، '.join(strong_unknown)}</b>."))
-    today.append(("📊", f"مخاطر السوق: <b>{_h(RISK_AR.get(risk, risk))}</b>"
-                        + (f" · ⚠️ {suspect_n} سهم ببيانات مشكوكة استُبعدت من الترتيب." if suspect_n else ".")))
+        today.append(("🔍", "لا مرشّح حلال <b>مؤكّد</b> اليوم. الأقوى للتأكيد على Zoya/Musaffa: <b class='n'>%s</b>." % "، ".join(strong_unknown)))
+    today.append(("📊", "مخاطر السوق: <b>%s</b>%s" % (
+        _h(RISK_AR.get(risk, risk)),
+        (" · ⚠️ %d سهم ببيانات مشكوكة استُبعدت." % suspect_n) if suspect_n else ".")))
 
-    # halal shortlist: the FEW worth paying to verify (high conviction), not 753 maybes
-    halal_all = [r for r in buckets.get("Verify Halal First", []) if not r.get("is_fund")]
-    halal_short = sorted([r for r in halal_all if (r.get("conviction_score") or 0) >= 7],
-                         key=lambda r: (r.get("conviction_score") or 0), reverse=True)[:12]
-    halal_extra = len(halal_all) - len(halal_short)
+    status = (
+        "<div class='strip0'>"
+        "<span class='pill'><b class='n'>%d</b> في نطاق البحث</span>"
+        "<span class='pill'>✅ <b class='n'>%d</b> حلال مؤكّد</span>"
+        "<span class='pill'>⚠️ <b class='n'>%d</b> تحتاج تأكيد</span>"
+        "<span class='pill'><b class='n'>%d</b> بياناتها حديثة</span>"
+        "<span class='pill risk-%s'>مخاطر السوق: <b>%s</b></span>"
+        "</div>" % (len(visible), h_pass, h_unknown, fc.get("FRESH", 0), risk, _h(RISK_AR.get(risk, risk)))
+    )
 
-    nav = ("<nav class='qnav'>"
-           "<a href='#s-today'>📌 اليوم</a>"
-           "<a href='#s-hold'>💼 محفظتي</a>"
-           "<a href='#s-future'>🌱 الفرص</a>"
-           "<a href='#s-halal'>⚠️ تأكّد الحلال</a>"
-           "<a href='#s-bn'>🔗 عنق الزجاجة</a>"
-           "<a href='#s-watch'>⭐ قائمتي</a>"
-           "<a href='#s-top'>🏆 الأقوى</a>"
-           "<a href='#s-port'>📊 المحفظة</a>"
-           "<a href='#s-more'>🧰 المزيد</a>"
-           "</nav>")
+    # holdings + watchlist lists
+    watch = [r for r in buckets.get("watchlist", []) if _vis(r)]
 
-    halal_sub = "أقوى الأسهم غير المؤكّدة شرعياً (قناعة ≥7) — هذي الي تستاهل تدفع تتأكّد منها على Zoya/Musaffa."
-    if halal_extra > 0:
-        halal_sub += f" (+{halal_extra} أخرى أقل قناعة في الملف)."
+    # tab panels
+    tab_opp = (
+        "<div id='t-opp' class='tabpanel show'>"
+        "<h3 class='sec'>🎯 أقوى الفرص <span class='c'>(مفلترة على نظامك + الحلال)</span></h3>"
+        "<p class='lead'>النقطة الخضراء = حلال مبدئياً · الصفراء = تحتاج تأكيد. اضغط أي سهم تفتح تفاصيله. "
+        "🔑 = مالك عنق زجاجة. الرقم على اليسار = القناعة %s.</p>" % _i("conviction")
+        + _stock_list(opps)
+        + "</div>"
+    )
+    tab_port = (
+        "<div id='t-port' class='tabpanel'>"
+        "<h3 class='sec'>💼 محفظتي</h3>"
+        "<p class='lead'>توصية بحثية حسب الأداء والقناعة — مو «بيع/اشترِ الآن».</p>"
+        + _holdings_list(he)
+        + "<h3 class='sec'>⭐ قائمتي %s</h3>" % _i("watchlist")
+        + _stock_list(watch)
+        + "<h3 class='sec'>📊 نموذج المحفظة %s</h3>" % _i("portfolio")
+        + _portfolio_list(portfolio_rows)
+        + "</div>"
+    )
+    tab_bn = (
+        "<div id='t-bn' class='tabpanel'>"
+        "<h3 class='sec'>🔗 عنق الزجاجة عبر القطاعات</h3>"
+        + _bottleneck_v2(meta.get("bottlenecks") or [])
+        + "</div>"
+    )
+    tab_more = (
+        "<div id='t-more' class='tabpanel'>"
+        "<h3 class='sec'>📈 التعرّض %s</h3><div class='card2-wrap'>%s</div>" % (_i("exposure"), _exposure_compact(visible))
+        + "<h4>📡 إشارات المؤثرين %s</h4><div class='muted xs'>إشارة ضعيفة للمراجعة فقط.</div>%s" % (
+            _i("signals"), _signals_compact(meta.get("signals_rows") or []))
+        + "<h4>🧪 اختبار بأثر رجعي %s</h4>%s" % (_i("backtest"), _backtest_compact(meta.get("backtest")))
+        + _not_inv_compact(buckets.get("not_investable", []))
+        + "<h4>📰 أثر الأخبار %s</h4>%s" % (_i("news"), _news_compact(news_rows))
+        + "<h4>🏛️ النشاط السياسي %s</h4>%s" % (_i("political"), _political_compact(political_rows))
+        + "</div>"
+    )
 
-    secondary = (
-        "<details class='acc' id='s-more'><summary>🧰 إشارات ثانوية وأدوات تشخيص (اضغط للعرض)</summary>"
-        + _signals_section(meta.get("signals_rows") or [])
-        + _backtest_section(meta.get("backtest"))
-        + _not_investable_section(buckets.get("not_investable", []))
-        + _news(news_rows)
-        + _political(political_rows)
-        + "</details>")
+    tabs = (
+        "<div class='tabs'>"
+        "<button class='tabbtn on' onclick=\"tab('t-opp',this)\">🎯 الفرص</button>"
+        "<button class='tabbtn' onclick=\"tab('t-port',this)\">💼 محفظتي</button>"
+        "<button class='tabbtn' onclick=\"tab('t-bn',this)\">🔗 عنق الزجاجة</button>"
+        "<button class='tabbtn' onclick=\"tab('t-more',this)\">🧰 المزيد</button>"
+        "</div>"
+    )
 
-    bn_collapsed = ("<details class='acc' id='s-bn-wrap'><summary>🔗 عنق الزجاجة عبر القطاعات — اصطد العنق القادم (اضغط للعرض)</summary>"
-                    + _bottleneck_section(meta.get("bottlenecks") or [])
-                    + "</details>")
+    header = (
+        "<div class='top'><h1>📊 %s</h1>"
+        "<div class='btns'><a class='ico' href='planner.html'>💼 المخطّط</a>"
+        "<button class='ico pri' onclick='updateAll(this)'>🔄 حدّث</button></div></div>"
+        "<div class='sub'>منصّة بحث شخصية — بحث وليست توصية · حُدّث %s</div>"
+        "<div id='updmsg'></div>" % (_h(name), _h(meta.get("generated_at")))
+    )
 
-    parts = [
-        f"<h1>📊 {_h(name)}</h1>",
-        f"<div class='sub'>{_h(subtitle)} · حُدّث {_h(meta.get('generated_at'))} (توقيت قطر)</div>",
-        "<div class='updrow'><button class='upd' onclick='updateAll(this)'>🔄 حدّث الكل</button>"
-        "<a class='upd2' href='planner.html'>💼 مخطّط المحفظة</a></div>"
-        "<div id='updmsg' class='dim sm'></div>",
-        _mode_toggle(meta),
-        banner,
-        nav,
-        "<div class='dim sm' style='margin:4px 0 0'>💡 اضغط أي <b style='color:#1f6feb'>؟</b> لشرح المصطلح.</div>",
-        _today_card(today),
-        _holdings_section(he),
-        (_movers_section(meta.get("movers") or []) if meta.get("movers") else ""),
-        "<div class='hint' style='background:#10221a;border-color:#1d6340;color:#9ce8c4'>🎯 محرّكات الصيد: <b>قادة المستقبل</b> (x3–x10) · <b>مُسرِّعون</b> (6–24 شهر) · <b>مُركِّبون</b> (جودة تدوم).</div>",
-        _section_table("🌱", "قادة المستقبل (صيد x3–x10)", "future_leader", buckets.get("future_leader", []),
-                       "أسهم صغيرة/متوسطة، نمو قوي + ثيم مستقبلي، ولسه ما انفجرت — الفرص الكبيرة على سنوات، بحصص صغيرة.", sid="s-future"),
-        _section_table("🚀", "مُسرِّعون (6–24 شهر)", "accelerator", buckets.get("accelerator", []),
-                       "نموها يتسارع والمحللون إيجابيون وأرباحها تفوق التوقعات — فرص متوسطة المدى.", sid="s-accel"),
-        _section_table("🏛️", "مُركِّبون طويل المدى", "compounder", buckets.get("compounder", []),
-                       "جودة عالية + نمو يدوم سنوات + ميزانية قوية — أساس الثروة.", sid="s-comp"),
-        _section_table("⚠️", "تأكّد من الحلال أولاً (الأقوى)", "halal", halal_short, halal_sub, limit=12, sid="s-halal"),
-        _section_table("⭐", "قائمتي (قناعاتي)", "watchlist",
-                       [r for r in buckets.get("watchlist", []) if _vis(r)],
-                       "أسهمك — التفاصيل الكاملة في watchlist.csv.", sid="s-watch"),
-        f"<section id='s-top'><h2>🏆 الأقوى إجمالاً {_i('top20')} <span class='count n'>{min(top_n, len(ranked))}</span></h2>"
-        "<div class='dim sub2'>الأفضل من كل النواحي أولاً (قناعة + صعود + مخاطرة منخفضة + محرّكات + بيانات حديثة).</div>"
-        f"<div class='tablewrap'><table class='stocktbl'>{_thead()}<tbody>{_stock_rows(ranked[:top_n])}</tbody></table></div></section>",
-        bn_collapsed,
-        _exposure(visible),
-        f"<span id='s-port'></span>",
-        _portfolio(portfolio_rows),
-        secondary,
-        "<div class='note'>هذا <b>نظام بحث</b>، وليس نصيحة استثمارية. لا مخرج هنا توصية شراء ولا وعد بسعر. "
-        "الحالة الشرعية تقريبية — أكّد كل سهم على Zoya/Musaffa. بيانات قديمة/ناقصة/مشكوكة → ثقة أقل. القرار والمسؤولية عليك وحدك.</div>",
-        f"<footer>{_h(name)} · منصّة بحث استثماري شخصية · يُولَّد محلياً على جهازك</footer>",
-        # نافذة الشرح
+    modal = (
         "<div class='modal' id='gm'><div class='box'>"
         "<h3><span id='gt'></span><span class='x' onclick='gc()'>×</span></h3>"
         "<div class='lbl'>وش يعني؟</div><div class='val' id='gw'></div>"
         "<div class='lbl'>الفايدة</div><div class='val' id='gb'></div>"
-        "<div class='lbl'>مثال</div><div class='ex' id='ge'></div>"
-        "</div></div>",
-        f"<script>var GL={json.dumps(GLOSSARY, ensure_ascii=False)};{JS}</script>",
-    ]
-    return (f"<!doctype html><html lang='ar' dir='rtl'><head><meta charset='utf-8'>"
-            f"<meta name='viewport' content='width=device-width,initial-scale=1'>"
-            f"<title>{_h(name)}</title><style>{CSS}</style></head>"
-            f"<body><div class='wrap'>{''.join(parts)}</div></body></html>")
+        "<div class='lbl'>مثال</div><div class='ex' id='ge'></div></div></div>"
+    )
+
+    body = (header + _mode_bar(meta) + status + _today_hero(today) + tabs
+            + tab_opp + tab_port + tab_bn + tab_more
+            + "<footer>%s · يُولَّد محلياً · القرار والمسؤولية عليك</footer>" % _h(name)
+            + modal
+            + "<script>var GL=%s;%s</script>" % (json.dumps(GLOSSARY, ensure_ascii=False), JS))
+
+    return ("<!doctype html><html lang='ar' dir='rtl'><head><meta charset='utf-8'>"
+            "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+            "<title>%s</title><style>%s</style></head><body><div class='wrap'>%s</div></body></html>"
+            % (_h(name), CSS, body))
