@@ -26,6 +26,7 @@ import flags
 import conviction as conviction_mod
 import engines as engines_mod
 import political as political_mod
+import sanity
 
 
 def _clamp(x, lo=0.0, hi=100.0):
@@ -35,6 +36,8 @@ def _clamp(x, lo=0.0, hi=100.0):
 def enrich_record(rec, cfg, ext, overrides=None):
     """Core per-record enrichment (no network trackers). Mirrors main.py step 2."""
     themes.classify(rec)
+    rec["is_fund"] = sanity.is_fund(rec)                        # ETF/fund? never score as a single stock
+    sanity.flag_suspect(rec)                                    # implausible data → fault, not signal
     halal_gate.apply(rec, cfg, extra={}, overrides=overrides)   # extra={}: yfinance can't verify interest income
     rec["fundamental_score"] = scoring.fundamental_score(rec, cfg)
     cross_source.apply(rec, cfg, ext)
@@ -66,7 +69,14 @@ def finalize_scores(rec, cfg, buys=None, rank_weights=None):
     total = _clamp(base + theme_b + ext_b + earn + ins + pol + news_adj - hype)
     rec["total_score"] = round(total, 1)
     rec["weaknesses"] = scoring.weaknesses(rec, cfg)
+    if rec.get("is_fund"):
+        # ETFs/funds are a CORE HOLD, not a stock pick — don't fabricate conviction/engines.
+        rec["conviction_score"] = None
+        rec["conviction_tier"] = None
+        rec["engines"] = []
+        rec["rank_score"] = 0.0          # keep out of the stock-hunting ranks
+        return rec
     conviction_mod.compute(rec, cfg)
     engines_mod.classify(rec, cfg)
-    rec["rank_score"] = scoring.overall_rank(rec, cfg, rank_weights)
+    rec["rank_score"] = scoring.overall_rank(rec, cfg, rank_weights)  # penalises suspect/not-investable
     return rec

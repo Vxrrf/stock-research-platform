@@ -80,9 +80,13 @@ def _read_holdings():
     try:
         with open(p, encoding="utf-8") as f:
             for row in csv.DictReader(f):
+                t = (row.get("ticker") or "").upper().strip()
+                # skip comment lines (# ...) and obvious non-tickers (spaces / too long)
+                if not t or t.startswith("#") or " " in t or len(t) > 6:
+                    continue
                 try:
                     out.append({
-                        "ticker": (row.get("ticker") or "").upper().strip(),
+                        "ticker": t,
                         "buy_price": float(row.get("buy_price") or 0) or None,
                         "weight": float(row.get("weight") or 0) or None,
                         "buy_date": (row.get("buy_date") or "").strip() or None,
@@ -123,6 +127,8 @@ def find_better(holding, records, cfg, margin=10.0):
     for r in records:
         if r.get("ticker") == hsym:
             continue
+        if r.get("is_fund") or r.get("data_suspect"):
+            continue                                   # never suggest a fund or bad-data name
         if _role(r) != role:
             continue
         if not r.get("investable", True) or r.get("halal_status") == "fail":
@@ -160,7 +166,19 @@ def evaluate_holdings(records, cfg, deltas=None):
         conv = r.get("conviction_score") or 0
         lc = r.get("lifecycle_status")
         hal = r.get("halal_status")
-        pnl = (r["price"] / h["buy_price"] - 1) if (r.get("price") and h.get("buy_price")) else None
+        # distinguish a BROKEN price (warn) from simply no buy_price entered (quiet —)
+        from sanity import pnl_is_suspect
+        has_both = bool(r.get("price")) and bool(h.get("buy_price"))
+        pnl_suspect = has_both and pnl_is_suspect(r.get("price"), h.get("buy_price"), r.get("data_freshness_status"))
+        pnl = (r["price"] / h["buy_price"] - 1) if (has_both and not pnl_suspect) else None
+        # funds/ETFs (e.g. HLAL) are a core hold — never a SELL verdict, never a stock comparison
+        if r.get("is_fund"):
+            rows.append({"ticker": r["ticker"], "name": r.get("name"), "conviction": None,
+                         "rank": r.get("rank_score"), "pnl": pnl, "halal": hal, "lifecycle": "Core",
+                         "verdict": "🟦 صندوق أساسي — احتفظ", "why": "حيازة جوهرية (core)، ليست سهماً نقيّمه فردياً",
+                         "hold_label": "طويل المدى (نواة)", "better": None,
+                         "days_until_earnings": None, "pnl_suspect": pnl_suspect})
+            continue
         if hal == "fail":
             verdict, why = "🔴 بيع — غير متوافق شرعياً", "فشل الفلتر الشرعي"
         elif conv >= 8:
@@ -193,7 +211,8 @@ def evaluate_holdings(records, cfg, deltas=None):
                      "rank": r.get("rank_score"), "pnl": pnl, "halal": hal,
                      "lifecycle": lc, "verdict": verdict, "why": why,
                      "hold_label": hold_label, "better": better,
-                     "days_until_earnings": r.get("days_until_earnings")})
+                     "days_until_earnings": r.get("days_until_earnings"),
+                     "pnl_suspect": pnl_suspect})
     # best overall first (by holistic rank), unknowns last
     rows.sort(key=lambda x: (x["rank"] is None, -(x["rank"] or 0)))
     return rows

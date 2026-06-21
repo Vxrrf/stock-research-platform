@@ -17,24 +17,12 @@ def _h(x):
     return html.escape(str(x)) if x is not None else "—"
 
 
-def _pct(x, plus=True):
-    if not isinstance(x, (int, float)):
-        return "—"
-    return f"{x:+.0%}" if plus else f"{x:.0%}"
-
-
-def _money(x):
-    return f"${x:,.0f}" if isinstance(x, (int, float)) else "—"
-
-
-def _cap(x):
-    if not isinstance(x, (int, float)):
-        return "—"
-    return f"${x/1e9:.1f}B" if x >= 1e9 else f"${x/1e6:.0f}M"
-
-
-def _num(x, d=1):
-    return f"{x:.{d}f}" if isinstance(x, (int, float)) else "—"
+def _name_sub(ticker, name):
+    """Show the company name ONLY when it differs from the ticker (kills 'NVDA NVDA')."""
+    n = (name or "").strip()
+    if not n or n.upper() == str(ticker or "").upper():
+        return ""
+    return f"<div class='dim sm'>{_h(n[:22])}</div>"
 
 
 # ── الترجمات العربية للقيم ──
@@ -250,15 +238,6 @@ def _bar(val, kind="good"):
             f"<b class='n'>{val:.0f}</b></div>")
 
 
-def _aibar(s):
-    """شريط الذكاء الاصطناعي 0–10."""
-    if not isinstance(s, (int, float)):
-        return "<span class='dim'>—</span>"
-    w = max(0, min(10, s)) * 10
-    return (f"<div class='sbwrap'><div class='sb'><i style='width:{w:.0f}%;background:#a78bfa'></i></div>"
-            f"<b class='n'>{int(s)}</b></div>")
-
-
 def _convbar(s):
     """شريط القناعة 0–10 — الرقم الرئيسي."""
     if not isinstance(s, (int, float)):
@@ -275,6 +254,11 @@ def _engine_badges(rec):
         out += "<span class='ebadge e-cyc'>🔄 دوري/تحوّط</span>"
     out += "".join(f"<span class='ebadge {ENGINE_CLASS.get(e,'')}'>{ENGINE_AR.get(e,e)}</span>"
                    for e in (rec.get("engines") or []))
+    # merge the bottleneck lens INTO research: flag stocks that OWN a live bottleneck
+    if rec.get("bottleneck_owner"):
+        chains = rec.get("bottlenecks") or []
+        tip = "؛ ".join(dict.fromkeys(t.get("chain", "") for t in chains if t.get("role") == "chokepoint"))
+        out += f"<span class='ebadge e-bn' title='مالك عنق زجاجة: {_h(tip)}'>🔑 عنق</span>"
     return out
 
 
@@ -316,7 +300,7 @@ def _stock_rows(records):
         out.append(
             "<tr>"
             f"<td class='dim'>{i}</td>"
-            f"<td><b class='n'>{_h(r.get('ticker'))}</b><div class='dim sm'>{_h((r.get('name') or '')[:22])}</div>{theme_chip}{_engine_badges(r)}</td>"
+            f"<td><b class='n'>{_h(r.get('ticker'))}</b>{_name_sub(r.get('ticker'), r.get('name'))}{theme_chip}{_engine_badges(r)}</td>"
             f"<td>{_chip(ACTION_AR.get(act, act), _ACTION_CLASS.get(act,''))}</td>"
             f"<td>{_convbar(r.get('conviction_score'))}</td>"
             f"<td>{_bar(r.get('risk_score'), 'risk')}</td>"
@@ -349,21 +333,32 @@ def _thead():
     )
 
 
-def _section_table(emoji, title, info_key, records, subtitle="", limit=30, sid=""):
+def _section_table(emoji, title, info_key, records, subtitle="", limit=12, sid=""):
     badge = _i(info_key) if info_key else ""
     total = len(records)
     shown = records[:limit]
     if not shown:
         body = "<p class='dim'>لا يوجد في هذا التشغيل.</p>"
     else:
-        body = (f"<div class='tablewrap'><table>{_thead()}"
+        body = (f"<div class='tablewrap'><table class='stocktbl'>{_thead()}"
                 f"<tbody>{_stock_rows(shown)}</tbody></table></div>")
         if total > limit:
-            subtitle = (subtitle + f" — يُعرض أقوى {limit} من {total} (البقية في الملف).").strip(" —")
+            subtitle = (subtitle + f" — يُعرض أقوى {limit} من {total} (الباقي في الملف).").strip(" —")
     sub = f"<div class='dim sub2'>{_h(subtitle)}</div>" if subtitle else ""
     idattr = f" id='{sid}'" if sid else ""
+    count = f"{len(shown)}/{total}" if total > limit else str(total)
     return (f"<section{idattr}><h2>{emoji} {_h(title)} {badge} "
-            f"<span class='count n'>{total}</span></h2>{sub}{body}</section>")
+            f"<span class='count n'>{count}</span></h2>{sub}{body}</section>")
+
+
+def _today_card(lines):
+    """The 'what do I do today' card — the answer in 3-5 lines at the very top."""
+    if not lines:
+        return ""
+    items = "".join(f"<div class='today-row'><span class='te'>{e}</span><div>{t}</div></div>"
+                    for e, t in lines)
+    return ("<section id='s-today'><div class='today'>"
+            "<div class='today-h'>📌 اليوم — وش أسوّي؟</div>" + items + "</div></section>")
 
 
 def _exposure(records):
@@ -454,7 +449,7 @@ def _not_investable_section(records, limit=20):
     body = ""
     for r in records[:limit]:
         reasons = "، ".join(r.get("not_investable_reasons") or [])
-        body += (f"<tr><td><b class='n'>{_h(r.get('ticker'))}</b><div class='dim sm'>{_h((r.get('name') or '')[:24])}</div></td>"
+        body += (f"<tr><td><b class='n'>{_h(r.get('ticker'))}</b>{_name_sub(r.get('ticker'), r.get('name'))}</td>"
                  f"<td class='dim'>{_h(reasons)}</td>"
                  f"<td>{_chip(FRESH_AR.get(r.get('data_freshness_status'), r.get('data_freshness_status')), _FRESH_CLASS.get(r.get('data_freshness_status'),''))}</td></tr>")
     return (f"<section><h2>🚫 غير قابل للاستثمار بعد {_i('notinv')} <span class='count n'>{len(records)}</span></h2>"
@@ -464,26 +459,31 @@ def _not_investable_section(records, limit=20):
 
 
 def _holdings_section(rows):
+    head = ("<section id='s-hold'><h2>💼 محفظتي — أضِف / احتفظ / بيع</h2>"
+            "<div class='dim sub2'>توصية بحثية حسب الأداء والقناعة — مو «بيع/اشترِ الآن». «بديل أفضل» يظهر فقط لما نكون واثقين. "
+            "عبّي أسعار/تواريخ شرائك في data/holdings.csv.</div>")
     if not rows:
-        return ""
+        return head + ("<p class='dim'>لا توجد محفظة محمّلة — عبّي أسهمك في "
+                       "<b>data/holdings.csv</b> (التذكرة، سعر الشراء، النسبة، تاريخ الشراء).</p></section>")
     body = ""
     for r in rows:
-        pnl = (f"<span class='n' style='color:{'#5ee7a0' if (r['pnl'] or 0)>=0 else '#ff8a9a'}'>{r['pnl']:+.0%}</span>"
-               if r.get("pnl") is not None else "<span class='dim'>—</span>")
+        if r.get("pnl_suspect"):
+            pnl = "<span class='chip f-stale'>⚠️ سعر مشكوك</span>"
+        elif r.get("pnl") is not None:
+            pnl = f"<span class='n' style='color:{'#5ee7a0' if r['pnl']>=0 else '#ff8a9a'}'>{r['pnl']:+.0%}</span>"
+        else:
+            pnl = "<span class='dim'>—</span>"
         conv = _convbar(r.get("conviction")) if r.get("conviction") is not None else "<span class='dim'>—</span>"
         hold = _h(r.get("hold_label") or "—")
         b = r.get("better")
         better = (f"<b style='color:#f0b46b'>↑ {_h(b['ticker'])}</b><div class='dim sm'>{_h(b['why'])}</div>"
                   if b else "<span class='dim sm'>✓ الأفضل في دوره</span>")
-        body += (f"<tr><td><b class='n'>{_h(r['ticker'])}</b><div class='dim sm'>{_h((r.get('name') or '')[:20])}</div></td>"
+        body += (f"<tr><td><b class='n'>{_h(r['ticker'])}</b>{_name_sub(r['ticker'], r.get('name'))}</td>"
                  f"<td><b>{_h(r['verdict'])}</b><div class='dim sm'>{_h(r.get('why'))}</div></td>"
                  f"<td>{conv}</td><td class='r'>{pnl}</td>"
                  f"<td class='dim sm'>{hold}</td>"
                  f"<td>{better}</td></tr>")
-    return ("<section id='s-hold'><h2>💼 محفظتي — أضِف / احتفظ / بيع</h2>"
-            "<div class='dim sub2'>توصية بحثية حسب الأداء والقناعة — مو «بيع/اشترِ الآن». «بديل أفضل» يظهر فقط لما نكون واثقين (دور مماثل + ترتيب أعلى بوضوح + حلال مو أسوأ). "
-            "عبّي أسعار/تواريخ شرائك في data/holdings.csv.</div>"
-            "<div class='tablewrap'><table><thead><tr><th>السهم</th><th>التوصية</th><th>القناعة</th><th>ربح/خسارة</th>"
+    return (head + "<div class='tablewrap'><table class='holdtbl'><thead><tr><th>السهم</th><th>التوصية</th><th>القناعة</th><th>ربح/خسارة</th>"
             f"<th>مدة الاحتفاظ {_i('hold')}</th><th>بديل أفضل؟ {_i('better')}</th></tr></thead>"
             f"<tbody>{body}</tbody></table></div></section>")
 
@@ -660,7 +660,7 @@ section{scroll-margin-top:64px}
 table{width:100%;border-collapse:collapse;font-size:13px;min-width:820px}
 th{position:sticky;top:0;background:#121a25;color:#9fb0c6;text-align:right;padding:9px 8px;font-weight:600;white-space:nowrap;font-size:12px}
 td{padding:9px 8px;border-top:1px solid #18202c;vertical-align:top;text-align:right}
-td.r{text-align:left} .dim{color:#74808f} .sm{font-size:11px}
+td.r{text-align:left} .dim{color:#94a0b0} .sm{font-size:11px}
 tbody tr:hover{background:#0f141d}
 .chip{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap}
 .a-cand{background:#0e3a25;color:#5ee7a0}.a-res{background:#123047;color:#6cc4ff}
@@ -686,6 +686,7 @@ tbody tr:hover{background:#0f141d}
 .e-accel{background:#241a3a;color:#c4a0ff;border:1px solid #4a2d6b}
 .e-future{background:#0e3a25;color:#5ee7a0;border:1px solid #1d6340}
 .e-cyc{background:#3a2a12;color:#f0b46b;border:1px solid #5e4420}
+.e-bn{background:#2a230e;color:#e8c454;border:1px solid #caa24a}
 .metric{display:flex;align-items:baseline;gap:8px;margin:8px 0}.metric b{font-size:20px}.metric span{color:#8a97a8;font-size:12px}
 .note{background:#10161f;border:1px solid #1b2330;border-radius:12px;padding:14px 16px;color:#9fb0c6;font-size:13px;margin-top:18px}
 footer{color:#5c6675;font-size:12px;margin-top:40px;text-align:center}
@@ -725,6 +726,46 @@ padding:5px 12px;font-size:12.5px;margin:10px 0 0}
 .bnc-key{border-color:#caa24a;box-shadow:0 0 0 1px #caa24a55}
 .bn-acute{background:#3a1820;color:#ff8a9a}.bn-build{background:#3a2a12;color:#f0b46b}
 .bn-ease{background:#0e3a25;color:#5ee7a0}.bn-spec{background:#123047;color:#6cc4ff}
+/* بطاقة «اليوم» */
+.today{background:linear-gradient(160deg,#10221a,#0c1a14);border:1px solid #1d6340;border-radius:16px;padding:15px 16px;margin-top:14px}
+.today-h{font-size:16px;font-weight:800;color:#9ce8c4;margin-bottom:8px}
+.today-row{display:flex;gap:9px;align-items:flex-start;margin:6px 0;font-size:13.5px;color:#dbe6ef;line-height:1.5}
+.today-row .te{font-size:15px;flex:0 0 auto}
+/* أكورديون «المزيد» + عنق الزجاجة */
+.acc{border:1px solid #1b2330;border-radius:14px;margin-top:18px;background:#0c1119}
+.acc>summary{cursor:pointer;padding:13px 16px;font-weight:700;color:#aeb9c9;list-style:none;font-size:14px}
+.acc>summary::-webkit-details-marker{display:none}
+.acc>summary::before{content:'⌄ ';color:#6cc4ff}
+.acc[open]>summary{border-bottom:1px solid #1b2330;color:#fff}
+.acc[open]>summary::before{content:'⌃ '}
+.acc>section,.acc>div{padding-left:14px;padding-right:14px}
+/* هدف لمس أكبر لعلامة ؟ (المرئي 17px، القابل للّمس ~41px) */
+.i::after{content:'';position:absolute;inset:-12px}.i{position:relative}
+/* scroll-spy active */
+.qnav a.on{background:#1f6feb;color:#fff;border-color:#1f6feb}
+/* الجوال: جدول الأسهم بدون تمرير أفقي — نخفي الأعمدة الثانوية */
+@media(max-width:600px){
+  .wrap{padding:16px 12px 80px}h1{font-size:22px}
+  .stocktbl{min-width:0!important;font-size:12.5px}
+  .stocktbl th:nth-child(5),.stocktbl td:nth-child(5),
+  .stocktbl th:nth-child(6),.stocktbl td:nth-child(6),
+  .stocktbl th:nth-child(7),.stocktbl td:nth-child(7),
+  .stocktbl th:nth-child(8),.stocktbl td:nth-child(8),
+  .stocktbl th:nth-child(9),.stocktbl td:nth-child(9),
+  .stocktbl th:nth-child(11),.stocktbl td:nth-child(11){display:none}
+  .holdtbl{min-width:0!important;font-size:12.5px}
+  .holdtbl th:nth-child(5),.holdtbl td:nth-child(5),
+  .holdtbl th:nth-child(6),.holdtbl td:nth-child(6){display:none}
+  .qnav{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .qnav::-webkit-scrollbar{display:none}
+  .kpi{min-width:130px}
+  /* tighten the stock table so all 5 kept columns fit 375px with no scroll */
+  .stocktbl td,.stocktbl th{padding:7px 5px}
+  .stocktbl .sb-lg{width:40px;height:9px}.stocktbl .sb{width:42px}.stocktbl .sbwrap{gap:4px}
+  .stocktbl .chip{padding:2px 6px;font-size:10px}
+  .stocktbl .ebadge,.stocktbl .tchip{font-size:9.5px;padding:1px 5px;margin:3px 0 0 3px}
+  .stocktbl .sbwrap b{font-size:11px;min-width:16px}
+}
 """
 
 JS = """
@@ -749,6 +790,15 @@ function updateAll(b){
     if(d.ok){setTimeout(function(){location.reload();},900);}else{b.disabled=false;b.innerText=o;}
   }).catch(function(){document.getElementById('updmsg').innerText='⚠️ تعذّر الاتصال بالخادم — تأكد إنه شغّال';b.disabled=false;b.innerText=o;});
 }
+// scroll-spy: highlight the nav pill of the section in view
+(function(){
+  var links={};document.querySelectorAll('.qnav a').forEach(function(a){var id=a.getAttribute('href');if(id&&id[0]==='#')links[id.slice(1)]=a;});
+  var ids=Object.keys(links);if(!ids.length||!('IntersectionObserver'in window))return;
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){
+    ids.forEach(function(i){links[i].classList.remove('on');});
+    if(links[e.target.id])links[e.target.id].classList.add('on');}});},{rootMargin:'-45% 0px -50% 0px'});
+  ids.forEach(function(i){var el=document.getElementById(i);if(el)io.observe(el);});
+})();
 """
 
 
@@ -767,30 +817,73 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
     risk = meta.get("market_risk_today", "—")
     risk_cls = {"Low": "dir-positive", "Medium": "dir-neutral", "High": "a-watch", "Extreme": "a-avoid"}.get(risk, "dir-neutral")
 
-    # clearer KPIs — words, not bare ratios
+    # honest halal split — never call unknown-halal "suitable"
+    h_pass = sum(1 for r in visible if r.get("halal_status") == "pass")
+    h_unknown = sum(1 for r in visible if r.get("halal_status") == "unknown")
+    suspect_n = sum(1 for r in records if r.get("data_suspect"))
     banner = f"""
     <div class="banner">
-      <div class="kpi"><b class="n">{len(visible)}</b><span>سهم مناسب (من {meta.get('examined',0)} مفحوص)</span></div>
+      <div class="kpi"><b class="n">{len(visible)}</b><span>سهم في نطاق البحث (من {meta.get('examined',0)})<br>
+        <span class='dim sm'>✅ {h_pass} حلال مؤكّد · ⚠️ {h_unknown} تحتاج تأكيد حلال</span></span></div>
       <div class="kpi"><b><span class="chip {risk_cls}">{_h(RISK_AR.get(risk, risk))}</span></b><span>مخاطر السوق اليوم {_i('marketrisk')}</span></div>
-      <div class="kpi"><b class="n">{fc.get('FRESH',0)}</b><span>بياناتها حديثة {_i('fresh')}<br><span class='dim sm'>قديمة {fc.get('STALE',0)} · ناقصة {fc.get('MISSING',0)}</span></span></div>
-      <div class="kpi"><b class="n">{meta.get('hi',0)}</b><span>ثقة عالية<br><span class='dim sm'>متوسطة {meta.get('med',0)} · منخفضة {meta.get('low',0)}</span></span></div>
+      <div class="kpi"><b class="n">{fc.get('FRESH',0)}</b><span>بياناتها حديثة {_i('fresh')}<br><span class='dim sm'>قديمة {fc.get('STALE',0)} · ناقصة {fc.get('MISSING',0)}{' · مشكوكة '+str(suspect_n) if suspect_n else ''}</span></span></div>
       <div class="kpi"><b class="n">{_h(meta.get('data_source'))}</b><span>مصدر البيانات</span></div>
     </div>"""
 
+    # ── "today" card: the answer in a few lines ──
+    he = meta.get("holdings_eval") or []
+    sells = [h["ticker"] for h in he if "بيع" in (h.get("verdict") or "")]
+    opps = [h["ticker"] for h in he if "فرصة" in (h.get("verdict") or "") or h.get("better")]
+    pass_cands = [r for r in ranked if r.get("halal_status") == "pass" and r.get("action") == "Candidate"]
+    strong_unknown = [r["ticker"] for r in ranked if r.get("halal_status") == "unknown" and not r.get("is_fund")][:3]
+    today = []
+    if sells:
+        today.append(("⚠️", f"راجع في محفظتك: <b class='n'>{'، '.join(sells)}</b> — قناعتنا فيها ضعيفة، ابحث السبب."))
+    elif opps:
+        today.append(("🔵", f"فرص/بدائل في محفظتك: <b class='n'>{'، '.join(opps)}</b>."))
+    else:
+        today.append(("✅", "محفظتك: لا إجراء عاجل اليوم — استمر بخطّتك."))
+    if pass_cands:
+        today.append(("🟢", f"أقوى مرشّح حلال مؤكّد: <b class='n'>{_h(pass_cands[0]['ticker'])}</b> (قناعة {pass_cands[0].get('conviction_score')}/10)."))
+    else:
+        today.append(("🔍", f"لا مرشّح حلال <b>مؤكّد</b> اليوم. الأقوى تحتاج تأكيد على Zoya/Musaffa: <b class='n'>{'، '.join(strong_unknown)}</b>."))
+    today.append(("📊", f"مخاطر السوق: <b>{_h(RISK_AR.get(risk, risk))}</b>"
+                        + (f" · ⚠️ {suspect_n} سهم ببيانات مشكوكة استُبعدت من الترتيب." if suspect_n else ".")))
+
+    # halal shortlist: the FEW worth paying to verify (high conviction), not 753 maybes
+    halal_all = [r for r in buckets.get("Verify Halal First", []) if not r.get("is_fund")]
+    halal_short = sorted([r for r in halal_all if (r.get("conviction_score") or 0) >= 7],
+                         key=lambda r: (r.get("conviction_score") or 0), reverse=True)[:12]
+    halal_extra = len(halal_all) - len(halal_short)
+
     nav = ("<nav class='qnav'>"
+           "<a href='#s-today'>📌 اليوم</a>"
            "<a href='#s-hold'>💼 محفظتي</a>"
-           "<a href='#s-movers'>🔀 تغيّرات</a>"
-           "<a href='#s-bn'>🔗 عنق الزجاجة</a>"
-           "<a href='#s-future'>🌱 قادة المستقبل</a>"
-           "<a href='#s-accel'>🚀 مُسرِّعون</a>"
-           "<a href='#s-comp'>🏛️ مُركِّبون</a>"
+           "<a href='#s-future'>🌱 الفرص</a>"
            "<a href='#s-halal'>⚠️ تأكّد الحلال</a>"
+           "<a href='#s-bn'>🔗 عنق الزجاجة</a>"
            "<a href='#s-watch'>⭐ قائمتي</a>"
-           "<a href='#s-top'>🏆 أعلى 20</a>"
-           "<a href='#s-signals'>📡 إشارات</a>"
+           "<a href='#s-top'>🏆 الأقوى</a>"
            "<a href='#s-port'>📊 المحفظة</a>"
-           "<a href='#s-bt'>🧪 اختبار</a>"
+           "<a href='#s-more'>🧰 المزيد</a>"
            "</nav>")
+
+    halal_sub = "أقوى الأسهم غير المؤكّدة شرعياً (قناعة ≥7) — هذي الي تستاهل تدفع تتأكّد منها على Zoya/Musaffa."
+    if halal_extra > 0:
+        halal_sub += f" (+{halal_extra} أخرى أقل قناعة في الملف)."
+
+    secondary = (
+        "<details class='acc' id='s-more'><summary>🧰 إشارات ثانوية وأدوات تشخيص (اضغط للعرض)</summary>"
+        + _signals_section(meta.get("signals_rows") or [])
+        + _backtest_section(meta.get("backtest"))
+        + _not_investable_section(buckets.get("not_investable", []))
+        + _news(news_rows)
+        + _political(political_rows)
+        + "</details>")
+
+    bn_collapsed = ("<details class='acc' id='s-bn-wrap'><summary>🔗 عنق الزجاجة عبر القطاعات — اصطد العنق القادم (اضغط للعرض)</summary>"
+                    + _bottleneck_section(meta.get("bottlenecks") or [])
+                    + "</details>")
 
     parts = [
         f"<h1>📊 {_h(name)}</h1>",
@@ -799,37 +892,33 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
         "<a class='upd2' href='planner.html'>💼 مخطّط المحفظة</a></div>"
         "<div id='updmsg' class='dim sm'></div>",
         _mode_toggle(meta),
-        "<div class='hint'>💡 اضغط على أي علامة <b style='color:#fff'>؟</b> جنب أي مصطلح يطلع لك شرح بسيط: وش يعني + فايدته + مثال. واستخدم الشريط فوق للتنقّل السريع.</div>",
         banner,
         nav,
-        _holdings_section(meta.get("holdings_eval") or []),
-        _movers_section(meta.get("movers") or []),
-        _bottleneck_section(meta.get("bottlenecks") or []),
-        "<div class='hint' style='background:#10221a;border-color:#1d6340;color:#9ce8c4'>🎯 محرّكات الصيد الثلاثة: <b>قادة المستقبل</b> (x3–x10 على سنوات) · <b>مُسرِّعون</b> (6–24 شهر) · <b>مُركِّبون</b> (جودة تدوم). سهم واحد ممكن يكون في أكثر من محرّك.</div>",
+        "<div class='dim sm' style='margin:4px 0 0'>💡 اضغط أي <b style='color:#1f6feb'>؟</b> لشرح المصطلح.</div>",
+        _today_card(today),
+        _holdings_section(he),
+        (_movers_section(meta.get("movers") or []) if meta.get("movers") else ""),
+        "<div class='hint' style='background:#10221a;border-color:#1d6340;color:#9ce8c4'>🎯 محرّكات الصيد: <b>قادة المستقبل</b> (x3–x10) · <b>مُسرِّعون</b> (6–24 شهر) · <b>مُركِّبون</b> (جودة تدوم).</div>",
         _section_table("🌱", "قادة المستقبل (صيد x3–x10)", "future_leader", buckets.get("future_leader", []),
-                       "أسهم صغيرة/متوسطة، نمو قوي + ثيم مستقبلي + هوامش حقيقية، ولسه ما انفجرت — هنا الفرص الكبيرة على سنوات، بحصص صغيرة موزّعة.", sid="s-future"),
+                       "أسهم صغيرة/متوسطة، نمو قوي + ثيم مستقبلي، ولسه ما انفجرت — الفرص الكبيرة على سنوات، بحصص صغيرة.", sid="s-future"),
         _section_table("🚀", "مُسرِّعون (6–24 شهر)", "accelerator", buckets.get("accelerator", []),
                        "نموها يتسارع والمحللون إيجابيون وأرباحها تفوق التوقعات — فرص متوسطة المدى.", sid="s-accel"),
         _section_table("🏛️", "مُركِّبون طويل المدى", "compounder", buckets.get("compounder", []),
-                       "جودة عالية + نمو يدوم سنوات + ميزانية قوية — أساس الثروة، تمسكها وتتضاعف بهدوء.", sid="s-comp"),
-        _section_table("⚠️", "تأكّد من الحلال أولاً", "halal", buckets.get("Verify Halal First", []),
-                       "أسهم قوية لكن لازم تأكّد شرعيتها على Zoya/Musaffa قبل أي شي.", sid="s-halal"),
+                       "جودة عالية + نمو يدوم سنوات + ميزانية قوية — أساس الثروة.", sid="s-comp"),
+        _section_table("⚠️", "تأكّد من الحلال أولاً (الأقوى)", "halal", halal_short, halal_sub, limit=12, sid="s-halal"),
         _section_table("⭐", "قائمتي (قناعاتي)", "watchlist",
                        [r for r in buckets.get("watchlist", []) if _vis(r)],
                        "أسهمك — التفاصيل الكاملة في watchlist.csv.", sid="s-watch"),
-        f"<section id='s-top'><h2>🏆 أعلى {top_n} سهم {_i('top20')}</h2>"
-        "<div class='dim sub2'>مرتّبة: الأفضل من كل النواحي أولاً (قناعة + صعود + مخاطرة منخفضة + محرّكات + بيانات حديثة).</div>"
-        f"<div class='tablewrap'><table>{_thead()}<tbody>{_stock_rows(ranked[:top_n])}</tbody></table></div></section>",
-        _signals_section(meta.get("signals_rows") or []),
+        f"<section id='s-top'><h2>🏆 الأقوى إجمالاً {_i('top20')} <span class='count n'>{min(top_n, len(ranked))}</span></h2>"
+        "<div class='dim sub2'>الأفضل من كل النواحي أولاً (قناعة + صعود + مخاطرة منخفضة + محرّكات + بيانات حديثة).</div>"
+        f"<div class='tablewrap'><table class='stocktbl'>{_thead()}<tbody>{_stock_rows(ranked[:top_n])}</tbody></table></div></section>",
+        bn_collapsed,
         _exposure(visible),
         f"<span id='s-port'></span>",
         _portfolio(portfolio_rows),
-        _backtest_section(meta.get("backtest")),
-        _not_investable_section(buckets.get("not_investable", [])),
-        _news(news_rows),
+        secondary,
         "<div class='note'>هذا <b>نظام بحث</b>، وليس نصيحة استثمارية. لا مخرج هنا توصية شراء ولا وعد بسعر. "
-        "الحالة الشرعية تقريبية — أكّد كل سهم على Zoya/Musaffa. نضارة البيانات تحكم الثقة: بيانات قديمة أو ناقصة → الثقة «منخفضة». "
-        "بيانات الكونغرس إشارة ضعيفة فقط. القرار والمسؤولية عليك وحدك.</div>",
+        "الحالة الشرعية تقريبية — أكّد كل سهم على Zoya/Musaffa. بيانات قديمة/ناقصة/مشكوكة → ثقة أقل. القرار والمسؤولية عليك وحدك.</div>",
         f"<footer>{_h(name)} · منصّة بحث استثماري شخصية · يُولَّد محلياً على جهازك</footer>",
         # نافذة الشرح
         "<div class='modal' id='gm'><div class='box'>"

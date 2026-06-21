@@ -229,7 +229,12 @@ def overall_rank(rec, cfg, weights=None):
     eng = len(rec.get("engines") or []) * 2.0                  # quality signal
     conf = (rec.get("independent_confirmations") or 0) * 1.5
     cmul = {"HIGH": 1.0, "MEDIUM": 0.96, "LOW": 0.88}.get(rec.get("confidence"), 0.92)
-    return round((base + eng + conf) * cmul, 1)
+    rank = (base + eng + conf) * cmul
+    # data faults must NEVER steer the top ranks: suspect data or a failed
+    # investability gate floors the rank so artifacts can't surface as top picks.
+    if rec.get("data_suspect") or rec.get("investable") is False:
+        rank *= 0.5
+    return round(rank, 1)
 
 
 def weaknesses(rec, cfg):

@@ -30,6 +30,10 @@ def compute(rec, cfg):
     total = rec.get("total_score")
     total = total if total is not None else fund
 
+    # ── funds/ETFs are a CORE HOLD, not a stock pick ──
+    if rec.get("is_fund"):
+        return "Watch", "صندوق/ETF — حيازة أساسية (core)، ليس سهماً نقيّمه فردياً"
+
     # ── HARD halal gate ──
     if hs == "fail":
         reason = "AVOID - fails Sharia screen"
@@ -39,6 +43,13 @@ def compute(rec, cfg):
     if hs == "unknown":
         return "Verify Halal First", (rec.get("halal_reasons") or
                                       ["halal status unverified — confirm on Zoya/Musaffa"])[0]
+
+    # ── data quality gate: not-investable or suspect data can NEVER be a Candidate ──
+    if not rec.get("investable", True):
+        return "Watch", "بيانات غير كافية/مشكوكة — راجع قبل أي قرار (" + \
+            ("؛ ".join(rec.get("not_investable_reasons") or []) or "بوابات البيانات") + ")"
+    if rec.get("data_suspect"):
+        return "Watch", "بيانات مشكوك فيها (" + ("؛ ".join(rec.get("data_suspect_reasons") or [])) + ") — تحقّق"
 
     # ── halal pass from here ──
     if rec.get("popular_not_cheap"):
