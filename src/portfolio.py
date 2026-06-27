@@ -215,7 +215,8 @@ def evaluate_holdings(records, cfg, deltas=None):
                      "hold_label": hold_label, "better": better,
                      "days_until_earnings": r.get("days_until_earnings"),
                      "pnl_suspect": pnl_suspect, "playbook": pb,
-                     "alerts": framework.alert_plan(h.get("buy_price"), pb)})
+                     "alerts": framework.alert_plan(h.get("buy_price"), pb),
+                     "why_note": r.get("why_note"), "peers": r.get("peers")})
     # best overall first (by holistic rank), unknowns last
     rows.sort(key=lambda x: (x["rank"] is None, -(x["rank"] or 0)))
     return rows

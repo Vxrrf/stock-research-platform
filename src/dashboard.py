@@ -258,17 +258,55 @@ def _ldetail(r):
         ("تقييم المحللين", rate),
         ("الدفتر (الخطة)", pb),
     ]
-    return "<div class='ldetail'>" + "".join(
+    grid = "<div class='dgrid'>" + "".join(
         "<div class='dc'><span>%s</span><b class='n'>%s</b></div>" % (l, _h(v)) for l, v in cells) + "</div>"
+    return "<div class='ldetail'>%s%s%s</div>" % (grid, _why_block(r.get("why_note")), _peers_block(r.get("peers")))
+
+
+def _why_block(w):
+    """THE WHY — live, dated, sourced. Shown automatically when a note exists."""
+    if not w:
+        return ""
+    rows = ""
+    for icon, key, lbl in (("💡", "thesis", "ليش يتحرّك"), ("⚡", "catalyst", "المحفّز"),
+                           ("🏦", "street", "وول ستريت"), ("⚠️", "other_side", "الجهة الأخرى")):
+        if w.get(key):
+            rows += "<div class='wq'><span>%s %s</span><div>%s</div></div>" % (icon, lbl, _h(w[key]))
+    foot = ""
+    if w.get("as_of") or w.get("source"):
+        foot = "<div class='muted xs wfoot'>🔎 بحث حي · %s · %s</div>" % (_h(w.get("as_of", "")), _h(w.get("source", "")))
+    return "<div class='why'>%s%s</div>" % (rows, foot)
+
+
+def _peers_block(p):
+    """THE CHECK — 5-peer comparison, computed from our universe. Best per column highlighted."""
+    if not p or not p.get("rows"):
+        return ""
+    head = "<div class='pr2 ph'><b>الأقران</b><span>نمو</span><span>هامش</span><span>P/E</span></div>"
+    body = ""
+    for r in p["rows"]:
+        def cell(key, best, fmt):
+            v = r.get(key)
+            txt = fmt(v) if isinstance(v, (int, float)) and (v > 0 or key != "fpe") else "—"
+            cls = "pbest" if (r["ticker"] == best and txt != "—") else ""
+            return "<b class='n %s'>%s</b>" % (cls, txt)
+        body += "<div class='pr2 %s'><b class='n'>%s</b>%s%s%s</div>" % (
+            "pself" if r["is_self"] else "", _h(r["ticker"]),
+            cell("rev_growth", p["best_growth"], lambda v: "%+.0f%%" % (v * 100)),
+            cell("op_margin", p["best_margin"], lambda v: "%.0f%%" % (v * 100)),
+            cell("fpe", p["best_value"], lambda v: "%.0f" % v))
+    return "<div class='peers'><div class='muted xs' style='margin:2px 0 4px'>مقابل أقرب 5 منافسين (الأخضر = الأفضل):</div>%s%s</div>" % (head, body)
 
 
 def _hold_detail(r):
     """Personal-framework alert plan for a holding: playbook + danger line + 2 upside alerts + harvest."""
     pb = framework.PLAYBOOK_AR.get(r.get("playbook"), r.get("playbook") or "—")
     a = r.get("alerts")
+    extras = _why_block(r.get("why_note")) + _peers_block(r.get("peers"))
     if not a:
-        return ("<div class='ldetail'><div class='dc'><span>الدفتر</span><b>%s</b></div>"
-                "<div class='dc'><span>التنبيهات</span><b>عبّي سعر الشراء في holdings.csv</b></div></div>" % _h(pb))
+        return ("<div class='ldetail'><div class='dgrid'><div class='dc'><span>الدفتر</span><b>%s</b></div>"
+                "<div class='dc'><span>التنبيهات</span><b>عبّي سعر الشراء في holdings.csv</b></div></div>%s</div>"
+                % (_h(pb), extras))
     cells = [
         ("الدفتر", pb),
         ("⚠️ خط الخطر −40%", "%.2f" % a["danger_price"]),
@@ -277,7 +315,7 @@ def _hold_detail(r):
     ]
     g = "".join("<div class='dc'><span>%s</span><b class='n'>%s</b></div>" % (l, _h(v)) for l, v in cells)
     g += "<div class='dc wide'><span>🌾 الحصاد</span><b style='font-weight:600'>%s</b></div>" % _h(a["harvest"])
-    return "<div class='ldetail'>%s</div>" % g
+    return "<div class='ldetail'><div class='dgrid'>%s</div>%s</div>" % (g, extras)
 
 
 def _lrow(r, idx=None):
@@ -549,10 +587,24 @@ h4{font-size:13.5px;margin:16px 0 6px;color:#c4ccd6;font-weight:700}
 .cv-lo b{color:#8a94a3}.cv-lo i{background:#4a525d}
 .cv-na{color:#5f6a78}.cv.mini{flex-direction:row;min-width:0}.cv.mini i{display:none}
 .chev{color:#5f6a78;font-size:13px;flex:0 0 auto}
-.ldetail{display:none;grid-template-columns:1fr 1fr 1fr;gap:1px;background:#1a212a;padding:1px;border-top:1px solid #1a212a}
-.ldetail.open{display:grid}
+.ldetail{display:none;border-top:1px solid #1a212a}.ldetail.open{display:block}
+.dgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:#1a212a}
 .dc{background:#12161c;padding:9px 11px}.dc span{display:block;color:#7a8493;font-size:11px}.dc b{font-size:13.5px}
 .dc.wide{grid-column:1/-1}
+/* THE WHY block */
+.why{padding:11px 13px;background:#10161d;border-top:1px solid #1a212a}
+.wq{margin:7px 0;font-size:13px}.wq:first-child{margin-top:0}
+.wq span{display:block;color:#8fb7da;font-size:11.5px;font-weight:700;margin-bottom:1px}
+.wq div{color:#cfd6df;line-height:1.55}
+.wfoot{margin-top:8px;border-top:1px dashed #232b35;padding-top:6px}
+/* THE CHECK peers */
+.peers{padding:10px 13px;background:#11151b;border-top:1px solid #1a212a}
+.pr2{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:6px;padding:5px 6px;font-size:12.5px;align-items:center}
+.pr2 span{color:#7a8493;font-size:11px;text-align:left}
+.pr2 b{text-align:left}.pr2>b:first-child{text-align:right}
+.pr2.ph{border-bottom:1px solid #1d242d}.pr2.ph b{color:#8a94a3;font-weight:600}
+.pr2.pself{background:#15202b;border-radius:7px}.pr2.pself>b:first-child{color:#8fb7da}
+.pbest{color:#67c79a!important;font-weight:800}
 .vd{font-size:12.5px;color:#cfd6df;background:#1a212a;border-radius:7px;padding:2px 8px}
 .hpnl{text-align:left;flex:0 0 auto}
 .warn{color:#e0b06a;font-size:11.5px;font-weight:700}

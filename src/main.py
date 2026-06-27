@@ -25,8 +25,9 @@ from schema import (now_local, now_utc, iso, RANKED_COLS, WATCHLIST_COLS,
                     DISCOVERY_LOG_COLS, EARNINGS_COLS, INSIDER_COLS, NEWS_COLS,
                     POLITICAL_COLS, PORTFOLIO_COLS, AVOID_COLS)
 from config_loader import (load_config, load_external_lists, load_halal_overrides,
-                           output_dir, ROOT)
+                           load_why_notes, output_dir, ROOT)
 import datasource
+import peers as peers_mod
 import themes
 import halal_gate
 import scoring
@@ -226,6 +227,18 @@ def main():
     # ── 4b) bottleneck lens: tag each stock with the supply-chain chokepoint(s) it sits in ──
     bn_data = bottlenecks_mod.load()
     bottlenecks_mod.classify(records, bn_data)
+
+    # ── 4c) attach live 'THE WHY' notes (auto, no per-run web) ──
+    why_notes = load_why_notes()
+    for rec in records:
+        rec["why_note"] = why_notes.get(str(rec.get("ticker") or "").upper())
+
+    # ── 4d) THE CHECK peer comparison — only for the names we actually display (holdings + top) ──
+    _ranked_now = sorted(records, key=lambda r: (r.get("rank_score") or 0), reverse=True)
+    _peer_targets = set(watchlist) | {r["ticker"] for r in _ranked_now[:25] if not r.get("is_fund")}
+    for rec in records:
+        if rec["ticker"] in _peer_targets:
+            rec["peers"] = peers_mod.compare(rec, records)
 
     # ── 5) watchlist memory (rising/fallen + new/returning) ──
     # rank by the holistic overall score → #1 is the best across everything

@@ -16,6 +16,7 @@ CONFIG_PATH = os.path.join(ROOT, "config.yaml")
 LOCAL_CONFIG_PATH = os.path.join(ROOT, "config.local.yaml")   # git-ignored secrets/overrides
 EXTERNAL_LISTS_PATH = os.path.join(ROOT, "data", "external_lists.yaml")
 HALAL_OVERRIDES_PATH = os.path.join(ROOT, "data", "halal_overrides.yaml")
+WHY_NOTES_PATH = os.path.join(ROOT, "data", "why_notes.yaml")
 
 
 def _deep_merge(base, over):
@@ -81,6 +82,18 @@ def load_halal_overrides():
             "source": str(v.get("source") or "manual").strip(),
             "note": str(v.get("note") or "").strip(),
         }
+    return out
+
+
+def load_why_notes():
+    """Live 'THE WHY' notes per ticker (data/why_notes.yaml) → {TICKER: {...}}.
+    Dated, sourced snapshots Claude researches; the dashboard shows them automatically."""
+    raw = _load_yaml(WHY_NOTES_PATH, default={}) or {}
+    notes = raw.get("notes") or {}
+    out = {}
+    for sym, v in notes.items():
+        if isinstance(v, dict):
+            out[str(sym).strip().upper()] = v
     return out
 
 
