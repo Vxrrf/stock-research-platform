@@ -207,12 +207,15 @@ def evaluate_holdings(records, cfg, deltas=None):
             except Exception:
                 pass
         better = find_better(r, records, cfg)          # only set when CONFIDENT
+        import framework
+        pb = framework.playbook(r)
         rows.append({"ticker": r["ticker"], "name": r.get("name"), "conviction": conv,
                      "rank": r.get("rank_score"), "pnl": pnl, "halal": hal,
                      "lifecycle": lc, "verdict": verdict, "why": why,
                      "hold_label": hold_label, "better": better,
                      "days_until_earnings": r.get("days_until_earnings"),
-                     "pnl_suspect": pnl_suspect})
+                     "pnl_suspect": pnl_suspect, "playbook": pb,
+                     "alerts": framework.alert_plan(h.get("buy_price"), pb)})
     # best overall first (by holistic rank), unknowns last
     rows.sort(key=lambda x: (x["rank"] is None, -(x["rank"] or 0)))
     return rows

@@ -11,6 +11,7 @@ dashboard.py — لوحة عربية (RTL) سهلة للمبتدئ (spec §19).
 import html
 import json
 from collections import Counter
+import framework
 
 
 def _h(x):
@@ -247,6 +248,7 @@ def _ldetail(r):
     if isinstance(fv, (int, float)) and isinstance(pr, (int, float)) and pr > 0:
         fvtxt = "~%.0f (%+.0f%%)" % (fv, (fv / pr - 1) * 100)
     rate = RATING_AR.get(r.get("rec_key"), "—") if r.get("rec_key") else "—"
+    pb = framework.PLAYBOOK_AR.get(r.get("playbook"), r.get("playbook") or "—")
     cells = [
         ("المخاطرة", ("%.0f/100" % rk) if isinstance(rk, (int, float)) else "—"),
         ("الصعود المتوقع", pct(up)),
@@ -254,9 +256,28 @@ def _ldetail(r):
         ("مدة الاحتفاظ", ("~%d شهر" % hm) if hm else "—"),
         ("القيمة العادلة", fvtxt),
         ("تقييم المحللين", rate),
+        ("الدفتر (الخطة)", pb),
     ]
     return "<div class='ldetail'>" + "".join(
         "<div class='dc'><span>%s</span><b class='n'>%s</b></div>" % (l, _h(v)) for l, v in cells) + "</div>"
+
+
+def _hold_detail(r):
+    """Personal-framework alert plan for a holding: playbook + danger line + 2 upside alerts + harvest."""
+    pb = framework.PLAYBOOK_AR.get(r.get("playbook"), r.get("playbook") or "—")
+    a = r.get("alerts")
+    if not a:
+        return ("<div class='ldetail'><div class='dc'><span>الدفتر</span><b>%s</b></div>"
+                "<div class='dc'><span>التنبيهات</span><b>عبّي سعر الشراء في holdings.csv</b></div></div>" % _h(pb))
+    cells = [
+        ("الدفتر", pb),
+        ("⚠️ خط الخطر −40%", "%.2f" % a["danger_price"]),
+        ("🎯 تنبيه +%d%%" % (a["up1_pct"] * 100), "%.2f" % a["up1_price"]),
+        ("🎯 تنبيه +%d%%" % (a["up2_pct"] * 100), "%.2f" % a["up2_price"]),
+    ]
+    g = "".join("<div class='dc'><span>%s</span><b class='n'>%s</b></div>" % (l, _h(v)) for l, v in cells)
+    g += "<div class='dc wide'><span>🌾 الحصاد</span><b style='font-weight:600'>%s</b></div>" % _h(a["harvest"])
+    return "<div class='ldetail'>%s</div>" % g
 
 
 def _lrow(r, idx=None):
@@ -322,13 +343,15 @@ def _holdings_list(rows):
             pnl = "<span class='muted'>—</span>"
         b = r.get("better")
         better = ("<div class='muted xs'>↑ بديل أقوى في دوره: <b class='n'>%s</b></div>" % _h(b["ticker"])) if b else ""
+        pbtag = ("<span class='eg'>%s</span>" % framework.PLAYBOOK_AR.get(r.get("playbook"), "")) if r.get("playbook") else ""
         out += (
-            "<div class='lrow' style='cursor:default'><div class='lmain'>"
-            "<div class='lt'><b class='n'>%s</b> <span class='vd'>%s</span></div>"
+            "<div class='lrow' onclick='exp(this)'><div class='lmain'>"
+            "<div class='lt'><b class='n'>%s</b> <span class='vd'>%s</span>%s</div>"
             "<div class='lsub'>%s</div>%s</div>"
-            "<div class='hpnl'>%s<div class='muted xs'>%s</div></div></div>"
-            % (_h(r["ticker"]), _h(r["verdict"]), _h(r.get("why", "")), better,
-               pnl, _h(r.get("hold_label") or ""))
+            "<div class='hpnl'>%s<div class='muted xs'>%s</div></div><span class='chev'>⌄</span></div>"
+            "%s"
+            % (_h(r["ticker"]), _h(r["verdict"]), pbtag, _h(r.get("why", "")), better,
+               pnl, _h(r.get("hold_label") or ""), _hold_detail(r))
         )
     return "<div class='list'>" + out + "</div>"
 
@@ -529,6 +552,7 @@ h4{font-size:13.5px;margin:16px 0 6px;color:#c4ccd6;font-weight:700}
 .ldetail{display:none;grid-template-columns:1fr 1fr 1fr;gap:1px;background:#1a212a;padding:1px;border-top:1px solid #1a212a}
 .ldetail.open{display:grid}
 .dc{background:#12161c;padding:9px 11px}.dc span{display:block;color:#7a8493;font-size:11px}.dc b{font-size:13.5px}
+.dc.wide{grid-column:1/-1}
 .vd{font-size:12.5px;color:#cfd6df;background:#1a212a;border-radius:7px;padding:2px 8px}
 .hpnl{text-align:left;flex:0 0 auto}
 .warn{color:#e0b06a;font-size:11.5px;font-weight:700}
@@ -667,7 +691,8 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
     tab_port = (
         "<div id='t-port' class='tabpanel'>"
         "<h3 class='sec'>💼 محفظتي</h3>"
-        "<p class='lead'>توصية بحثية حسب الأداء والقناعة — مو «بيع/اشترِ الآن».</p>"
+        "<p class='lead'>توصية بحثية حسب الأداء — مو «بيع/اشترِ الآن». اضغط أي سهم تشوف <b>خطة تنبيهاتك</b>: "
+        "خط الخطر −40% + هدفين حسب الدفتر + قاعدة الحصاد.</p>"
         + _holdings_list(he)
         + "<h3 class='sec'>⭐ قائمتي %s</h3>" % _i("watchlist")
         + _stock_list(watch)

@@ -27,6 +27,7 @@ import conviction as conviction_mod
 import engines as engines_mod
 import political as political_mod
 import sanity
+import framework
 
 
 def _clamp(x, lo=0.0, hi=100.0):
@@ -79,4 +80,5 @@ def finalize_scores(rec, cfg, buys=None, rank_weights=None):
     conviction_mod.compute(rec, cfg)
     engines_mod.classify(rec, cfg)
     rec["rank_score"] = scoring.overall_rank(rec, cfg, rank_weights)  # penalises suspect/not-investable
+    framework.annotate(rec)          # personal playbook tag (Growth / Gold-Cyclical / Trading)
     return rec
