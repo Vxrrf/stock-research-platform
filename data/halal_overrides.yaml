@@ -1,22 +1,31 @@
 # ════════════════════════════════════════════════════════════════════
-#  halal_overrides.yaml — تجاوزك اليدوي للحالة الشرعية (Zoya / Musaffa)
-#
-#  المنصّة بفلترها التلقائي تقول «غير مؤكّد» لأغلب الأسهم (البيانات المجانية
-#  ما تكشف دخل الفائدة). لما تتحقّق بنفسك من تطبيق Zoya أو Musaffa، حِط النتيجة
-#  هنا وتصير معتمدة في كل المنصّة — وتنوّسم بمصدرك إنها «✍️ تحقّق يدوي».
-#
-#  الحالات المسموحة: pass | fail | unknown
-#  المصدر (source): Zoya | Musaffa | أي مرجع تثق فيه
-#
-#  مثال (احذف # وعدّل):
-# overrides:
-#   AMD:  {status: pass, source: Zoya,    note: "Zoya: Compliant — راجعته 2026-06"}
-#   NVDA: {status: pass, source: Musaffa, note: "Musaffa: Halal"}
-#   SOFI: {status: fail, source: Zoya,    note: "Zoya: Non-compliant (خدمات ائتمان)"}
-#
-#  ملاحظة صدق: هذا تجاوزك أنت — مسؤوليتك. المنصّة تحترم قرارك حرفياً وتعرض المصدر.
+#  halal_overrides.yaml — أحكامك الشرعية (Zoya/Musaffa). تُدار عبر:
+#    ./venv/bin/python tools/halal.py set TICK=pass:Zoya ...
+#  ⚠️ مصدر «بحث:...» = كلود بحثها من Zoya/Musaffa — أكّدها بنفسك في تطبيقك.
+#  هذا تجاوزك أنت ومسؤوليتك. الحالات: pass | fail | unknown.
 # ════════════════════════════════════════════════════════════════════
-overrides:
-  # تحقّقت بنفسك من Zoya إنها متوافقة — قرارك يكسب الفلتر التلقائي:
-  IREN: {status: pass, source: Zoya, note: "Zoya: Compliant — تحوّلت لمراكز بيانات AI بطاقة متجددة. (فلترنا التلقائي صنّفها خطأً «أسواق مال»)"}
 
+overrides:
+  AEM: {status: pass, source: بحث:Zoya/Musaffa, note: "متوافق (Zoya+Musaffa) — بحث، أكّد بتطبيقك. AEM = Agnico Eagle Mines, شركة تعدين ذهب/فضة. حلال: النشاط نظيف…"}
+  ALAB: {status: pass, source: بحث:Zoya/Musaffa, note: "متوافق (Zoya+Musaffa) — بحث، أكّد بتطبيقك. ALAB = Astera Labs، شركة أشباه موصلات (روابط AI/سحابة) — نشاط حلال…"}
+  AMD: {status: pass, source: بحث:Zoya/Musaffa, note: "متوافق (Zoya+Musaffa) — بحث، أكّد بتطبيقك. سهم AMD حلال: شغلته رقايق إلكترونية (نظيفة)، وديونه شبه معدومة (أقل…"}
+  ARM: {status: pass, source: بحث:Zoya/Musaffa, note: "متوافق (Zoya+Musaffa) — بحث، أكّد بتطبيقك. ARM حلال. سهم تصميم رقائق/معالجات (نشاط نظيف)، شبه بلا ديون، ودخل…"}
+  AVGO: {status: pass, source: بحث:Zoya/Musaffa, note: "متوافق (Zoya+Musaffa) — بحث، أكّد بتطبيقك. سهم برودكوم (شرائح/سوفتوير) حلال: كل الشاشات (Zoya, Musaffa, Muslim…"}
+  COHR: {status: pass, source: بحث:Zoya/Musaffa, note: "متوافق (Zoya+Musaffa) — بحث، أكّد بتطبيقك. سهم حلال. كوهيرنت تصنع الليزر والبصريات وأشباه الموصلات — نشاط نظيف.…"}
+  CRWV: {status: fail, source: بحث:Zoya/Musaffa, note: "غير متوافق — CRWV (كورويڤ) = شركة بنية تحتية سحابية للذكاء الاصطناعي، النشاط نفسه حلال (تقنية)، لكنها ترسب…"}
+  DLO: {status: unknown, source: بحث:تعارض, note: "تعارض بين الشاشات — أكّد بنفسك. دي لوكال شركة معالجة مدفوعات (مو بنك ولا تقرض)، الدين شبه صفر مقابل…"}
+  FN: {status: pass, source: بحث:Zoya/Musaffa, note: "متوافق (Zoya+Musaffa) — بحث، أكّد بتطبيقك. FN = Fabrinet، شركة تصنيع بصريات وإلكترونيات (مش بنك ولا تأمين). Zoya…"}
+  HUBS: {status: pass, source: بحث:Zoya/Musaffa, note: "متوافق (Zoya+Musaffa) — بحث، أكّد بتطبيقك. HubSpot (HUBS) شركة برمجيات CRM نظيفة وبدون ديون تقريباً. حلال حسب…"}
+  IREN: {status: pass, source: Zoya, note: "Zoya: Compliant — تحوّلت لمراكز بيانات AI بطاقة متجددة."}
+  KRYS: {status: fail, source: بحث:Zoya/Musaffa, note: "غير متوافق — النشاط حلال (علاج جيني/أدوية)، والدين تقريباً صفر، لكن دخل الفوائد 7.24% من الإيراد — فوق حد…"}
+  MNDY: {status: fail, source: بحث:Zoya/Musaffa, note: "غير متوافق — منداي شركة برمجيات (نشاطها حلال) وديونها شبه صفر، بس مصفّى تصنّفه 'غير متوافق' — والسبب الأرجح…"}
+  MRVL: {status: pass, source: بحث:Zoya/Musaffa, note: "متوافق (Zoya+Musaffa) — بحث، أكّد بتطبيقك. MRVL (مارفل) حلال: شركة تصميم شرائح/أشباه موصلات، نشاطها نظيف، الدين…"}
+  MU: {status: pass, source: بحث:Zoya/Musaffa, note: "متوافق (Zoya+Musaffa) — بحث، أكّد بتطبيقك. MU (مايكرون، أسهم ذاكرة) حلال: زويا ومصفّى الاثنين يقولون متوافق.…"}
+  NBIS: {status: fail, source: بحث:Zoya/Musaffa, note: "غير متوافق — نشاط الشركة حلال (بنية تحتية AI/GPU سحابي)، والديون منخفضة جداً، لكن سقطت لأن دخل الفوائد ~6%…"}
+  NOW: {status: pass, source: بحث:Zoya/Musaffa, note: "متوافق (Zoya+Musaffa) — بحث، أكّد بتطبيقك. ServiceNow (NOW) حلال: شركة برمجيات أتمتة سير العمل (SaaS) نشاطها…"}
+  NVDA: {status: pass, source: بحث:Zoya/Musaffa, note: "متوافق (Zoya+Musaffa) — بحث، أكّد بتطبيقك. NVDA حلال: شركة رقائق/تقنية، النشاط نظيف، الدين أقل من 33% بكثير…"}
+  ONTO: {status: pass, source: بحث:Zoya/Musaffa, note: "متوافق (Zoya+Musaffa) — بحث، أكّد بتطبيقك. حلال. أونتو إنوفيشن شركة أدوات أشباه موصلات (قياس وفحص وبرمجيات) …"}
+  RKLB: {status: unknown, source: بحث:Zoya/Musaffa, note: "⚠️ مشكوك (Questionable) — أكّد بسرعة بنفسك. السبب مو الديون — الديون نظيفة. المشكلة النشاط: روكيت لاب تشتغل في…"}
+  TEM: {status: pass, source: بحث:Zoya/Musaffa, note: "متوافق (Zoya+Musaffa) — بحث، أكّد بتطبيقك. TEM = Tempus AI، شركة تقنية صحية (تشخيص طبي وذكاء اصطناعي) — نشاط…"}
+  TTWO: {status: unknown, source: بحث:تعارض, note: "تعارض بين الشاشات — أكّد بنفسك. السهم نظيف مالياً (الدين 7% فقط، فوائد 1.3%) لكن النشاط مشكوك فيه:…"}
+  VICR: {status: pass, source: بحث:Zoya/Musaffa, note: "متوافق (Zoya+Musaffa) — بحث، أكّد بتطبيقك. VICR (شركة Vicor) حلال: تصنّع وحدات طاقة وأشباه موصلات (نشاط نظيف)…"}
