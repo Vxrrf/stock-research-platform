@@ -1,0 +1,53 @@
+# ════════════════════════════════════════════════════════════════════
+#  social_signals.yaml — إشارات المؤثرين (للمراجعة، مو إضافة مباشرة)
+#
+#  كلود يفحص هاليوزرات لما تطلب «شوف المؤثرين»، يقرا منشوراتهم، يطلّع الأسهم،
+#  ثم المنصّة تفحص كل سهم وتقول هل يتوافق مع خطتك. إشارة ضعيفة للمراجعة فقط.
+#
+#  حالة الوصول (فحص 2026-06-20):
+#   ✅ وصلنا: kevvonz, _russellckai (ETFs), almazer88
+#   🔒 مقفول بتسجيل دخول (ما قدرنا نقرا منشوراتهم بدون login — قرارك السابق):
+#      joe.investss, roadto100kportfolio, johnnylixf, billy_invests
+#   ℹ️ weitechtalks = حساب «ليدربورد» يرتّب مؤثرين آخرين، مو يختار أسهم بنفسه
+# ════════════════════════════════════════════════════════════════════
+watched_accounts:
+  - joe.investss
+  - roadto100kportfolio
+  - johnnylixf
+  - kevvonz
+  - weitechtalks
+  - russellckai
+  - billy_invests
+  - deintest81
+  - almazer88
+  # حسابات إضافية لقيتها عبر كروم (مقترحة من إنستقرام):
+  - mo.invests
+  - investingwithkris
+  - ericnomics
+  - dailychriscamillo
+  - bdinvestingg
+  - capitallgrowth
+
+signals:
+  # kevvonz — أكبر رهاناته على بنية AI / neocloud (متحقّق من الكابشنات)
+  - {account: kevvonz, date: "2026-06-20", ticker: IREN, sentiment: bullish, note: "أكبر رهان AI-infra/neocloud — تحقّق الحلال (تعدين كريبتو سابقاً)", source: "TikTok/IG captions"}
+  - {account: kevvonz, date: "2026-06-20", ticker: NBIS, sentiment: bullish, note: "Nebius — سحابة AI (موجود بقائمتك أصلاً)", source: "TikTok/IG captions"}
+  - {account: kevvonz, date: "2026-06-20", ticker: AMD, sentiment: bullish, note: "رهان AI رئيسي (بقائمتك)", source: "TikTok/IG captions"}
+  - {account: kevvonz, date: "2026-06-20", ticker: TSLA, sentiment: bullish, note: "نواة المحفظة 2020-2024", source: "TikTok/IG captions"}
+  - {account: kevvonz, date: "2026-06-20", ticker: NVDA, sentiment: bullish, note: "نواة (تملكه)", source: "TikTok/IG captions"}
+  - {account: kevvonz, date: "2026-06-20", ticker: PLTR, sentiment: bullish, note: "نواة المحفظة", source: "TikTok/IG captions"}
+  # _russellckai — مستثمر سلبي، صناديق فقط (مو أسهم فردية)
+  - {account: _russellckai, date: "2026-06-20", ticker: VTI, sentiment: bullish, note: "مؤشر أمريكي شامل ~80% من محفظته", source: "captions"}
+  - {account: _russellckai, date: "2026-06-20", ticker: SCHD, sentiment: bullish, note: "ETF توزيعات", source: "captions"}
+  # almazer88 (المازر — المرجع)
+  - {account: almazer88, date: "2026-06-20", ticker: AMD, sentiment: bullish, note: "ذكره المازر", source: "X/IG"}
+  - {account: almazer88, date: "2026-06-20", ticker: SPUS, sentiment: bullish, note: "ETF حلال (SP Funds)", source: "X/IG"}
+  # ترند الإعلام/المؤثرين يونيو 2026 — مفلتر على منصّتنا (نجحوا قناعة ≥7)
+  - {account: trending-media, date: "2026-06-20", ticker: STRL, sentiment: bullish, note: "بنية AI — قناعة 7.3 مُسرِّع (نجح فلترنا)", source: "web/media scan"}
+  - {account: trending-media, date: "2026-06-20", ticker: PATH, sentiment: bullish, note: "UiPath AI — قناعة 7.0 مُركِّب", source: "web/media scan"}
+  - {account: trending-media, date: "2026-06-20", ticker: SATL, sentiment: bullish, note: "Satellogic فضاء — قناعة 7.2", source: "web/media scan"}
+  # ذُكرت بالترند لكن منصّتنا رفضتها (للشفافية):
+  - {account: trending-media, date: "2026-06-20", ticker: FIVN, sentiment: bearish, note: "رفضها فلترنا: حلال fail", source: "web/media scan"}
+  - {account: trending-media, date: "2026-06-20", ticker: BTBT, sentiment: bearish, note: "رفضها فلترنا: حلال fail (بيتكوين)", source: "web/media scan"}
+  # joe.investss — قُرئ عبر كروم (إنستقرام، بدون حسابك)
+  - {account: joe.investss, date: "2026-06-20", ticker: SOFI, sentiment: bullish, note: "رفضها فلترنا: حلال fail (credit services) رغم قناعة 7.3", source: "Instagram via Chrome"}

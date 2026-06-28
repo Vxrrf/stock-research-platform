@@ -1,0 +1,299 @@
+# ════════════════════════════════════════════════════════════════════
+#  config.yaml — منصّة البحث الاستثماري الشخصية
+#  Single source of truth. Edit numbers here; the whole system follows.
+#  This is a RESEARCH system, not a buy-signal machine. It never says "BUY NOW".
+# ════════════════════════════════════════════════════════════════════
+
+# اسم المنصّة كما يظهر في الداشبورد (غيّره لأي اسم تبيه)
+app:
+  name: "مرصد الأسهم"
+  subtitle: "منصّة بحث استثماري شخصية — بحث، وليست توصية بالشراء"
+
+# ─────────────────────────────────────────────────────────────────────
+#  DATA SOURCES  (FMP primary, yfinance fallback — never hardcoded data)
+# ─────────────────────────────────────────────────────────────────────
+data:
+  # Financial Modeling Prep is the PRIMARY live source.
+  # Paste your key here OR set env var FMP_API_KEY. Empty => yfinance fallback.
+  fmp_api_key: ""              # <-- paste FMP key to activate primary source
+  fmp_base_url: "https://financialmodelingprep.com/api"
+  # 2nd analyst/news source — free key from finnhub.io (cross-confirms analyst ratings).
+  # Multi-source: gather from many, compare, flag disagreement — never trust one source.
+  finnhub_api_key: ""          # <-- paste a FREE Finnhub key to add a 2nd analyst source
+  use_yfinance_fallback: true  # fill any field FMP can't provide
+  request_timeout_sec: 20
+  max_workers: 10              # parallel fetch threads
+  cache_enabled: true          # daily on-disk cache (re-runs are instant)
+
+# ─────────────────────────────────────────────────────────────────────
+#  DATA FRESHNESS  (spec: stale => confidence LOW)
+# ─────────────────────────────────────────────────────────────────────
+freshness:
+  price_max_age_hours: 48          # price older than this => STALE
+  fundamentals_max_age_days: 100   # > ~1 quarter old => STALE
+  # confidence ladder used everywhere
+  # FRESH price + fresh fundamentals => HIGH
+  # one stale OR partial            => MEDIUM
+  # stale price OR missing core     => LOW
+
+# ─────────────────────────────────────────────────────────────────────
+#  UNIVERSE / DISCOVERY  (spec §3)
+# ─────────────────────────────────────────────────────────────────────
+universe:
+  market_cap_min: 1000000000       # $1B   (spec discovery floor)
+  market_cap_max: 100000000000     # $100B (spec discovery ceiling)
+  min_price: 5.0                   # exclude penny stocks
+  min_avg_dollar_volume: 5000000   # exclude illiquid (≈ $5M/day)
+  universe_file: "universe_data.txt"
+  target_size: 3000                # توسعة: ابنِ كوناً حتى ~3000 سهم (python build_universe.py)
+  # ملاحظة صدق: فحص 3000 سهم بـ yfinance المجاني بطيء (دقائق) و FMP المجاني يحجب الأغلب.
+  # الزر السريع «حدّث الكل» يفحص الكون لكن يحدّث live أسماءك فقط. للمسح الكامل: python src/main.py --live
+
+# ─────────────────────────────────────────────────────────────────────
+#  HARD GATES  (non-negotiable; they protect you)
+# ─────────────────────────────────────────────────────────────────────
+gates:
+  min_analysts: 4
+  recommendation_mean_max: 3.2     # 1=StrongBuy .. 5=Sell
+  upside_floor: -0.05              # target not far below price
+  one_year_return_hard_max: 4.0    # +400% in 1y => almost certainly too late
+  pe_hard_max: 90.0                # insane valuation => reject
+
+# ─────────────────────────────────────────────────────────────────────
+#  GROWTH / EPS / VALUATION THRESHOLDS  (scoring reference points)
+# ─────────────────────────────────────────────────────────────────────
+thresholds:
+  revenue_growth_good: 0.18        # ≥18% yoy = strong
+  revenue_growth_great: 0.35
+  rev_cagr_3y_good: 0.15
+  rev_cagr_5y_good: 0.12
+  eps_growth_good: 0.15
+  eps_growth_fwd_good: 0.15
+  fcf_margin_good: 0.10
+  roic_good: 0.12
+  roe_good: 0.15
+  gross_margin_good: 0.45
+  operating_margin_good: 0.15
+  debt_to_equity_ceiling: 150.0    # % (yfinance scale = ratio×100); penalised above
+  forward_pe_fair_min: 20.0        # P/E ≤ this = top score (used by fundamental + risk)
+  forward_pe_fair_max: 35.0
+  forward_pe_zero_score: 80.0      # P/E ≥ this = zero score (smooth slope)
+  forward_pe_rich: 55.0
+  ev_ebitda_fair_max: 25.0
+  ev_ebitda_multiplier: 1.8        # valuation-compression tolerance before full penalty
+  analyst_upside_good: 0.15        # ≥15% upside to mean target
+  analyst_upside_great: 0.30
+  # ── DCF cross-check (price_targets.py) — تقدير مبسّط، ليس بديلاً عن نموذج كامل ──
+  dcf_discount_rate: 0.10          # معدّل خصم سنوي (تكلفة رأس المال التقريبية)
+  dcf_terminal_growth: 0.03        # نمو نهائي دائم (≈ التضخم/النمو الاقتصادي)
+  dcf_high_growth_years: 10        # سنوات نمو مرتفع قبل التلاشي للنمو النهائي
+  dcf_growth_cap: 0.25             # سقف نمو الـFCF المُستخدم (تحفّظ ضد المبالغة)
+
+# ─────────────────────────────────────────────────────────────────────
+#  SCORING WEIGHTS — fundamental_score 0..100  (spec §1)
+#  Weights are relative; the engine normalises to 100.
+# ─────────────────────────────────────────────────────────────────────
+score_weights:
+  revenue_growth: 12
+  rev_cagr_3y: 7
+  rev_cagr_5y: 6
+  eps_growth: 8
+  eps_growth_fwd: 7
+  free_cash_flow: 8
+  debt: 6
+  roic: 7
+  roe: 6
+  gross_margin: 5
+  operating_margin: 5
+  forward_pe: 6
+  ev_ebitda: 5
+  analyst_consensus: 6
+  analyst_upside: 7
+  dist_52w_high: 4
+  one_year_return: 3
+  insider: 3
+  market_cap: 4              # rewards the mid-cap growth sweet spot (§1)
+
+# ─────────────────────────────────────────────────────────────────────
+#  CROSS-SOURCE CONFIRMATION  (spec §2 — grouped, not naive list counting)
+# ─────────────────────────────────────────────────────────────────────
+cross_source:
+  external_bonus_cap: 12
+  groups:
+    investing_family:            # propicks + investing_ai
+      lists: [propicks, investing_ai]
+      max_points: 6
+    analyst_consensus:           # analyst_strong_buy
+      lists: [analyst_strong_buy]
+      max_points: 5
+    my_conviction:               # personal_watchlist
+      lists: [personal_watchlist]
+      max_points: 4
+
+# ─────────────────────────────────────────────────────────────────────
+#  THEME WEIGHTS  (priority themes — spec §1)  multiplier on theme bonus
+# ─────────────────────────────────────────────────────────────────────
+theme_weights:
+  ai: 1.0
+  semiconductors: 1.0
+  data_centers: 1.0
+  cloud: 0.9
+  cybersecurity: 0.9
+  robotics: 0.9
+  defense_tech: 0.85
+  digital_health: 0.85
+  energy_infrastructure: 0.85
+  critical_materials: 0.8
+  space: 0.85
+theme_bonus_max: 6                 # max points themes can add to total
+
+# ─────────────────────────────────────────────────────────────────────
+#  SECONDARY SIGNAL CAPS  (kept deliberately small — research, not hype)
+# ─────────────────────────────────────────────────────────────────────
+news:
+  max_weight_pct: 0.05             # news may move total score ≤ 5% (spec §9)
+political:
+  bonus_max: 3                     # weak signal only (spec §10)
+earnings:
+  beat_bonus_per_beat: 1.5
+  miss_penalty_per_miss: 2.0
+  max_abs_adjust: 6
+
+# ─────────────────────────────────────────────────────────────────────
+#  CROWDING / LATE ENTRY  (spec §12, §13)
+# ─────────────────────────────────────────────────────────────────────
+crowding:
+  one_year_return_hot: 1.50        # +150%
+  pct_below_52w_high_near: 0.10    # within 10% of high
+  hype_one_year_return: 2.00       # +200% => penalise unless fundamentals justify
+  popular_not_cheap_fund_floor: 55 # confirmations≥1 & fund<55 => POPULAR NOT CHEAP
+
+# ─────────────────────────────────────────────────────────────────────
+#  HALAL / SHARIA GATE  (spec §11 — pass / fail / unknown)
+# ─────────────────────────────────────────────────────────────────────
+halal:
+  debt_to_marketcap_max: 0.33
+  cash_to_marketcap_max: 0.33
+  receivables_to_marketcap_max: 0.49
+  interest_income_to_revenue_max: 0.05
+  sector_block:
+    - bank
+    - banks
+    - insurance
+    - reinsurance
+    - capital markets
+    - mortgage
+    - credit services
+    - consumer finance
+    - alcohol
+    - brewer
+    - brewers
+    - winery
+    - distiller
+    - wineries
+    - tobacco
+    - casino
+    - casinos
+    - gambling
+    - resorts & casinos
+    - betting
+    - adult
+  sector_review:                   # not auto-fail, but halal=unknown until verified
+    - aerospace & defense
+    - defense
+    - weapons
+    - reit
+    - biotechnology
+    - lodging
+    - gaming                       # video gaming: content needs review, not auto-fail
+    - electronic gaming & multimedia
+
+# ─────────────────────────────────────────────────────────────────────
+#  INVESTOR MODES — نفس البيانات، عدسة مختلفة (محافظ / متوازن / هجومي)
+#  يغيّر أوزان الترتيب الكلي (rank_score) + توزيع المحفظة. balanced = الافتراضي.
+#  المنصّة تولّد الثلاثة كل تشغيل وتقدر تبدّل بينها من الأزرار فوق.
+# ─────────────────────────────────────────────────────────────────────
+modes:
+  balanced:
+    label: "⚖️ متوازن"
+    desc: "توازن بين الجودة والفرصة والحماية — الوضع الافتراضي."
+    rank: {conv: 0.40, opp: 0.20, lowrisk: 0.15, fund: 0.15, total: 0.10}
+    allocation: {compounders: 0.30, accelerators: 0.16, future_leaders: 0.12, broad_market_etf: 0.13, gold_etf: 0.12, cash: 0.17}
+  aggressive:
+    label: "🔥 هجومي"
+    desc: "يرفع وزن الفرصة والصيد (x5–x10) ويخفّض وزن المخاطرة — تقلّب أعلى."
+    rank: {conv: 0.30, opp: 0.34, lowrisk: 0.06, fund: 0.12, total: 0.18}
+    allocation: {compounders: 0.24, accelerators: 0.22, future_leaders: 0.20, broad_market_etf: 0.10, gold_etf: 0.08, cash: 0.16}
+  conservative:
+    label: "🛡️ محافظ"
+    desc: "يرفع وزن الجودة وانخفاض المخاطرة والحماية — تذبذب أقل، صبر أطول."
+    rank: {conv: 0.36, opp: 0.10, lowrisk: 0.28, fund: 0.20, total: 0.06}
+    allocation: {compounders: 0.34, accelerators: 0.10, future_leaders: 0.06, broad_market_etf: 0.18, gold_etf: 0.14, cash: 0.18}
+
+# ─────────────────────────────────────────────────────────────────────
+#  PORTFOLIO BUILDER  (spec §16 — 25y/o, high-risk, growth + protection)
+# ─────────────────────────────────────────────────────────────────────
+portfolio:
+  # Engine-based allocation (asymmetry by design): big core of compounders,
+  # medium accelerators, a SMALL sleeve of many tiny future-leader bets.
+  allocation:                      # must sum to ~1.0 (editable)
+    compounders: 0.30              # core quality — hold for years
+    accelerators: 0.16             # 6–24 month inflections
+    future_leaders: 0.12           # small, DISTRIBUTED asymmetric bets (x3–x10 hunt)
+    broad_market_etf: 0.13         # halal/broad hedge
+    gold_etf: 0.12                 # crisis protection (higher now: war/oil shock)
+    cash: 0.17                     # dry powder for volatility
+  max_single_compounder_pct: 0.12  # cap any one core name
+  max_single_future_leader_pct: 0.03  # each future leader stays tiny (survive an -80%)
+  max_single_stock_pct: 0.15       # rebalance flag (spec §17)
+  drawdown_flag_pct: -0.25         # position down 25% => review (spec §17)
+  max_compounders: 8
+  max_accelerators: 8
+  max_future_leaders: 10
+  etf_suggestions:
+    broad_market_etf: [HLAL, SPUS, VOO]   # HLAL/SPUS = halal broad ETFs
+    gold_etf: [AEM, GLD, IAU]
+
+# ─────────────────────────────────────────────────────────────────────
+#  OUTPUT
+# ─────────────────────────────────────────────────────────────────────
+output:
+  dir: "output"
+  top_n_dashboard: 20
+  candidate_min_fundamental: 60    # min fund score to be eligible as Candidate
+  research_more_min: 50
+  watch_min: 40
+
+# ─────────────────────────────────────────────────────────────────────
+#  STARTING WATCHLIST  (spec §21)  — your personal conviction list
+# ─────────────────────────────────────────────────────────────────────
+starting_watchlist:
+  # حيازاتك الفعلية (تظهر دايماً — حتى لو عملاقة، لأنك تملكها)
+  - NVDA
+  - AVGO
+  - AEM
+  - HLAL
+  # قائمتك + الطلبات المعلّقة
+  - MRVL
+  - AMD
+  - MU
+  - COHR
+  - NOW
+  - TTWO
+  - MNDY
+  - HUBS
+  - ONTO
+  - FN
+  - DLO
+  - KRYS
+  - VICR
+  - ALAB
+  - NBIS
+  - RKLB
+  - TEM
+  - ARM
+  - CRWV
+
+run:
+  qatar_utc_offset: 3
+  max_universe: 0                  # 0 = all; or a number for quick test runs
