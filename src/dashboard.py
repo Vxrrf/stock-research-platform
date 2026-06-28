@@ -845,12 +845,13 @@ border:1px solid var(--hair);border-radius:13px;overflow:hidden;box-shadow:var(-
 .th-row .te{flex:0 0 auto;width:7px;height:7px;border-radius:50%;background:#3A4049;margin-top:7px;font-size:0;overflow:hidden}
 .th-row.rk .te{background:var(--risk)}
 /* tabs (underline) */
-.tabs{position:sticky;top:0;z-index:20;display:flex;gap:2px;background:rgba(12,14,19,.92);backdrop-filter:blur(10px);
-padding:9px 0 0;margin:8px 0 2px;border-bottom:1px solid var(--hair);overflow-x:auto;scrollbar-width:none}
-.tabs::-webkit-scrollbar{display:none}
-.tabbtn{flex:0 0 auto;background:none;border:0;border-bottom:2px solid transparent;color:var(--t3);font-size:13.5px;font-weight:500;padding:8px 13px 11px;
-cursor:pointer;white-space:nowrap;font-family:inherit}
-.tabbtn.on{color:var(--t1);border-bottom-color:var(--sage)}
+/* شريط تنقّل سفلي زجاجي (زي التطبيقات) */
+.tabs{position:fixed;bottom:0;left:0;right:0;z-index:30;display:flex;justify-content:center;gap:4px;
+background:rgba(12,14,19,.78);backdrop-filter:blur(22px) saturate(1.3);-webkit-backdrop-filter:blur(22px) saturate(1.3);
+border-top:1px solid var(--hair);padding:8px 12px calc(10px + env(safe-area-inset-bottom));margin:0}
+.tabbtn{flex:1;max-width:118px;text-align:center;background:none;border:0;color:var(--t3);font-size:12.5px;font-weight:500;
+padding:9px 6px;border-radius:12px;cursor:pointer;font-family:inherit;transition:color .2s ease,background .2s ease}
+.tabbtn.on{color:var(--sage);background:var(--sage16);font-weight:600}
 .tabpanel{display:none}.tabpanel.show{display:block;animation:glass .42s cubic-bezier(.22,.9,.3,1)}
 @keyframes glass{from{opacity:0;transform:translateY(14px) scale(.985);filter:blur(7px)}to{opacity:1;transform:none;filter:blur(0)}}
 h3.sec{font-size:15px;margin:22px 0 6px;font-weight:600}h3.sec .c{color:var(--t3);font-weight:400;font-size:12px}
