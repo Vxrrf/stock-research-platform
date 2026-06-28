@@ -46,6 +46,11 @@ class FinnhubClient:
         d = self._get("/news", {"category": category})
         return d if isinstance(d, list) else []
 
+    def company_news(self, sym, frm, to):
+        """Live news for ONE ticker (free) — the most relevant news for the user's holdings."""
+        d = self._get("/company-news", {"symbol": sym, "from": frm, "to": to})
+        return d if isinstance(d, list) else []
+
 
 def analyst_confirmation(rec, fh):
     """Add Finnhub as a 2nd analyst source and compare to the primary rating.

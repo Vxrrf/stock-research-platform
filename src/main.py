@@ -248,10 +248,10 @@ def main():
     try:
         # LIVE market news (Finnhub, free) so 'today' is genuinely fresh + auto-updating in the
         # cloud — independent of any hand-maintained file. Falls back to the yaml if no key.
-        live = news_mod.live_news(cfg)
+        live = news_mod.live_news(cfg, focus_tickers=sorted(watchlist))
         if live:
             news_rows = live + news_rows
-            print(f"live news: {len(live)} fresh headlines from Finnhub")
+            print(f"live news: {len(live)} fresh market headlines from Finnhub")
     except Exception as e:
         print(f"  live news skipped: {e}")
     if not args.no_trackers:
