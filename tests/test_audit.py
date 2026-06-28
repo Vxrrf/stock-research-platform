@@ -272,6 +272,43 @@ def test_empty_sleeve_rolls_into_cash():
     print("✅ empty allocated sleeve rolls into cash (no misleading empty slice)")
 
 
+def test_forward_outlook_honest_and_coverage_aware():
+    """Forward outlook: first-sight → LOW + honest note; rising targets → bullish driver +
+    HIGH; funds → None; only-narrative/thin coverage → LOW (no fabricated precision)."""
+    import forward
+    r = _rec(ticker="FWD1", eps_growth_fwd=0.30, analyst_upside_percent=0.25,
+             num_analysts=20, forward_pe=25, data_freshness_status="FRESH")
+    forward.forward_outlook(r, CFG, prev_metrics=None)
+    assert r["forward_outlook_score"] is not None
+    assert r["forward_outlook_confidence"] == "LOW", "first-sight (no revision baseline) must be LOW"
+    assert any("الاتجاه غير متاح" in d for d in r["forward_drivers"]), "first-sight must flag direction unavailable"
+
+    r2 = _rec(ticker="FWD2", target_mean=120.0, rec_mean=2.0, eps_growth_fwd=0.30,
+              analyst_upside_percent=0.25, num_analysts=20, forward_pe=25, data_freshness_status="FRESH")
+    forward.forward_outlook(r2, CFG, prev_metrics={"target_mean": 100.0, "rec_mean": 2.5})
+    assert r2["forward_outlook_confidence"] == "HIGH"
+    assert any("يرفعون" in d for d in r2["forward_drivers"]), "+20% target move must surface a raise driver"
+
+    rf = _rec(ticker="HLAL", is_fund=True)
+    forward.forward_outlook(rf, CFG, prev_metrics=None)
+    assert rf["forward_outlook_score"] is None, "funds get no forward score"
+
+    sparse = _rec(ticker="SP", forward_pe=25, num_analysts=20)        # only a valuation signal
+    forward.forward_outlook(sparse, CFG, prev_metrics=None)
+    assert sparse["forward_outlook_confidence"] == "LOW", "only-narrative coverage must stay LOW"
+
+    # config override (forward.noise_floor) is honored: a high floor makes a +20% target move "flat"
+    import copy
+    cfg2 = copy.deepcopy(CFG)
+    cfg2["forward"] = dict(cfg2.get("forward", {}))
+    cfg2["forward"]["noise_floor"] = 0.30
+    r3 = _rec(ticker="FWD3", target_mean=120.0, rec_mean=2.5, eps_growth_fwd=0.30,
+              num_analysts=20, forward_pe=25, data_freshness_status="FRESH")
+    forward.forward_outlook(r3, cfg2, prev_metrics={"target_mean": 100.0, "rec_mean": 2.5})
+    assert not any("يرفعون" in d for d in r3["forward_drivers"]), "high noise_floor must suppress the +20% raise driver"
+    print("✅ forward outlook honest (first-sight LOW, rising driver, fund None, coverage-aware, config honored)")
+
+
 def test_movers_empty_on_first_run():
     """movers() must not crash and returns [] when there's no prior snapshot."""
     mem = {"AAA": {"ticker": "AAA", "name": "A", "metrics": {"rank": 80}, "prev_metrics": None}}

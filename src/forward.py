@@ -64,7 +64,7 @@ def _age_days(as_of, run_date):
     return (b - a).days
 
 
-def _revision(rec, prev):
+def _revision(rec, prev, noise_floor=NOISE_FLOOR):
     """Direction analysts are moving — the LEAD signal. Needs a prior snapshot with
     target_mean / rec_mean. Returns (value 0..1 or None, driver str or None)."""
     if not prev:
@@ -73,7 +73,7 @@ def _revision(rec, prev):
     tm, ptm = rec.get("target_mean"), prev.get("target_mean")
     if tm and ptm and ptm > 0:
         chg = tm / ptm - 1.0
-        if abs(chg) >= NOISE_FLOOR:
+        if abs(chg) >= noise_floor:
             legs.append(_c01(0.5 + (chg / 0.10) * 0.5))     # +10%→1.0, -10%→0
             drv = ("المحللون يرفعون الأهداف %+.0f%%" if chg > 0 else "المحللون يخفّضون الأهداف %+.0f%%") % (chg * 100)
         else:
@@ -128,7 +128,7 @@ def _peg_eff(rec):
     return None
 
 
-def _why_catalyst(rec, run_date):
+def _why_catalyst(rec, run_date, fresh_days=WHY_FRESH_DAYS):
     note = rec.get("why_note")
     if not note:
         return None, None, False
@@ -136,7 +136,7 @@ def _why_catalyst(rec, run_date):
     if not cat:
         return None, None, False
     age = _age_days(note.get("as_of"), run_date)
-    stale = age is not None and age > WHY_FRESH_DAYS
+    stale = age is not None and age > fresh_days
     short = cat[:58] + ("…" if len(cat) > 58 else "")
     return (0.5 if stale else 1.0), ("محفّز قريب: " + short), stale
 
@@ -152,12 +152,14 @@ def forward_outlook(rec, cfg, prev_metrics=None):
 
     cfgf = (cfg.get("forward") or {})
     min_an = int(cfgf.get("min_analysts", MIN_ANALYSTS))
+    noise_floor = float(cfgf.get("noise_floor", NOISE_FLOOR))
+    fresh_days = int(cfgf.get("why_note_fresh_days", WHY_FRESH_DAYS))
     run_date = rec.get("last_updated") or datetime.now().strftime("%Y-%m-%d")
 
     parts, drivers = [], []     # parts: (weight, value 0..1); drivers: (kind, text)
     W = WEIGHTS
 
-    rev_v, rev_drv = _revision(rec, prev_metrics)
+    rev_v, rev_drv = _revision(rec, prev_metrics, noise_floor)
     has_revision = rev_v is not None
     if has_revision:
         parts.append((W["revision"], rev_v))
@@ -192,7 +194,7 @@ def forward_outlook(rec, cfg, prev_metrics=None):
     if fv and price and price > 0 and method.startswith("تقاطُع"):   # honesty gate: real cross-check only
         parts.append((W["fair_value"], _c01((fv / price - 1.0) / 0.30)))
 
-    wc_v, wc_drv, wc_stale = _why_catalyst(rec, run_date)
+    wc_v, wc_drv, wc_stale = _why_catalyst(rec, run_date, fresh_days)
     has_cat = wc_v is not None
     if has_cat:
         parts.append((W["why_catalyst"], wc_v))
@@ -230,9 +232,13 @@ def forward_outlook(rec, cfg, prev_metrics=None):
     nana = rec.get("num_analysts") or 0
     fresh = rec.get("data_freshness_status")
     only_narrative = not (has_revision or has_eps or has_up or has_cat)   # only theme/peg/valuation → weak
-    if has_revision and coverage >= 0.55:
+    # honesty contract: a confirmed DIRECTION (run-over-run revision) is required for any
+    # confidence above LOW — first-sight names (no prior snapshot) stay LOW until we have history.
+    if not has_revision:
+        conf = "LOW"
+    elif coverage >= 0.55:
         conf = "HIGH"
-    elif (has_revision and coverage >= 0.40) or coverage >= 0.55:
+    elif coverage >= 0.40:
         conf = "MED"
     else:
         conf = "LOW"
