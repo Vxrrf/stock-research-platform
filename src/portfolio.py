@@ -68,13 +68,13 @@ def _spec_picks(candidates, cfg, n=3):
     return pool[:n]
 
 
-def _gold_row(gold, total_pct):
-    """Hedge sizing: best miner from the scan + RMAU (physical halal gold), deliberately
-    balanced so the actual-gold ETF keeps real ballast and isn't swamped by the miner."""
+def _gold_row(gold, total_pct, etf="GLD"):
+    """Hedge sizing: best miner from the scan + a physically-backed gold ETF (configurable +
+    broker-available), deliberately balanced so the gold ETF keeps real ballast, not swamped."""
     if not gold:
-        return "RMAU %.0f%%" % (total_pct * 100)          # no miner found → all physical gold
+        return "%s %.0f%%" % (etf, total_pct * 100)        # no miner found → all physical gold
     miner = gold[0].get("ticker")
-    return "%s %.0f%% · RMAU %.0f%%" % (miner, total_pct * 0.55 * 100, total_pct * 0.45 * 100)
+    return "%s %.0f%% · %s %.0f%%" % (miner, total_pct * 0.55 * 100, etf, total_pct * 0.45 * 100)
 
 
 def _weighted(bucket, total_pct, cap, etfs=None):
@@ -150,8 +150,9 @@ def build_model(candidates, cfg):
         ("🌱 قادة المستقبل", _weighted(fut, a_fut, cap_f), a_fut,
          f"رهانات صغيرة موزّعة (x3–x10) — كل اسم ≤ {cap_f:.0%} عشان -80% يبقى محتمَل"),
         ("🛡️ ETF حلال/واسع", _weighted([], a_etf, 0, etfs.get("broad_market_etf", [])), a_etf, "تحوّط واسع متوافق شرعياً"),
-        ("🥇 ذهب (حماية)", _gold_row(gold, a_gold), a_gold,
-         "أفضل سهم ذهب من الفحص + RMAU (ذهب حلال فعلي) — حماية وقت الأزمات"),
+        ("🥇 ذهب (حماية)", _gold_row(gold, a_gold, p.get("gold_etf_symbol", "GLD")), a_gold,
+         "أفضل سهم ذهب من الفحص + %s (ETF ذهب مدعوم بالمعدن، متوفّر بمعظم الوسطاء) — حماية وقت الأزمات؛ أكّد الحلال"
+         % p.get("gold_etf_symbol", "GLD")),
         ("⚡ مضاربات (صغيرة)", _weighted(spec, a_spec, max(0.02, a_spec / 2)), a_spec,
          "رهانات قصيرة المدى عالية المخاطرة (مثل TTWO) — وزن صغير بقصد، اخرج بسرعة"),
     ]

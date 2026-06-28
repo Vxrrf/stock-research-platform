@@ -10,6 +10,7 @@ overrides:
   ALAB: {status: pass, source: بحث:Zoya/Musaffa, note: "متوافق (Zoya+Musaffa) — بحث، أكّد بتطبيقك. ALAB = Astera Labs، شركة أشباه موصلات (روابط AI/سحابة) — نشاط حلال…"}
   AMD: {status: pass, source: بحث:Zoya/Musaffa, note: "متوافق (Zoya+Musaffa) — بحث، أكّد بتطبيقك. سهم AMD حلال: شغلته رقايق إلكترونية (نظيفة)، وديونه شبه معدومة (أقل…"}
   ARM: {status: pass, source: بحث:Zoya/Musaffa, note: "متوافق (Zoya+Musaffa) — بحث، أكّد بتطبيقك. ARM حلال. سهم تصميم رقائق/معالجات (نشاط نظيف)، شبه بلا ديون، ودخل…"}
+  ATAT: {status: fail, source: المالك, note: "حرام — تأكيد المالك. ATAT = Atour Lifestyle (فنادق صينية)."}
   AVGO: {status: pass, source: بحث:Zoya/Musaffa, note: "متوافق (Zoya+Musaffa) — بحث، أكّد بتطبيقك. سهم برودكوم (شرائح/سوفتوير) حلال: كل الشاشات (Zoya, Musaffa, Muslim…"}
   COHR: {status: pass, source: بحث:Zoya/Musaffa, note: "متوافق (Zoya+Musaffa) — بحث، أكّد بتطبيقك. سهم حلال. كوهيرنت تصنع الليزر والبصريات وأشباه الموصلات — نشاط نظيف.…"}
   CRWV: {status: fail, source: بحث:Zoya/Musaffa, note: "غير متوافق — CRWV (كورويڤ) = شركة بنية تحتية سحابية للذكاء الاصطناعي، النشاط نفسه حلال (تقنية)، لكنها ترسب…"}
