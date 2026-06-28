@@ -229,7 +229,7 @@ def _conv(s):
         return "<span class='cv cv-na'>—</span>"
     c = "cv-hi" if s >= 8 else ("cv-mid" if s >= 6.5 else "cv-lo")
     w = int(max(0, min(10, s)) * 10)
-    return ("<span class='cv %s'><b class='n'>%.1f</b><i style='width:%d%%'></i></span>" % (c, s, w))
+    return ("<span class='cv %s'><b class='n cnt' data-c='%.1f' data-d='1'>%.1f</b><i style='width:%d%%'></i></span>" % (c, s, s, w))
 
 
 _HDOT = {"pass": "d-ok", "unknown": "d-unk", "fail": "d-no"}
@@ -258,8 +258,15 @@ def _ldetail(r):
         ("تقييم المحللين", rate),
         ("الدفتر (الخطة)", pb),
     ]
-    grid = "<div class='dgrid'>" + "".join(
-        "<div class='dc'><span>%s</span><b class='n'>%s</b></div>" % (l, _h(v)) for l, v in cells) + "</div>"
+    def _rs(k):
+        v = r.get(k)
+        return ("%.0f" % v) if isinstance(v, (int, float)) else "—"
+    pro_cells = [("الأساس (خام)", _rs("fundamental_score")), ("الفرصة (خام)", _rs("opportunity_score")),
+                 ("الترتيب (خام)", _rs("rank_score")), ("الإجمالي (خام)", _rs("total_score"))]
+    grid = ("<div class='dgrid'>"
+            + "".join("<div class='dc'><span>%s</span><b class='n'>%s</b></div>" % (l, _h(v)) for l, v in cells)
+            + "".join("<div class='dc pro-only'><span>%s</span><b class='n'>%s</b></div>" % (l, _h(v)) for l, v in pro_cells)
+            + "</div>")
     # if this is a suggested buy, show the exact entry/stop/target plan too
     trade = _trade_inner(r.get("trade"), pr, header="📋 لو اشتريته الحين — خطة الدخول والوقف") if r.get("trade") else ""
     return "<div class='ldetail'>%s%s%s%s</div>" % (grid, trade, _why_block(r.get("why_note")), _peers_block(r.get("peers")))
@@ -632,7 +639,7 @@ h4{font-size:13.5px;margin:16px 0 6px;color:#c4ccd6;font-weight:700}
 .lsub{color:#7a8493;font-size:12px;margin-top:2px}
 .cv{display:inline-flex;flex-direction:column;align-items:flex-end;gap:3px;flex:0 0 auto;min-width:38px}
 .cv b{font-size:15px}.cv i{display:block;height:3px;border-radius:3px;width:0}
-.cv-hi b{color:#67c79a}.cv-hi i{background:#67c79a}
+.cv-hi b{color:#7cc4f5}.cv-hi i{background:#7cc4f5}
 .cv-mid b{color:#6ea8de}.cv-mid i{background:#6ea8de}
 .cv-lo b{color:#8a94a3}.cv-lo i{background:#4a525d}
 .cv-na{color:#5f6a78}.cv.mini{flex-direction:row;min-width:0}.cv.mini i{display:none}
@@ -698,16 +705,26 @@ background:#233040;color:#8fb7da;font-size:10px;font-weight:700;cursor:pointer;v
 .box .val{color:#cdd6e2;font-size:13.5px;margin-top:3px}
 .box .ex{background:#0e141a;border-radius:10px;padding:9px 11px;margin-top:6px;font-size:13px}
 footer{color:#5a6473;font-size:11.5px;margin-top:32px;text-align:center}
+/* شريط البحث */
+.search{position:relative;margin:10px 0 2px}
+.search input{width:100%;background:#12161c;border:1px solid #232a33;color:#e7ebf0;border-radius:12px;
+padding:11px 14px;font-size:14px;font-family:inherit;outline:none}
+.search input:focus{border-color:#2b5b86}
+.search input::placeholder{color:#6b7686}
+#qx{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#6b7686;cursor:pointer;font-size:18px;padding:0 4px}
+/* وضع المحترف — مخفي افتراضياً */
+.pro-only{display:none}
+body.pro .pro-only{display:block}
+body.pro .top .ico[onclick*="pro"]{background:#2b5b86;color:#fff;border-color:#2b5b86}
 @media(max-width:620px){.bn2-grid{grid-template-columns:1fr}.ldetail.open{grid-template-columns:1fr 1fr}.wrap{padding:12px 11px 84px}}
 /* ═══ موشن هادئ ولطيف (يُفعّل فقط مع JS وبدون reduce-motion؛ يتلاشى بأمان) ═══ */
 .seg,.tabbtn,.mpill,.ico,.chev,.lrow,.pill,.bnc,.eg{transition:background .2s ease,color .2s ease,transform .2s ease,border-color .2s ease}
 .ico:active,.tabbtn:active{transform:scale(.96)}
 .lrow:hover{transform:translateX(-2px)}
 body.anim .today,body.anim .list,body.anim .bn2,body.anim .card2,body.anim .plist,body.anim .acc,
-body.anim .modebar,body.anim .strip0>.pill,body.anim h3.sec,body.anim .bn-intro{
+body.anim .modebar,body.anim h3.sec,body.anim .bn-intro{
   opacity:0;transform:translateY(10px);transition:opacity .55s cubic-bezier(.2,.7,.2,1),transform .55s cubic-bezier(.2,.7,.2,1)}
 body.anim .reveal{opacity:1!important;transform:none!important}
-body.anim .strip0>.pill{transition-delay:calc(var(--i,0)*40ms)}
 /* الأشرطة تكبر بنعومة عند الظهور */
 body.anim .cv i,body.anim .sb i,body.anim .xt i,body.anim .track i{transform:scaleX(0);transform-origin:right;transition:transform .7s cubic-bezier(.2,.8,.2,1)}
 body.anim .reveal .cv i,body.anim .reveal .xt i,body.anim .reveal .track i,body.anim .cv.go i{transform:scaleX(1)}
@@ -724,6 +741,19 @@ body.anim .reveal .pnl-neg{animation:glowr 1.1s ease .2s 1}
 """
 
 JS = """
+// بحث/فلترة الأسهم بالرمز
+function filt(q){q=(q||'').trim().toUpperCase();
+  var rows=document.querySelectorAll('.lrow'),any=false;
+  for(var i=0;i<rows.length;i++){var b=rows[i].querySelector('.lt b'),t=b?b.textContent.toUpperCase():'';
+    var show=!q||t.indexOf(q)>=0;rows[i].style.display=show?'':'none';if(show)any=true;
+    var d=rows[i].nextElementSibling;if(d&&d.classList.contains('ldetail')&&!show)d.classList.remove('open');}
+}
+// عدّاد تصاعدي لطيف
+function countUp(el){var t=parseFloat(el.getAttribute('data-c'));if(isNaN(t)){return;}
+  var d=parseInt(el.getAttribute('data-d')||'0'),st=null,dur=650;
+  function f(ts){if(!st)st=ts;var p=Math.min(1,(ts-st)/dur),e=1-Math.pow(1-p,3);
+    el.textContent=(t*e).toFixed(d);if(p<1){requestAnimationFrame(f);}else{el.textContent=t.toFixed(d);}}
+  requestAnimationFrame(f);}
 function g(k){var d=GL[k];if(!d)return;
  document.getElementById('gt').innerText=d.t;document.getElementById('gw').innerText=d.w;
  document.getElementById('gb').innerText=d.b;document.getElementById('ge').innerText=d.e;
@@ -754,14 +784,17 @@ function updateAll(b){
   document.body.classList.add('anim');
   var sels='.today,.list,.bn2,.card2,.plist,.acc,.modebar,.bn-intro,h3.sec';
   var io=new IntersectionObserver(function(es){es.forEach(function(e){
-    if(e.isIntersecting){e.target.classList.add('reveal');io.unobserve(e.target);}});},
+    if(e.isIntersecting){e.target.classList.add('reveal');
+      e.target.querySelectorAll('.cnt').forEach(countUp);io.unobserve(e.target);}});},
     {threshold:.1,rootMargin:'0px 0px -30px 0px'});
   function wire(root){(root||document).querySelectorAll(sels).forEach(function(el){io.observe(el);});}
   wire();
+  // count up any numbers already on screen (above the fold)
+  setTimeout(function(){document.querySelectorAll('.reveal .cnt,.strip0 .cnt').forEach(countUp);},120);
   // when a tab becomes visible, reveal its freshly-shown content + grow its bars
   window.addEventListener('click',function(ev){
     var b=ev.target.closest && ev.target.closest('.tabbtn'); if(!b) return;
-    setTimeout(function(){var p=document.querySelector('.tabpanel.show'); if(p){p.querySelectorAll(sels).forEach(function(el){el.classList.add('reveal');});}},30);
+    setTimeout(function(){var p=document.querySelector('.tabpanel.show'); if(p){p.querySelectorAll(sels).forEach(function(el){el.classList.add('reveal');el.querySelectorAll('.cnt').forEach(countUp);});}},30);
   });
 })();
 """
@@ -808,12 +841,13 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
 
     status = (
         "<div class='strip0'>"
-        "<span class='pill'><b class='n'>%d</b> في نطاق البحث</span>"
-        "<span class='pill'>✅ <b class='n'>%d</b> حلال مؤكّد</span>"
-        "<span class='pill'>⚠️ <b class='n'>%d</b> تحتاج تأكيد</span>"
-        "<span class='pill'><b class='n'>%d</b> بياناتها حديثة</span>"
+        "<span class='pill'><b class='n cnt' data-c='%d'>%d</b> في نطاق البحث</span>"
+        "<span class='pill'>✅ <b class='n cnt' data-c='%d'>%d</b> حلال مؤكّد</span>"
+        "<span class='pill'>⚠️ <b class='n cnt' data-c='%d'>%d</b> تحتاج تأكيد</span>"
+        "<span class='pill'><b class='n cnt' data-c='%d'>%d</b> بياناتها حديثة</span>"
         "<span class='pill risk-%s'>مخاطر السوق: <b>%s</b></span>"
-        "</div>" % (len(visible), h_pass, h_unknown, fc.get("FRESH", 0), risk, _h(RISK_AR.get(risk, risk)))
+        "</div>" % (len(visible), len(visible), h_pass, h_pass, h_unknown, h_unknown,
+                   fc.get("FRESH", 0), fc.get("FRESH", 0), risk, _h(RISK_AR.get(risk, risk)))
     )
 
     # holdings + watchlist lists
@@ -867,12 +901,20 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
         "</div>"
     )
 
+    # search/command bar — filters any list by ticker
+    search = ("<div class='search'><input id='q' autocomplete='off' spellcheck='false' "
+              "placeholder='🔍 ابحث عن سهم (مثال: NVDA)…' oninput='filt(this.value)'>"
+              "<span id='qx' onclick=\"document.getElementById('q').value='';filt('')\">×</span></div>")
+
+    src_txt = _h(meta.get("data_source", "yfinance"))
     header = (
         "<div class='top'><h1>📊 %s</h1>"
-        "<div class='btns'><a class='ico' href='planner.html'>💼 المخطّط</a>"
+        "<div class='btns'>"
+        "<button class='ico' title='وضع محترف: يكشف الأرقام الخام' onclick='document.body.classList.toggle(\"pro\")'>⚙︎ محترف</button>"
+        "<a class='ico' href='planner.html'>💼 المخطّط</a>"
         "<button class='ico pri' onclick='updateAll(this)'>🔄 حدّث</button></div></div>"
-        "<div class='sub'>منصّة بحث شخصية — بحث وليست توصية · حُدّث %s</div>"
-        "<div id='updmsg'></div>" % (_h(name), _h(meta.get("generated_at")))
+        "<div class='sub'>منصّة بحث شخصية — بحث وليست توصية · المصدر: %s · آخر فحص %s</div>"
+        "<div id='updmsg'></div>" % (_h(name), src_txt, _h(meta.get("generated_at")))
     )
 
     modal = (
@@ -883,7 +925,7 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
         "<div class='lbl'>مثال</div><div class='ex' id='ge'></div></div></div>"
     )
 
-    body = (header + _mode_bar(meta) + status + _today_hero(today) + tabs
+    body = (header + _mode_bar(meta) + status + _today_hero(today) + tabs + search
             + tab_opp + tab_port + tab_bn + tab_more
             + "<footer>%s · يُولَّد محلياً · القرار والمسؤولية عليك</footer>" % _h(name)
             + modal
