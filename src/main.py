@@ -426,36 +426,35 @@ def main():
     mode_files = {"balanced": "index.html", "aggressive": "aggressive.html", "conservative": "conservative.html"}
     modes_nav = [(k, (modes[k] or {}).get("label", k), mode_files.get(k, k + ".html")) for k in modes]
 
+    # RESEARCH is objective (one ranking, mode-independent). The mode shapes ONLY the
+    # PORTFOLIO allocation — aggressive/balanced/defensive change how your money is split,
+    # not which stocks are objectively best (the user's explicit design).
+    bal_w = (cfg.get("modes", {}) or {}).get("balanced", {}).get("rank")
+    for rec in records:
+        rec["rank_score"] = scoring.overall_rank(rec, cfg, bal_w)
+    ranked_obj = sorted(records, key=lambda r: (r.get("rank_score") or 0), reverse=True)
+    buckets_obj = make_buckets(ranked_obj)
+
     for mkey, mdef in modes.items():
         mdef = mdef or {}
-        weights = mdef.get("rank")
-        for rec in records:
-            rec["rank_score"] = scoring.overall_rank(rec, cfg, weights)
-        ranked_m = sorted(records, key=lambda r: (r.get("rank_score") or 0), reverse=True)
-        buckets_m = make_buckets(ranked_m)
         mode_cfg = dict(cfg)
         port = dict(cfg.get("portfolio", {}) or {})
         if mdef.get("allocation"):
             port["allocation"] = mdef["allocation"]
         mode_cfg["portfolio"] = port
-        portfolio_rows_m, _ = portfolio_mod.build_model(ranked_m, mode_cfg)
+        portfolio_rows_m, _ = portfolio_mod.build_model(ranked_obj, mode_cfg)
         meta = dict(base_meta)
         meta.update({
             "holdings_eval": portfolio_mod.evaluate_holdings(records, mode_cfg, deltas),
             "active_mode": mkey, "active_mode_label": mdef.get("label", mkey),
             "active_mode_desc": mdef.get("desc", ""), "modes_nav": modes_nav,
         })
-        html_doc = dashboard.build(records, buckets_m, portfolio_rows_m, news_rows, political_rows, meta, mode_cfg)
+        html_doc = dashboard.build(records, buckets_obj, portfolio_rows_m, news_rows, political_rows, meta, mode_cfg)
         with open(os.path.join(out_dir, mode_files.get(mkey, mkey + ".html")), "w", encoding="utf-8") as f:
             f.write(html_doc)
         if mkey == "balanced":
             with open(os.path.join(out_dir, "dashboard.html"), "w", encoding="utf-8") as f:
                 f.write(html_doc)        # back-compat default name
-
-    # restore balanced rank on the records (CSVs already written balanced; keep summary consistent)
-    bal_w = (cfg.get("modes", {}) or {}).get("balanced", {}).get("rank")
-    for rec in records:
-        rec["rank_score"] = scoring.overall_rank(rec, cfg, bal_w)
 
     # ── summary ──
     print("\n" + "=" * 64)

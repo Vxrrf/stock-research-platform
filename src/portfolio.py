@@ -29,8 +29,49 @@ def _bucket(records, engine, cap, cfg):
     return out[:cap]
 
 
+def _gold_picks(candidates, cfg, n=2):
+    """Best gold / precious-metals names from the scan — so the hedge bucket auto-picks
+    the strongest gold play (replacing AEM if something scores better), not a hardcoded one."""
+    mode = ((cfg.get("halal", {}) or {}).get("mode") or "gate").lower()
+    out = []
+    for r in candidates:
+        ind = (r.get("industry") or "").lower()
+        sec = (r.get("sector") or "").lower()
+        is_gold = ("gold" in ind or "silver" in ind or "precious" in ind
+                   or (("materials" in sec) and r.get("cyclical")))
+        if is_gold and r.get("investable", True) and (mode == "info" or r.get("halal_status") != "fail"):
+            out.append(r)
+    out.sort(key=lambda r: (r.get("conviction_score") or 0), reverse=True)
+    return out[:n]
+
+
+def _gold_row(gold, total_pct):
+    """Hedge sizing: best miner from the scan + RMAU (physical halal gold), deliberately
+    balanced so the actual-gold ETF keeps real ballast and isn't swamped by the miner."""
+    if not gold:
+        return "RMAU %.0f%%" % (total_pct * 100)          # no miner found → all physical gold
+    miner = gold[0]["ticker"]
+    return "%s %.0f%% · RMAU %.0f%%" % (miner, total_pct * 0.55 * 100, total_pct * 0.45 * 100)
+
+
+def _weighted(bucket, total_pct, cap, etfs=None):
+    """Position sizing INSIDE a bucket: conviction-weighted, capped per name. Returns a
+    readable 'TICKER X% · TICKER Y%' string so the user sees exactly how much to put."""
+    items = list(bucket or [])
+    syms = [(r["ticker"], max(0.1, (r.get("conviction_score") or 1))) for r in items]
+    syms += [(e, 1.0) for e in (etfs or [])]            # ETFs get an equal base weight
+    if not syms:
+        return "—"
+    s = sum(w for _, w in syms) or 1.0
+    parts = []
+    for t, w in syms:
+        pct = min(cap, total_pct * w / s) if cap else total_pct * w / s
+        parts.append("%s %.0f%%" % (t, pct * 100))
+    return " · ".join(parts)
+
+
 def build_model(candidates, cfg):
-    """Engine-based allocation. Returns (rows for portfolio_model.csv, picks dict)."""
+    """Engine-based allocation with per-name sizing. Returns (rows, picks)."""
     p = cfg.get("portfolio", {}) or {}
     alloc = p.get("allocation", {}) or {}
     etfs = p.get("etf_suggestions", {}) or {}
@@ -38,32 +79,27 @@ def build_model(candidates, cfg):
     comp = _bucket(candidates, "compounder", p.get("max_compounders", 8), cfg)
     accel = _bucket(candidates, "accelerator", p.get("max_accelerators", 8), cfg)
     fut = _bucket(candidates, "future_leader", p.get("max_future_leaders", 10), cfg)
+    gold = _gold_picks(candidates, cfg, n=1)       # data-driven best gold miner (replaces AEM if it out-scores)
+    cap_c = p.get("max_single_compounder_pct", 0.12)
+    cap_f = p.get("max_single_future_leader_pct", 0.03)
 
     rows = []
+    a_comp, a_accel, a_fut = alloc.get("compounders", 0), alloc.get("accelerators", 0), alloc.get("future_leaders", 0)
+    a_etf, a_gold, a_cash = alloc.get("broad_market_etf", 0), alloc.get("gold_etf", 0), alloc.get("cash", 0)
     specs = [
-        ("compounders", "🏛️ مُركِّبون (نواة)", comp,
-         f"جودة تدوم — موزّعة بالقناعة، كل اسم ≤ {p.get('max_single_compounder_pct', 0.12):.0%}"),
-        ("accelerators", "🚀 مُسرِّعون (6–24ش)", accel, "نمو يتسارع — فرص متوسطة المدى"),
-        ("future_leaders", "🌱 قادة المستقبل", fut,
-         f"رهانات صغيرة موزّعة (x3–x10) — كل اسم ≤ {p.get('max_single_future_leader_pct', 0.03):.0%} عشان -80% يبقى محتمَل"),
-        ("broad_market_etf", "🛡️ ETF حلال/واسع", None, "تحوّط واسع متوافق شرعياً"),
-        ("gold_etf", "🥇 ذهب (حماية)", None, "حماية وقت الأزمات (الحرب/النفط الحين)"),
-        ("cash", "💵 كاش (ذخيرة)", None, "ذخيرة للتقلّب والشراء بالهبوط"),
+        ("🏛️ مُركِّبون (نواة)", _weighted(comp, a_comp, cap_c), a_comp,
+         f"جودة تدوم — موزّعة بالقناعة، كل اسم ≤ {cap_c:.0%}"),
+        ("🚀 مُسرِّعون (6–24ش)", _weighted(accel, a_accel, 0.10), a_accel, "نمو يتسارع — فرص متوسطة المدى"),
+        ("🌱 قادة المستقبل", _weighted(fut, a_fut, cap_f), a_fut,
+         f"رهانات صغيرة موزّعة (x3–x10) — كل اسم ≤ {cap_f:.0%} عشان -80% يبقى محتمَل"),
+        ("🛡️ ETF حلال/واسع", _weighted([], a_etf, 0, etfs.get("broad_market_etf", [])), a_etf, "تحوّط واسع متوافق شرعياً"),
+        ("🥇 ذهب (حماية)", _gold_row(gold, a_gold), a_gold,
+         "أفضل سهم ذهب من الفحص + RMAU (ذهب حلال فعلي) — حماية وقت الأزمات"),
+        ("💵 كاش (ذخيرة)", "—", a_cash, "ذخيرة للتقلّب والشراء بالهبوط"),
     ]
-    for key, label, bucket, note in specs:
-        pct = alloc.get(key, 0.0)
-        if bucket is not None:
-            holdings = ", ".join(r["ticker"] for r in bucket) or "—"
-        elif key == "cash":
-            holdings = "—"
-        else:
-            holdings = ", ".join(etfs.get(key, [])) or "—"
-        rows.append({
-            "bucket": label,
-            "allocation_pct": f"{pct:.0%}",
-            "suggested_holdings": holdings,
-            "notes": note,
-        })
+    for label, holdings, pct, note in specs:
+        rows.append({"bucket": label, "allocation_pct": f"{pct:.0%}",
+                     "suggested_holdings": holdings, "notes": note})
     s = sum(alloc.values())
     if abs(s - 1.0) > 0.001:
         rows.append({"bucket": "⚠️ تحقّق", "allocation_pct": f"{s:.0%}",

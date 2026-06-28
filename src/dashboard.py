@@ -420,7 +420,9 @@ def _mode_bar(meta):
     seg = "".join("<a class='seg %s' href='%s'>%s</a>" % ("on" if k == active else "", _h(f), _h(l))
                   for k, l, f in nav)
     desc = meta.get("active_mode_desc") or ""
-    return "<div class='modebar'>%s</div><div class='muted xs cset'>%s</div>" % (seg, _h(desc))
+    return ("<div class='modebar'><span class='mbl'>وضع المحفظة</span>%s</div>"
+            "<div class='muted xs cset'>يغيّر <b>توزيع محفظتك</b> فقط — البحث والترتيب يبقى موضوعياً. %s</div>"
+            % (seg, _h(desc)))
 
 
 def _holdings_list(rows):
@@ -604,7 +606,8 @@ font-weight:700;cursor:pointer;text-decoration:none}
 .pill.risk-High,.pill.risk-Extreme{border-color:#5e3a3f;color:#e0a3a8}
 .pill.risk-Low{border-color:#2f5544;color:#9fd9bd}
 /* mode segmented */
-.modebar{display:inline-flex;background:#13181e;border:1px solid #262d37;border-radius:12px;padding:3px;margin:10px 0 0;gap:2px}
+.modebar{display:inline-flex;align-items:center;background:#13181e;border:1px solid #262d37;border-radius:12px;padding:3px;margin:10px 0 0;gap:2px}
+.mbl{font-size:11px;color:#6b7480;font-weight:700;padding:0 8px 0 4px;letter-spacing:.2px}
 .seg{font-size:12.5px;color:#9aa4b2;padding:6px 13px;border-radius:9px;text-decoration:none;font-weight:700}
 .seg:hover{color:#fff}.seg.on{background:#2b5b86;color:#fff}
 .cset{margin:5px 0 0}
@@ -872,21 +875,24 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
     _opp_title = ("🎯 أقوى الفرص <span class='c'>(مرتّبة بالجودة — تأكّد الحلال بنفسك)</span>"
                   if _hmode == "info" else "🎯 أقوى الفرص <span class='c'>(مفلترة على نظامك + الحلال)</span>")
     tab_opp = (
-        "<div id='t-opp' class='tabpanel show'>"
+        "<div id='t-opp' class='tabpanel'>"
         "<h3 class='sec'>%s</h3>%s" % (_opp_title, _opp_lead)
         + _stock_list(opps)
         + "</div>"
     )
     tab_port = (
-        "<div id='t-port' class='tabpanel'>"
-        "<h3 class='sec'>💼 محفظتي</h3>"
-        "<p class='lead'>توصية بحثية حسب الأداء — مو «بيع/اشترِ الآن». اضغط أي سهم تشوف <b>خطة تنبيهاتك</b>: "
-        "خط الخطر −40% + هدفين حسب الدفتر + قاعدة الحصاد.</p>"
+        "<div id='t-port' class='tabpanel show'>"
+        "<h3 class='sec'>💼 محفظتي — الواجهة</h3>"
+        "<p class='lead'>محفظة ذكية مبنية على البحث: كل خانة تختار <b>الأفضل تلقائياً</b> من الفلتر — "
+        "خانة الذهب/التحوّط تختار أقوى سهم ذهب من الفحص (مو ثابتة على AEM)، وكل خانة لها وزنها. "
+        "الأوزان تتبدّل حسب <b>وضع المحفظة</b> فوق. بحث وتوزيع — مو «بيع/اشترِ الآن».</p>"
+        + "<h3 class='sec'>📊 التوزيع الذكي — الأفضل من كل خانة %s</h3>" % _i("portfolio")
+        + _portfolio_list(portfolio_rows)
+        + "<h3 class='sec'>📌 مراكزي الحالية</h3>"
+        "<p class='lead'>اضغط أي سهم تشوف <b>خطة تنبيهاتك</b>: خط الخطر −40% + هدفين حسب الدفتر + قاعدة الحصاد.</p>"
         + _holdings_list(he)
         + "<h3 class='sec'>⭐ قائمتي %s</h3>" % _i("watchlist")
         + _stock_list(watch)
-        + "<h3 class='sec'>📊 نموذج المحفظة %s</h3>" % _i("portfolio")
-        + _portfolio_list(portfolio_rows)
         + "</div>"
     )
     tab_bn = (
@@ -909,8 +915,8 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
 
     tabs = (
         "<div class='tabs'>"
-        "<button class='tabbtn on' onclick=\"tab('t-opp',this)\">🎯 الفرص</button>"
-        "<button class='tabbtn' onclick=\"tab('t-port',this)\">💼 محفظتي</button>"
+        "<button class='tabbtn on' onclick=\"tab('t-port',this)\">💼 محفظتي</button>"
+        "<button class='tabbtn' onclick=\"tab('t-opp',this)\">🎯 الفرص</button>"
         "<button class='tabbtn' onclick=\"tab('t-bn',this)\">🔗 عنق الزجاجة</button>"
         "<button class='tabbtn' onclick=\"tab('t-more',this)\">🧰 المزيد</button>"
         "</div>"
@@ -941,7 +947,7 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
     )
 
     body = (header + _mode_bar(meta) + status + _today_hero(today) + tabs + search
-            + tab_opp + tab_port + tab_bn + tab_more
+            + tab_port + tab_opp + tab_bn + tab_more
             + "<footer>%s · يُولَّد محلياً · القرار والمسؤولية عليك</footer>" % _h(name)
             + modal
             + "<script>var GL=%s;%s</script>" % (json.dumps(GLOSSARY, ensure_ascii=False), JS))
