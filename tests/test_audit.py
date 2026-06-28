@@ -227,6 +227,35 @@ def test_modes_change_allocation_not_ranking():
     print(f"✅ modes change ALLOCATION not RANKING (objective order={order}; aggr≠cons)")
 
 
+def test_portfolio_holdings_sum_and_dedup():
+    """Per-name sizing sums to each engine bucket's allocation (incl. any 'غير موزّع'
+    remainder), and no ticker is sized in more than one engine sleeve (true allocation)."""
+    import re as _re
+    recs = [_rec(ticker="CMP%d" % i, engines=["compounder"], conviction_score=8 - i * 0.1,
+                 total_score=80, market_cap=2e11, investable=True) for i in range(8)]
+    recs += [_rec(ticker="ACC%d" % i, engines=["accelerator"], conviction_score=7 - i * 0.1,
+                  total_score=75, market_cap=3e10, investable=True) for i in range(6)]
+    # a name strong in BOTH lenses must be sized in only ONE sleeve
+    recs.append(_rec(ticker="DUAL", engines=["compounder", "accelerator"], conviction_score=9,
+                     total_score=85, market_cap=1e11, investable=True))
+    rows, picks = portfolio.build_model(recs, CFG)
+
+    counts = {}
+    for key in ("compounders", "accelerators", "future_leaders"):
+        for r in picks.get(key, []):
+            counts[r["ticker"]] = counts.get(r["ticker"], 0) + 1
+    assert all(c == 1 for c in counts.values()), "ticker sized in two sleeves: %s" % counts
+
+    for row in rows:
+        if "%" not in row["allocation_pct"]:
+            continue
+        target = int(row["allocation_pct"].replace("%", ""))
+        nums = [int(x) for x in _re.findall(r"(\d+)%", row["suggested_holdings"])]
+        if nums and any(k in row["bucket"] for k in ("مُركِّبون", "مُسرِّعون", "قادة")):
+            assert sum(nums) == target, "%s holdings %d != alloc %d" % (row["bucket"], sum(nums), target)
+    print("✅ portfolio holdings sum to allocation + tickers de-duplicated across sleeves")
+
+
 def test_movers_empty_on_first_run():
     """movers() must not crash and returns [] when there's no prior snapshot."""
     mem = {"AAA": {"ticker": "AAA", "name": "A", "metrics": {"rank": 80}, "prev_metrics": None}}

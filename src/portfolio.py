@@ -97,6 +97,9 @@ def _weighted(bucket, total_pct, cap, etfs=None):
         if k > 4 * len(order):
             break
     parts = ["%s %d%%" % (syms[i][0], pts[i]) for i in range(len(syms)) if pts[i] > 0]
+    leftover = target - sum(pts)
+    if leftover > 0 and parts:        # caps bound (too few names) — be honest about the remainder
+        parts.append("غير موزّع %d%%" % leftover)
     return " · ".join(parts) if parts else "—"
 
 
@@ -111,6 +114,22 @@ def build_model(candidates, cfg):
     fut = _bucket(candidates, "future_leader", p.get("max_future_leaders", 10), cfg)
     gold = _gold_picks(candidates, cfg, n=1)       # data-driven best gold miner (replaces AEM if it out-scores)
     spec = _spec_picks(candidates, cfg)            # small high-risk speculation sleeve (TTWO-style)
+
+    # de-duplicate across sleeves so each ticker is sized ONCE — a name strong in two lenses
+    # is HELD once, not double-counted (priority: core > accelerator > future > speculation)
+    _seen = set()
+
+    def _dedup(lst):
+        out = []
+        for r in lst:
+            t = r.get("ticker")
+            if t in _seen:
+                continue
+            _seen.add(t)
+            out.append(r)
+        return out
+    comp, accel, fut, spec = _dedup(comp), _dedup(accel), _dedup(fut), _dedup(spec)
+
     cap_c = p.get("max_single_compounder_pct", 0.12)
     cap_f = p.get("max_single_future_leader_pct", 0.03)
 
