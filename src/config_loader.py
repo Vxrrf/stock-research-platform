@@ -49,6 +49,9 @@ def load_config():
     # FMP key resolution priority: env var > config.local.yaml > config.yaml
     key = os.environ.get("FMP_API_KEY", "") or (cfg.get("data", {}) or {}).get("fmp_api_key") or ""
     cfg.setdefault("data", {})["fmp_api_key"] = key.strip()
+    # Finnhub key (free, finnhub.io) — same priority; a cloud-reliable 2nd source (CI secret)
+    fh = os.environ.get("FINNHUB_API_KEY", "") or (cfg.get("data", {}) or {}).get("finnhub_api_key") or ""
+    cfg["data"]["finnhub_api_key"] = fh.strip()
     cfg["_root"] = ROOT
     return cfg
 

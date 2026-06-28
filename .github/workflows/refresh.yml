@@ -1,0 +1,50 @@
+name: refresh-dashboard
+# يحدّث الرابط المنشور تلقائياً في سحابة GitHub — والماك مقفل.
+# يحتاج: تفعيل Actions + (مستحسن) سرّ FINNHUB_API_KEY مجاني، و/أو FMP_API_KEY.
+on:
+  schedule:
+    # ساعات السوق الأمريكي (UTC): فتح ~13:30 / منتصف / إغلاق ~20:00 — أيام الأسبوع
+    - cron: "5 14 * * 1-5"
+    - cron: "5 17 * * 1-5"
+    - cron: "5 20 * * 1-5"
+  workflow_dispatch: {}        # زر تشغيل يدوي
+permissions:
+  contents: write
+concurrency:
+  group: refresh-dashboard
+  cancel-in-progress: false
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: install deps
+        run: pip install -r requirements.txt
+      - name: regenerate (best-effort live; freshness stays honest if a source is throttled)
+        env:
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+        run: |
+          python src/main.py --live --no-trackers --limit 1200 || echo "live fetch incomplete — keeping last good snapshot"
+      - name: stage snapshot
+        run: |
+          mkdir -p docs
+          for f in index aggressive conservative planner; do
+            [ -f "output/$f.html" ] && cp "output/$f.html" "docs/$f.html" || true
+          done
+      - name: commit if changed (a failed fetch never breaks the live link)
+        run: |
+          git config user.name "mazer-cloud"
+          git config user.email "cloud@users.noreply.github.com"
+          git add docs
+          if git diff --cached --quiet; then
+            echo "no change — link left as-is"
+          else
+            git commit -m "cloud refresh $(date -u +%FT%TZ)"
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
+            git push
+          fi
