@@ -605,7 +605,16 @@ def _bucket_meta(label):
     return "#646B76", label
 
 
-def _portfolio_list(rows):
+def _kfmt(x):
+    x = x or 0
+    return ("$%.1fk" % (x / 1000.0)).replace(".0k", "k") if x >= 1000 else "$%d" % x
+
+
+def _portfolio_list(rows, records, cfg):
+    """Each bucket → its weight + a per-stock breakdown showing each name's weight, its OWN
+    cap, and (where a plan exists) the stop + first sell-target — so you see what to set."""
+    base = int((cfg.get("portfolio") or {}).get("max_per_stock_usd", 3000))
+    by_t = {r.get("ticker"): r for r in records if r.get("ticker")}
     out = ""
     for r in rows:
         shade, name = _bucket_meta(r.get("bucket", ""))
@@ -614,14 +623,32 @@ def _portfolio_list(rows):
         except Exception:
             pctn = 0
         barw = max(4, min(100, pctn))
+        detail = ""
+        for t, pp in re.findall(r"([A-Z]{2,6}) (\d+)%", r.get("suggested_holdings", "") or ""):
+            rec = by_t.get(t) or {}
+            chips = []
+            if t not in _FUND_TICKERS:
+                chips.append("سقف <b class='n'>%s</b>" % _kfmt(_position_cap(rec, base)))
+            tr = rec.get("trade") or {}
+            stp = (tr.get("stop") or {}).get("price")
+            if stp:
+                chips.append("وقف <b class='n'>%.2f</b>" % stp)
+            p1 = (tr.get("profit1") or {}).get("price")
+            if p1:
+                chips.append("هدف <b class='n'>%.2f</b>" % p1)
+            detail += ("<div class='palc'><span class='n'>%s</span>"
+                       "<span class='palc-p n'>%d%%</span><span class='palc-c'>%s</span></div>"
+                       % (_h(t), int(pp), " · ".join(chips)))
+        if not detail and (r.get("suggested_holdings", "") not in ("", "—")):
+            detail = "<div class='phold'><div class='xs n' dir='ltr'>%s</div></div>" % _h(r["suggested_holdings"])
         out += (
             "<div class='prow'>"
             "<div class='pl'><span class='pbk' style='background:%s'></span><b>%s</b></div>"
             "<div class='pr'><b class='n'>%s</b></div></div>"
             "<div class='pbar' style='background:%s;width:%d%%'></div>"
-            "<div class='phold'><div class='xs'>%s</div><div class='xs n' dir='ltr'>%s</div></div>"
+            "<div class='muted xs' style='padding:1px 14px 5px'>%s</div>%s"
             % (shade, _h(name), _h(r.get("allocation_pct", "")),
-               shade, barw, _h(r.get("notes", "")), _h(r.get("suggested_holdings", "")))
+               shade, barw, _h(r.get("notes", "")), detail)
         )
     return "<div class='plist'>" + out + "</div>"
 
@@ -725,11 +752,18 @@ def _newspaper(today, news_rows, opps, records, meta):
 
     cand = [r for r in opps if r.get("action") == "Candidate"][:5]
     if cand:
-        rows = "".join(
-            "<div class='np-row'><b class='n'>%s</b><span class='muted xs'>قناعة %s · نظرة %s</span></div>"
-            % (_h(r["ticker"]), r.get("conviction_score") or "—",
-               r.get("forward_outlook_score") if r.get("forward_outlook_score") is not None else "—") for r in cand)
-        secs.append("<div class='card2'><h4>فرص اليوم</h4>%s</div>" % rows)
+        def _rrow(r):
+            rate = RATING_AR.get(r.get("rec_key"), "")
+            na = r.get("num_analysts")
+            rtxt = ("<span class='np-rate'>%s</span>" % _h(rate)) if rate else ""
+            meta_t = "قناعة %s · نظرة %s%s" % (
+                r.get("conviction_score") or "—",
+                r.get("forward_outlook_score") if r.get("forward_outlook_score") is not None else "—",
+                (" · %d محلل" % int(na)) if na else "")
+            return ("<div class='np-row'><div class='np-rl'><b class='n'>%s</b>%s</div>"
+                    "<span class='muted xs'>%s</span></div>" % (_h(r["ticker"]), rtxt, meta_t))
+        rows = "".join(_rrow(r) for r in cand)
+        secs.append("<div class='card2'><h4>فرص اليوم — رأي المحللين</h4>%s</div>" % rows)
 
     dn = [r for r in records if (not r.get("is_fund")) and (
         any("يخفّضون" in d for d in (r.get("forward_drivers") or []))
@@ -997,6 +1031,13 @@ h4{font-size:13px;margin:18px 0 8px;color:var(--t2);font-weight:600}
 .np-h{font-size:13px;color:var(--t1);line-height:1.55}
 .np-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--hair)}
 .np-row:first-child{border-top:0}.np-row .fp-up{color:var(--sage)}.np-row .fp-dn{color:var(--risk)}
+.np-rl{display:flex;align-items:center;gap:8px}
+.np-rate{font-size:10.5px;border-radius:7px;padding:1px 8px;background:var(--sage16);color:var(--sage);font-weight:600;white-space:nowrap}
+/* تفاصيل السهم داخل التوزيع: وزن + سقف + وقف + هدف */
+.palc{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:6px 14px;border-top:1px solid rgba(255,255,255,.03);font-size:12px}
+.palc>.n:first-child{min-width:52px;font-weight:600;color:var(--t1)}
+.palc-p{color:var(--t2);min-width:34px}
+.palc-c{color:var(--t3)}.palc-c b{color:var(--t2);font-weight:400}
 /* THE CHECK peers */
 .peers{padding:12px 14px;background:rgba(255,255,255,.015);border-top:1px solid var(--hair)}
 .pr2{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:6px;padding:6px;font-size:12.5px;align-items:center}
@@ -1290,7 +1331,7 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
         + _fwd_pulse(records)
         + _alloc_donut(portfolio_rows, meta)
         + "<h3 class='sec'>التوزيع الذكي %s</h3>" % _i("portfolio")
-        + _portfolio_list(portfolio_rows)
+        + _portfolio_list(portfolio_rows, records, cfg)
         + "<h3 class='sec'>مراكزي الحالية</h3>"
         + _holdings_list(he)
         + "</div>"
