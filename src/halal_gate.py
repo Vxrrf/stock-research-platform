@@ -81,7 +81,7 @@ def screen(rec, cfg, extra=None):
         reasons.append("market cap unavailable — cannot compute Sharia ratios")
         return "unknown", reasons, ratios
 
-    debt_known = total_debt is not None
+    debt_known = isinstance(total_debt, (int, float)) and total_debt >= 0   # negative = bad data → unverified, never "pass"
     if debt_known:
         dr = total_debt / mcap
         ratios["debt/marketcap"] = round(dr, 3)
@@ -89,7 +89,7 @@ def screen(rec, cfg, extra=None):
             return "fail", [f"interest-bearing debt / market cap = {dr:.0%} ≥ "
                             f"{h.get('debt_to_marketcap_max', 0.33):.0%} (AAOIFI limit)"], ratios
 
-    cash_known = total_cash is not None
+    cash_known = isinstance(total_cash, (int, float)) and total_cash >= 0
     if cash_known:
         cr = total_cash / mcap
         ratios["cash+securities/marketcap"] = round(cr, 3)
@@ -97,7 +97,7 @@ def screen(rec, cfg, extra=None):
             return "fail", [f"cash & interest-bearing securities / market cap = {cr:.0%} ≥ "
                             f"{h.get('cash_to_marketcap_max', 0.33):.0%} (AAOIFI limit)"], ratios
 
-    if receivables is not None:
+    if isinstance(receivables, (int, float)) and receivables >= 0:
         rr = receivables / mcap
         ratios["receivables/marketcap"] = round(rr, 3)
         if rr >= h.get("receivables_to_marketcap_max", 0.49):
@@ -105,7 +105,8 @@ def screen(rec, cfg, extra=None):
                             f"{h.get('receivables_to_marketcap_max', 0.49):.0%} (AAOIFI limit)"], ratios
 
     # ── 3) Interest income / revenue (the < 5% purification test) ──
-    income_known = (interest_income is not None and revenue not in (None, 0))
+    income_known = (isinstance(interest_income, (int, float)) and interest_income >= 0
+                    and isinstance(revenue, (int, float)) and revenue > 0)   # negative revenue → ratio meaningless
     if income_known:
         ir = interest_income / revenue
         ratios["interest_income/revenue"] = round(ir, 4)

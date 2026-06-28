@@ -496,7 +496,10 @@ def _holdings_list(rows):
         else:
             pnl = "<span class='muted'>—</span>"
         b = r.get("better")
-        better = ("<div class='muted xs'>↑ بديل أقوى في دوره: <b class='n'>%s</b></div>" % _h(b["ticker"])) if b else ""
+        bh = ("" if (b or {}).get("halal") == "pass" else
+              " <span class='warn xs'>تأكّد حلاله</span>" if b else "")
+        better = ("<div class='muted xs'>↑ بديل أقوى في دوره: <b class='n'>%s</b>%s</div>"
+                  % (_h(b["ticker"]), bh)) if b else ""
         pbtag = ("<span class='eg'>%s</span>" % framework.PLAYBOOK_AR.get(r.get("playbook"), "")) if r.get("playbook") else ""
         out += (
             "<div class='lrow' onclick='exp(this)'><div class='lmain'>"
@@ -1057,6 +1060,32 @@ h4{font-size:13px;margin:18px 0 8px;color:var(--t2);font-weight:600}
 .pr b{font-size:23px;font-weight:400;color:var(--t1)}
 .pbar{height:3px;border-radius:3px;margin:0 14px 2px;opacity:.9}
 .phold{padding:0 14px 12px;margin-top:2px;color:var(--t3)}
+/* regime — العقل العاقل */
+.regime{background:var(--card);border:1px solid var(--hair);box-shadow:var(--sheen);border-radius:14px;padding:13px 15px;margin-bottom:14px;border-right:3px solid var(--t3)}
+.regime.rg-crisis{border-right-color:var(--risk)}.regime.rg-opp{border-right-color:var(--sage)}
+.rg-top{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.rg-dot{width:8px;height:8px;border-radius:50%;background:var(--t3);flex:none}
+.rg-crisis .rg-dot{background:var(--risk)}.rg-opp .rg-dot{background:var(--sage)}
+.rg-name{font-size:15px;font-weight:600;color:var(--t1)}
+.rg-conf{font-size:11px;color:var(--t3);border:1px solid var(--hair);border-radius:20px;padding:1px 9px}
+.rg-apply{margin-inline-start:auto;font-size:12.5px;color:var(--sage);text-decoration:none;font-weight:600}
+.rg-ok{margin-inline-start:auto;font-size:12px;color:var(--t3)}
+.rg-why{margin-top:7px;font-size:13px;line-height:1.65;color:var(--t2)}
+.rg-disc{margin-top:8px;font-size:11px;color:var(--t3);line-height:1.5}
+.regime.big .rgm-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
+.rgm{background:var(--field);border-radius:10px;padding:9px 6px;text-align:center}
+.rgm span{display:block;font-size:10px;color:var(--t3);margin-bottom:3px;line-height:1.3}
+.rgm b{font-size:16px;font-weight:400;color:var(--t1)}
+.rg-sub{margin-top:13px;font-size:11px;color:var(--t3);letter-spacing:.04em}
+.rg-sigs{margin:6px 0 0;padding:0;list-style:none}
+.rg-sigs li{font-size:12.5px;color:var(--t2);padding:5px 0;border-top:1px solid var(--hair);line-height:1.5}
+.rg-sigs li:first-child{border-top:0}
+.rg-foot{margin-top:13px;font-size:12.5px;color:var(--t2);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.rg-foot b{color:var(--t1)}
+.cc-hint{margin:2px 0 8px}
+.cc-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--hair)}
+.cc-row:first-of-type{border-top:0}.cc-row b{font-size:13px;color:var(--t1)}
+.cc-warn h4{color:var(--risk)}.cc-ok h4{color:var(--sage)}
 /* bottleneck v2 */
 .bn-intro{background:var(--card);border:1px solid var(--hair);box-shadow:var(--sheen);border-radius:14px;padding:14px 16px;font-size:13.5px;margin-bottom:14px;line-height:1.7;color:var(--t2)}
 .bn2-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -1252,6 +1281,98 @@ function updateAll(b){
 """
 
 
+def _conf_ar(c):
+    return {"HIGH": "ثقة عالية", "MED": "ثقة متوسطة", "LOW": "ثقة منخفضة"}.get(c, c or "")
+
+
+_RISK_AR = {"Low": "منخفضة", "Medium": "متوسطة", "High": "مرتفعة", "Extreme": "قصوى"}
+
+
+def _regime_cls(rec):
+    return "rg-crisis" if rec == "conservative" else ("rg-opp" if rec == "aggressive" else "rg-norm")
+
+
+def _regime_apply(rg, active):
+    if rg.get("recommended_mode") == active:
+        return "<span class='rg-ok'>أنت على الوضع الموصى به</span>"
+    return ("<a class='rg-apply' href='%s'>طبّق وضع %s ←</a>"
+            % (_h(rg.get("recommended_file", "index.html")), _h(rg.get("recommended_mode_ar", ""))))
+
+
+def _regime_banner(meta):
+    """شريط هادئ أعلى «محفظتي»: وضع السوق + الوضع الموصى به. إضافة — والقرار يبقى لك."""
+    rg = meta.get("regime")
+    if not rg:
+        return ""
+    return (
+        "<div class='regime %s'>"
+        "<div class='rg-top'><span class='rg-dot'></span>"
+        "<span class='rg-name'>%s</span><span class='rg-conf'>%s</span>%s</div>"
+        "<div class='rg-why'>%s</div>"
+        "<div class='rg-disc'>%s</div></div>"
+        % (_regime_cls(rg.get("recommended_mode")), _h(rg.get("regime", "")),
+           _conf_ar(rg.get("confidence")), _regime_apply(rg, meta.get("active_mode")),
+           _h(rg.get("why", "")), _h(rg.get("disclaimer", "")))
+    )
+
+
+def _regime_detail(meta):
+    """القراءة الكاملة لوضع السوق — قلب «نبض السوق»: الإشارات + الأرقام + التوصية."""
+    rg = meta.get("regime")
+    if not rg:
+        return "<p class='muted xs pad'>قراءة السوق غير متاحة في هذا التشغيل.</p>"
+    m = rg.get("metrics") or {}
+
+    def metric(lbl, val):
+        return "<div class='rgm'><span>%s</span><b class='n'>%s</b></div>" % (lbl, val)
+    pe = m.get("med_fwd_pe")
+    pe = ("%.0f" % pe) if isinstance(pe, (int, float)) else "—"
+    metrics = (metric("مخاطر السوق", _RISK_AR.get(str(m.get("market_risk")), str(m.get("market_risk") or "—")))
+               + metric("الازدحام", "%d%%" % round((m.get("crowd_pct") or 0) * 100))
+               + metric("وسيط P/E آجل", pe)
+               + metric("فرص رخيصة", "%d%%" % round((m.get("candidate_pct") or 0) * 100)))
+    sigs = rg.get("signals") or []
+    sig_html = (("<ul class='rg-sigs'>" + "".join("<li>%s</li>" % _h(s) for s in sigs) + "</ul>")
+                if sigs else "<p class='muted xs'>لا إشارات صارخة — وضع هادئ، التوازن يكفي.</p>")
+    return (
+        "<div class='regime big %s'>"
+        "<div class='rg-top'><span class='rg-dot'></span><span class='rg-name'>%s</span>"
+        "<span class='rg-conf'>%s</span></div>"
+        "<div class='rg-why'>%s</div>"
+        "<div class='rgm-row'>%s</div>"
+        "<div class='rg-sub'>ما رصدناه</div>%s"
+        "<div class='rg-foot'>الوضع الموصى به: <b>%s</b> %s</div>"
+        "<div class='rg-disc'>%s</div></div>"
+        % (_regime_cls(rg.get("recommended_mode")), _h(rg.get("regime", "")),
+           _conf_ar(rg.get("confidence")), _h(rg.get("why", "")), metrics, sig_html,
+           _h(rg.get("recommended_mode_ar", "")), _regime_apply(rg, meta.get("active_mode")),
+           _h(rg.get("disclaimer", "")))
+    )
+
+
+def _crowd_cheap(records):
+    """عمودان قابلان للتنفيذ: أسماء مزدحمة (طاردها أقل) مقابل مرشّحين رخيصين."""
+    inv = [r for r in records if not r.get("is_fund")
+           and r.get("investable", True) and r.get("action") != "Avoid"]
+    crowded = sorted([r for r in inv if r.get("crowded_late") or r.get("popular_not_cheap")],
+                     key=lambda r: (r.get("rank_score") or 0), reverse=True)
+    cheap = sorted([r for r in inv if r.get("action") == "Candidate"],
+                   key=lambda r: (r.get("conviction_score") or 0), reverse=True)
+
+    def col(title, rows, hint, kind):
+        if not rows:
+            body = "<p class='muted xs'>لا يوجد الآن.</p>"
+        else:
+            body = "".join("<div class='cc-row'><b>%s</b><span class='muted xs'>%s</span></div>"
+                           % (_h(r["ticker"]), _h(_name_sub(r["ticker"], r.get("name", ""))))
+                           for r in rows[:7])
+        return ("<div class='card2 cc-%s'><h4>%s</h4>"
+                "<div class='muted xs cc-hint'>%s</div>%s</div>" % (kind, title, hint, body))
+    return ("<div class='card2-wrap'>%s%s</div>"
+            % (col("مزدحمة — طاردها أقل", crowded, "ارتفعت كثيراً وصارت مكتظة/مكلفة", "warn"),
+               col("مرشّحون رخيصون", cheap, "جودة بسعرٍ معقول الآن", "ok")))
+
+
 def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg):
     app = (cfg.get("app", {}) or {})
     name = app.get("name", "مرصد الأسهم")
@@ -1316,16 +1437,20 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
          "تأكّد الحلال على Zoya سهم سهم. الرقم على اليسار = القناعة %s.</p>" % _i("conviction"))
         if _hmode == "info" else
         ("<p class='lead'>اضغط أي سهم تفتح تفاصيله · الرقم على اليسار = القناعة %s.</p>" % _i("conviction")))
+    researched = [r for r in ranked if not r.get("is_fund")]
     tab_opp = (
         "<div id='t-opp' class='tabpanel'>"
         "<h3 class='sec'>أقوى الفرص <span class='c'>(مرتّبة بالجودة)</span></h3>%s" % _opp_lead
         + _stock_list(opps)
-        + "<h3 class='sec'>عنق الزجاجة عبر القطاعات %s</h3>" % _i("bottleneck")
-        + _bottleneck_v2(meta.get("bottlenecks") or [])
+        + ("<h3 class='sec'>كل الأسهم المبحوثة <span class='c'>(%d · اضغط أيّ سهم للبيانات)</span></h3>"
+           % len(researched))
+        + "<p class='lead muted xs'>كل ما بحثناه وجمعناه — اضغط السهم تفتح القناعة والمخاطر والنظرة المستقبلية والبيانات.</p>"
+        + _stock_list(researched)
         + "</div>"
     )
     tab_port = (
         "<div id='t-port' class='tabpanel show'>"
+        + _regime_banner(meta)
         + _mode_bar(meta)
         + _invest_panel(portfolio_rows, cfg, records)
         + _fwd_pulse(records)
@@ -1343,13 +1468,19 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
     )
     tab_more = (
         "<div id='t-more' class='tabpanel'>"
-        "<h3 class='sec'>📈 التعرّض %s</h3><div class='card2-wrap'>%s</div>" % (_i("exposure"), _exposure_compact(visible))
-        + "<h4>📡 إشارات المؤثرين %s</h4><div class='muted xs'>إشارة ضعيفة للمراجعة فقط · لأحدث توصياتهم على إنستقرام قُل لكلود «شوف المؤثرين» يفتحها ويلخّصها لك.</div>%s" % (
-            _i("signals"), _signals_compact(meta.get("signals_rows") or []))
+        "<h3 class='sec'>نبض السوق <span class='c'>(قراءة العقل العاقل)</span></h3>"
+        + _regime_detail(meta)
+        + "<h3 class='sec'>مزدحم مقابل رخيص</h3>"
+        + _crowd_cheap(visible)
+        + "<h3 class='sec'>📈 التعرّض %s</h3><div class='card2-wrap'>%s</div>" % (_i("exposure"), _exposure_compact(visible))
+        + "<h3 class='sec'>عنق الزجاجة عبر القطاعات %s</h3>" % _i("bottleneck")
+        + _bottleneck_v2(meta.get("bottlenecks") or [])
         + "<h4>🧪 اختبار بأثر رجعي %s</h4>%s" % (_i("backtest"), _backtest_compact(meta.get("backtest")))
         + _not_inv_compact(buckets.get("not_investable", []))
         + "<h4>📰 أثر الأخبار %s</h4>%s" % (_i("news"), _news_compact(news_rows))
         + "<h4>🏛️ النشاط السياسي %s</h4>%s" % (_i("political"), _political_compact(political_rows))
+        + "<h4>📡 إشارات المؤثرين %s</h4><div class='muted xs'>إشارة ضعيفة للمراجعة فقط · لأحدث توصياتهم قُل لكلود «شوف المؤثرين».</div>%s" % (
+            _i("signals"), _signals_compact(meta.get("signals_rows") or []))
         + "</div>"
     )
 

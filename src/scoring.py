@@ -148,7 +148,7 @@ def opportunity_score(rec, cfg):
     add((rec.get("eps_growth_fwd") or 0) / 0.25 if rec.get("eps_growth_fwd") is not None else None, 12)
     add((rec.get("ai_exposure_score", 0) or 0) / 10.0, 12)
     add(_tent(rec.get("pct_below_52w_high"), 0.0, 0.25, 0.75), 12)
-    add((rec.get("fundamental_score") or 0) / 100.0, 14)
+    add((rec.get("fundamental_score") / 100.0) if rec.get("fundamental_score") is not None else None, 14)
     add(min(1.0, (rec.get("independent_confirmations", 0) or 0) / 3.0), 10)
     if not parts:
         return None

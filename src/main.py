@@ -52,6 +52,7 @@ import backtest as backtest_mod
 import stops as stops_mod
 import framework as framework_mod
 import bottlenecks as bottlenecks_mod
+import regime as regime_mod
 import outputs
 import dashboard
 
@@ -111,9 +112,9 @@ def _cloud_price_refresh(records, cfg, names):
         if px and px > 0:
             r = by_t[t]
             r["price"] = float(px)
-            r["last_updated"] = today
+            r["last_updated"] = iso(now_utc())           # real refresh moment (not date-only) → FRESH, consistent with datasource
             r["data_source"] = (r.get("data_source") or "yfinance") + "+finnhub"
-            datasource.refresh_freshness(r, cfg)         # → FRESH (last_updated == today)
+            datasource.refresh_freshness(r, cfg)         # → FRESH (fresh price timestamp)
             done += 1
         if (i + 1) % 55 == 0:
             time.sleep(62)                                # respect the 60/min free limit
@@ -488,6 +489,12 @@ def main():
         rec["rank_score"] = scoring.overall_rank(rec, cfg, bal_w)
     ranked_obj = sorted(records, key=lambda r: (r.get("rank_score") or 0), reverse=True)
     buckets_obj = make_buckets(ranked_obj)
+
+    # ── «العقل العاقل»: استشعار وضع السوق من إشاراتنا، وترشيح الوضع الأنسب (إضافة لا بديل) ──
+    try:
+        base_meta["regime"] = regime_mod.detect(records, market_risk, cfg)
+    except Exception as e:
+        print(f"  regime sense skipped: {e}")
 
     for mkey, mdef in modes.items():
         mdef = mdef or {}

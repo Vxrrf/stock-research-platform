@@ -256,7 +256,8 @@ def find_better(holding, records, cfg, margin=10.0):
     why = f"قناعة {best.get('conviction_score')}/10 مقابل {hconv}، ترتيب أعلى"
     if up is not None:
         why += f"، صعود متوقع {up:+.0%}"
-    return {"ticker": best["ticker"], "name": best.get("name"), "role": role, "why": why}
+    return {"ticker": best["ticker"], "name": best.get("name"), "role": role, "why": why,
+            "halal": best.get("halal_status")}   # surface halal so an unverified pick isn't shown as vetted
 
 
 def evaluate_holdings(records, cfg, deltas=None):
