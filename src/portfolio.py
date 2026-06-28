@@ -148,11 +148,22 @@ def build_model(candidates, cfg):
          "أفضل سهم ذهب من الفحص + RMAU (ذهب حلال فعلي) — حماية وقت الأزمات"),
         ("⚡ مضاربات (صغيرة)", _weighted(spec, a_spec, max(0.02, a_spec / 2)), a_spec,
          "رهانات قصيرة المدى عالية المخاطرة (مثل TTWO) — وزن صغير بقصد، اخرج بسرعة"),
-        ("💵 كاش (ذخيرة)", "—", a_cash, "ذخيرة للتقلّب والشراء بالهبوط"),
     ]
+    # any non-cash sleeve with a target but NO qualifying names → roll it into cash (honest:
+    # don't force a bad pick, and don't show an allocated-but-empty slice in the donut)
+    rolled = 0.0
     for label, holdings, pct, note in specs:
-        rows.append({"bucket": label, "allocation_pct": f"{pct:.0%}",
-                     "suggested_holdings": holdings, "notes": note})
+        if pct > 0 and (not holdings or holdings == "—"):
+            rolled += pct
+            rows.append({"bucket": label, "allocation_pct": "0%",
+                         "suggested_holdings": "—",
+                         "notes": note + " · لا أسماء مؤهّلة هذا الفحص — ضُمّت للكاش"})
+        else:
+            rows.append({"bucket": label, "allocation_pct": f"{pct:.0%}",
+                         "suggested_holdings": holdings, "notes": note})
+    rows.append({"bucket": "💵 كاش (ذخيرة)", "allocation_pct": f"{a_cash + rolled:.0%}",
+                 "suggested_holdings": "—",
+                 "notes": "ذخيرة للتقلّب والشراء بالهبوط" + (" · يشمل خانات بلا أسماء" if rolled else "")})
     s = sum(alloc.values())
     if abs(s - 1.0) > 0.001:
         rows.append({"bucket": "⚠️ تحقّق", "allocation_pct": f"{s:.0%}",

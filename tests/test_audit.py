@@ -256,6 +256,22 @@ def test_portfolio_holdings_sum_and_dedup():
     print("✅ portfolio holdings sum to allocation + tickers de-duplicated across sleeves")
 
 
+def test_empty_sleeve_rolls_into_cash():
+    """A non-cash sleeve with an allocation but NO qualifying names rolls into cash —
+    no allocated-but-empty slice misleads the donut (Codex finding)."""
+    recs = [_rec(ticker="C%d" % i, engines=["compounder"], conviction_score=8,
+                 total_score=80, market_cap=2e11, investable=True) for i in range(5)]
+    rows, _ = portfolio.build_model(recs, CFG)
+    spec_row = next((r for r in rows if "مضاربات" in r["bucket"]), None)
+    cash_row = next((r for r in rows if "كاش" in r["bucket"]), None)
+    assert spec_row and spec_row["allocation_pct"] == "0%", "empty speculation sleeve must show 0%"
+    assert spec_row["suggested_holdings"] == "—" and "كاش" in spec_row["notes"]
+    base_cash = int(round(CFG["portfolio"]["allocation"].get("cash", 0) * 100))
+    cash_pct = int(cash_row["allocation_pct"].replace("%", ""))
+    assert cash_pct > base_cash, "cash must absorb rolled-in empty sleeves (%d vs base %d)" % (cash_pct, base_cash)
+    print("✅ empty allocated sleeve rolls into cash (no misleading empty slice)")
+
+
 def test_movers_empty_on_first_run():
     """movers() must not crash and returns [] when there's no prior snapshot."""
     mem = {"AAA": {"ticker": "AAA", "name": "A", "metrics": {"rank": 80}, "prev_metrics": None}}
