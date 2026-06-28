@@ -81,6 +81,30 @@ def from_sec():
 def main():
     mode = sys.argv[1] if len(sys.argv) > 1 else "--sp1500"
     print(f"بناء الكون (الوضع: {mode}) ...")
+
+    # --3000 / --target N: S&P 1500 quality core FIRST, then fill from SEC up to the target.
+    # The scan's own market-cap gate ($1B–$100B) drops the junk at fetch time.
+    if mode in ("--3000", "--target"):
+        target = 3000
+        if mode == "--target" and len(sys.argv) > 2:
+            try:
+                target = int(sys.argv[2])
+            except ValueError:
+                pass
+        sp = from_sp1500()
+        sec = from_sec()
+        out = sorted(sp)
+        for t in sorted(sec):
+            if len(out) >= target:
+                break
+            if t not in sp:
+                out.append(t)
+        out = out[:target]
+        with open("universe_data.txt", "w", encoding="utf-8") as f:
+            f.write("\n".join(out) + "\n")
+        print(f"\n✅ حُفظ {len(out)} رمز (S&P 1500 = {len(sp)} + توسعة SEC) في universe_data.txt")
+        return 0
+
     tickers = set()
     if mode in ("--sp1500", "--all") or mode == "--sp1500":
         tickers |= from_sp1500()

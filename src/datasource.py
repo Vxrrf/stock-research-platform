@@ -566,11 +566,15 @@ def fetch_many(tickers, cfg=None, want_deep=True, verbose=True, progress_every=1
         print(f"data source: {src} | cache hits: {hits} | to fetch: {len(todo)}")
 
     done = 0
+    got = set()
     if todo:
-        with ThreadPoolExecutor(max_workers=workers) as ex:
+        # big scans: gentler concurrency reduces Yahoo crumb/rate-limit 401s
+        eff = 6 if len(todo) > 1200 else workers
+        with ThreadPoolExecutor(max_workers=eff) as ex:
             futs = {ex.submit(fetch_record, t, cfg, fmp, want_deep): t for t in todo}
             for fut in as_completed(futs):
                 done += 1
+                t = futs[fut]
                 try:
                     rec = fut.result()
                 except Exception:
@@ -578,8 +582,28 @@ def fetch_many(tickers, cfg=None, want_deep=True, verbose=True, progress_every=1
                 if rec:
                     out.append(rec)
                     cache[rec["ticker"]] = rec
+                    got.add(t)
                 if verbose and done % progress_every == 0:
                     print(f"  ... {done}/{len(todo)} fetched (valid: {len(out)})")
+
+        # gentle retry of the misses — yfinance crumb errors are usually transient
+        missed = [t for t in todo if t not in got]
+        if missed:
+            if verbose:
+                print(f"  retrying {len(missed)} failed (gentle, low concurrency)...")
+            time.sleep(2.0)
+            with ThreadPoolExecutor(max_workers=min(4, workers)) as ex:
+                futs = {ex.submit(fetch_record, t, cfg, fmp, want_deep): t for t in missed}
+                for fut in as_completed(futs):
+                    try:
+                        rec = fut.result()
+                    except Exception:
+                        rec = None
+                    if rec:
+                        out.append(rec)
+                        cache[rec["ticker"]] = rec
+            if verbose:
+                print(f"  after retry: {len(out)} valid of {len(todo)} attempted")
         _save_cache(cfg, cache)
 
     return out, hits
