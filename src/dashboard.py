@@ -607,10 +607,22 @@ def _portfolio_list(rows):
     return "<div class='plist'>" + out + "</div>"
 
 
-def _invest_panel(portfolio_rows, cfg):
-    """Merged planner: enter the amount you're investing now → split across the smart
-    allocation with a per-stock cap (after the cap, route new money to funds + rebalance)."""
+_FUND_TICKERS = {"HLAL", "SPUS", "VOO", "RMAU", "GLD", "IAU", "SPY", "QQQ"}
+
+
+def _invest_panel(portfolio_rows, cfg, records):
+    """Merged planner with a CUMULATIVE per-stock cap: track (in the browser) how much you've
+    put into each name across deposits. When a stock hits its cap it stops taking new money —
+    the overflow routes to funds + rebalance — UNLESS it's a strong name (may exceed)."""
     cap = int((cfg.get("portfolio") or {}).get("max_per_stock_usd", 3000))
+    # "strong" = high conviction OR a high-confidence forward outlook → may exceed its cap
+    strong = {}
+    for r in records:
+        t = r.get("ticker")
+        if not t:
+            continue
+        strong[t] = bool((r.get("conviction_score") or 0) >= 8.5 or (
+            r.get("forward_outlook_confidence") == "HIGH" and (r.get("forward_outlook_score") or 0) >= 8))
     data = []
     for r in portfolio_rows:
         try:
@@ -622,14 +634,18 @@ def _invest_panel(portfolio_rows, cfg):
         shade, name = _bucket_meta(r.get("bucket", ""))
         names = re.findall(r"([A-Z]{2,6}) (\d+)%", r.get("suggested_holdings", "") or "")
         data.append({"b": name, "c": shade, "pct": pctn,
-                     "names": [{"t": t, "p": int(pp)} for t, pp in names]})
+                     "names": [{"t": t, "p": int(pp), "s": strong.get(t, False),
+                                "f": (t in _FUND_TICKERS)} for t, pp in names]})
     return ("<div class='invest'>"
             "<div class='inv-h'>مبلغي للاستثمار الآن</div>"
             "<input type='number' id='invamt' inputmode='decimal' placeholder='مثال: 1000' "
             "class='inv-in n' oninput='splitInvest()'>"
             "<div id='invout'></div>"
-            "<div class='inv-cap muted xs'>سقف المركز للسهم الواحد <b class='n'>$%d</b> — بعده وجّه الجديد "
-            "للصناديق/الكاش وأعِد الموازنة.</div>"
+            "<div class='inv-btns'>"
+            "<button class='ibtn' onclick='recordInvest()'>سجّلت إني استثمرت</button>"
+            "<button class='ibtn ghost' onclick='resetInvest()'>تصفير التتبّع</button></div>"
+            "<div class='inv-cap muted xs'>سقف المركز لكل سهم <b class='n'>$%d</b> <b>تراكمياً</b> — لمّا يمتلئ "
+            "نوقف الضخ فيه (إلا لو قوي) ونوجّه فلوسه للصناديق + إعادة موازنة. التتبّع محفوظ على جهازك فقط.</div>"
             "<script>window.__INV=%s;window.__CAP=%d;</script></div>"
             % (cap, json.dumps(data, ensure_ascii=False), cap))
 
@@ -910,8 +926,15 @@ h4{font-size:13px;margin:18px 0 8px;color:var(--t2);font-weight:600}
 .inv-b{display:flex;align-items:center;gap:8px;margin:13px 0 4px;font-size:13px;font-weight:600;border-top:1px solid var(--hair);padding-top:11px}
 .inv-bk{width:9px;height:9px;border-radius:3px;flex:none}.inv-bn{flex:1}
 .inv-b>b{color:var(--sage);font-weight:400}
-.inv-row{display:flex;justify-content:space-between;font-size:12.5px;color:var(--t2);padding:3px 0;padding-inline-start:17px}
-.inv-row>b{color:var(--t1);font-weight:400}
+.inv-row{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12.5px;color:var(--t2);padding:4px 0;padding-inline-start:17px}
+.inv-row>b{color:var(--t1);font-weight:400;white-space:nowrap}
+.inv-prog{color:var(--t3);font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:10.5px;margin-inline-start:auto;margin-inline-end:10px;direction:ltr;unicode-bidi:isolate}
+.inv-row .fp-dn,.inv-row .fp-up{font-size:10px;font-weight:600}
+.inv-btns{display:flex;gap:8px;margin-top:13px}
+.ibtn{flex:1;background:var(--sage16);color:var(--sage);border:0;border-radius:11px;padding:11px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.ibtn:active{transform:scale(.97)}
+.ibtn.ghost{background:var(--field);color:var(--t2);border:1px solid var(--hair)}
+.inv-extra{margin-top:11px;background:var(--field);border:1px solid var(--hair);border-radius:11px;padding:10px 12px;font-size:12px;color:var(--sage);line-height:1.6}
 /* جريدة اليوم */
 .np-news{display:flex;align-items:flex-start;gap:11px;padding:9px 0;border-top:1px solid var(--hair)}
 .np-news:first-child{border-top:0}
@@ -1053,20 +1076,49 @@ function tab(id,btn){var ps=document.querySelectorAll('.tabpanel');for(var i=0;i
  document.getElementById(id).classList.add('show');
  var bs=document.querySelectorAll('.tabbtn');for(var j=0;j<bs.length;j++)bs[j].classList.remove('on');
  btn.classList.add('on');window.scrollTo({top:0,behavior:'smooth'});}
-// لوحة الاستثمار: قسّم المبلغ على التوزيع الذكي مع سقف لكل سهم
+// لوحة الاستثمار: قسّم المبلغ على التوزيع الذكي مع سقف تراكمي لكل سهم (محفوظ على الجهاز)
 function _m(x){return '$'+Math.round(x).toLocaleString('en-US');}
-function splitInvest(){
-  var el=document.getElementById('invamt');if(!el)return;
-  var a=parseFloat(el.value)||0,out=document.getElementById('invout');if(!out)return;
-  if(a<=0){out.innerHTML='';return;}
-  var D=window.__INV||[],cap=window.__CAP||1e9,h='';
-  for(var i=0;i<D.length;i++){var b=D[i],bAmt=a*(b.pct/100);if(bAmt<0.5)continue;
-    h+='<div class="inv-b"><span class="inv-bk" style="background:'+b.c+'"></span><span class="inv-bn">'+b.b+'</span><b class="n">'+_m(bAmt)+'</b></div>';
-    for(var j=0;j<b.names.length;j++){var nm=b.names[j],amt=a*(nm.p/100),over=amt>cap;
-      h+='<div class="inv-row"><span class="n">'+nm.t+'</span><b class="n">'+_m(over?cap:amt)+(over?' <span class="fp-dn">+ للصناديق</span>':'')+'</b></div>';}
+function _cum(){try{return JSON.parse(localStorage.getItem('inv_cum')||'{}');}catch(e){return {};}}
+function _saveCum(c){try{localStorage.setItem('inv_cum',JSON.stringify(c));}catch(e){}}
+function _split(){
+  // returns the cap-aware allocation for the amount in the box (None of this mutates storage)
+  var a=parseFloat((document.getElementById('invamt')||{}).value)||0;
+  var D=window.__INV||[],cap=window.__CAP||1e9,cum=_cum(),names=[],extra=0;
+  for(var i=0;i<D.length;i++){var b=D[i];
+    for(var j=0;j<b.names.length;j++){var nm=b.names[j],raw=a*(nm.p/100),give=raw,full=false,al=cum[nm.t]||0;
+      if(!nm.f && !nm.s){var room=Math.max(0,cap-al);give=Math.min(raw,room);if(room<=0){full=true;}extra+=(raw-give);}
+      names.push({t:nm.t,b:b.b,c:b.c,give:give,full:full,already:al,fund:nm.f,strong:nm.s,over:(nm.s&&al>=cap)});}
   }
+  return {a:a,cap:cap,names:names,extra:extra};
+}
+function splitInvest(){
+  var out=document.getElementById('invout');if(!out)return;
+  var S=_split();if(S.a<=0){out.innerHTML='';return;}
+  var byB={},order=[];
+  S.names.forEach(function(n){if(!byB[n.b]){byB[n.b]={c:n.c,items:[],sum:0};order.push(n.b);}byB[n.b].items.push(n);byB[n.b].sum+=n.give;});
+  var h='';
+  order.forEach(function(bn){var b=byB[bn];
+    h+='<div class="inv-b"><span class="inv-bk" style="background:'+b.c+'"></span><span class="inv-bn">'+bn+'</span><b class="n">'+_m(b.sum)+'</b></div>';
+    b.items.forEach(function(n){
+      var tag='';
+      if(n.full){tag=' <span class="fp-dn">ممتلئ → للصناديق</span>';}
+      else if(n.over){tag=' <span class="fp-up">قوي — تجاوز مسموح</span>';}
+      var prog=n.fund?'':'<span class="inv-prog">'+_m(n.already)+'/'+_m(S.cap)+'</span>';
+      h+='<div class="inv-row"><span class="n">'+n.t+'</span>'+prog+'<b class="n">'+_m(n.give)+tag+'</b></div>';
+    });
+  });
+  if(S.extra>0.5){h+='<div class="inv-extra">+ '+_m(S.extra)+' فائض الأسهم الممتلئة → وجّهه للصناديق (ETF/كاش) وأعد الموازنة.</div>';}
   out.innerHTML=h;
 }
+function recordInvest(){
+  var S=_split();if(S.a<=0){alert('اكتب المبلغ أول');return;}
+  var cum=_cum();S.names.forEach(function(n){if(!n.fund && n.give>0){cum[n.t]=(cum[n.t]||0)+n.give;}});
+  _saveCum(cum);
+  var el=document.getElementById('invamt');if(el)el.value='';
+  splitInvest();
+  alert('سجّلت! حدّثنا كم وضعت بكل سهم — الأسهم الممتلئة بتتجاوز المرّة الجاية وفلوسها للصناديق.');
+}
+function resetInvest(){if(confirm('تصفير تتبّع كم استثمرت بكل سهم؟')){_saveCum({});splitInvest();}}
 function exp(el){var d=el.nextElementSibling;if(!d||!d.classList.contains('ldetail'))return;
  var open=d.classList.toggle('open');var c=el.querySelector('.chev');if(c)c.textContent=open?'⌃':'⌄';}
 function updateAll(b){
@@ -1177,7 +1229,7 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
     tab_port = (
         "<div id='t-port' class='tabpanel show'>"
         + _mode_bar(meta)
-        + _invest_panel(portfolio_rows, cfg)
+        + _invest_panel(portfolio_rows, cfg, records)
         + _fwd_pulse(records)
         + _alloc_donut(portfolio_rows, meta)
         + "<h3 class='sec'>التوزيع الذكي %s</h3>" % _i("portfolio")
