@@ -40,9 +40,9 @@ def _dcf_per_share(rec, cfg):
         g0 = rec.get("rev_growth")
     if g0 is None:
         g0 = rec.get("eps_growth_fwd")
-    if g0 is None:
+    if not isinstance(g0, (int, float)):              # defend against bad/complex raw values
         g0 = 0.06
-    g0 = max(0.0, min(cap, g0))                       # conservative: floor 0, cap config
+    g0 = max(0.0, min(cap, float(g0)))                # conservative: floor 0, cap config
     pv = 0.0
     f = float(fcf)
     for yr in range(1, H + 1):

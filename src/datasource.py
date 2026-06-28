@@ -46,10 +46,13 @@ def _num(x):
 
 def _cagr(latest, earliest, years):
     latest, earliest = _num(latest), _num(earliest)
-    if not latest or not earliest or earliest <= 0 or years <= 0:
+    # latest<=0 too: a negative base to a fractional power returns a COMPLEX in Python
+    # (not a ValueError) — which would silently poison downstream numeric comparisons.
+    if not latest or not earliest or earliest <= 0 or latest <= 0 or years <= 0:
         return None
     try:
-        return (latest / earliest) ** (1.0 / years) - 1.0
+        v = (latest / earliest) ** (1.0 / years) - 1.0
+        return v if isinstance(v, (int, float)) else None
     except (ValueError, ZeroDivisionError):
         return None
 

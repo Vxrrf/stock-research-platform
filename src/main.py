@@ -89,6 +89,38 @@ def discovery_eligible(rec, cfg, watchlist):
     return True
 
 
+def _cloud_price_refresh(records, cfg, names):
+    """Cloud-reliable live PRICE refresh via Finnhub (free key, 60/min) for the displayed names.
+    yfinance is blocked from cloud IPs, so when the GitHub Action runs (Mac off) this keeps the
+    key names' prices fresh on top of the cached fundamentals. No-op if no Finnhub key (renders
+    cached prices, freshness stays honest)."""
+    import time
+    import datetime as _dt
+    import sources
+    fh = sources.FinnhubClient(cfg)
+    if not fh.enabled:
+        print("cloud refresh: no Finnhub key → rendering cached prices (freshness stays honest)")
+        return 0
+    by_t = {r.get("ticker"): r for r in records if r.get("ticker")}
+    targets = [t for t in names if t in by_t][:250]      # ~250 fits Finnhub free (60/min) in a few min
+    today = _dt.date.today().isoformat()
+    done = 0
+    for i, t in enumerate(targets):
+        q = fh.quote(t)
+        px = (q or {}).get("c")
+        if px and px > 0:
+            r = by_t[t]
+            r["price"] = float(px)
+            r["last_updated"] = today
+            r["data_source"] = (r.get("data_source") or "yfinance") + "+finnhub"
+            datasource.refresh_freshness(r, cfg)         # → FRESH (last_updated == today)
+            done += 1
+        if (i + 1) % 55 == 0:
+            time.sleep(62)                                # respect the 60/min free limit
+    print(f"cloud refresh: Finnhub updated {done}/{len(targets)} live prices")
+    return done
+
+
 def main():
     ap = argparse.ArgumentParser(description="Investment Research Platform")
     ap.add_argument("--watchlist", action="store_true", help="only the starting watchlist (fast)")
@@ -100,7 +132,12 @@ def main():
                     help="one-button update: full scan + force-refresh YOUR watchlist/holdings live")
     ap.add_argument("--no-trackers", action="store_true", help="skip earnings/insider/news/political")
     ap.add_argument("--backtest", action="store_true", help="run the (honest) top-basket vs SPY backtest + cache it")
+    ap.add_argument("--cloud", action="store_true",
+                    help="cloud refresh (GitHub Actions, Mac off): load cache + refresh prices via Finnhub "
+                         "(yfinance is blocked from cloud IPs). No-op without a Finnhub key.")
     args = ap.parse_args()
+    if args.cloud:
+        args.from_cache = True          # cloud renders from the committed cache, refreshing live prices
 
     cfg = load_config()
     ext = load_external_lists()
@@ -168,10 +205,17 @@ def main():
         records = [r for r in cached_records if r and r.get("price") is not None]
         # recompute freshness against TODAY — a cached quote is not 'FRESH' a week later
         for rec in records:
+            # scrub any complex values an older buggy cache may hold (would poison comparisons)
+            for _k, _v in list(rec.items()):
+                if isinstance(_v, complex):
+                    rec[_k] = None
             datasource.refresh_freshness(rec, cfg)
         from collections import Counter as _C
         _fc = _C(r.get("data_freshness_status") for r in records)
         print(f"reusing {len(records)} cached records (no fetch) — freshness recomputed: {dict(_fc)}")
+        if args.cloud:        # GitHub-Actions path: refresh live prices via Finnhub (Mac off)
+            _names = sorted(set(watchlist) | set(tickers[:240]))
+            _cloud_price_refresh(records, cfg, _names)
     else:
         records, hits = datasource.fetch_many(tickers, cfg, want_deep=True, verbose=True, fmp=fmp, force_set=force_set)
         records = [r for r in records if r and r.get("price") is not None]

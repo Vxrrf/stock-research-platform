@@ -24,12 +24,12 @@ jobs:
           python-version: "3.12"
       - name: install deps
         run: pip install -r requirements.txt
-      - name: regenerate (best-effort live; freshness stays honest if a source is throttled)
+      - name: regenerate — cloud refresh (cache + live prices via Finnhub; yfinance is cloud-blocked)
         env:
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
         run: |
-          python src/main.py --live --no-trackers --limit 1200 || echo "live fetch incomplete — keeping last good snapshot"
+          python src/main.py --cloud --no-trackers || echo "cloud refresh incomplete — keeping last good snapshot"
       - name: stage snapshot
         run: |
           mkdir -p docs
