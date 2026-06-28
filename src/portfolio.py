@@ -79,12 +79,25 @@ def _weighted(bucket, total_pct, cap, etfs=None):
     syms += [(e, 1.0) for e in (etfs or [])]            # ETFs get an equal base weight
     if not syms:
         return "—"
+    target = int(round(total_pct * 100))                # bucket size, in whole percentage points
     s = sum(w for _, w in syms) or 1.0
-    parts = []
-    for t, w in syms:
-        pct = min(cap, total_pct * w / s) if cap else total_pct * w / s
-        parts.append("%s %.0f%%" % (t, pct * 100))
-    return " · ".join(parts)
+    capv = int(cap * 100) if cap else target
+    raw = [min(float(capv), target * w / s) for _, w in syms]   # ideal pp per name, capped
+    pts = [int(v) for v in raw]                         # floors
+    rema = [raw[i] - pts[i] for i in range(len(raw))]
+    short = target - sum(pts)                           # largest-remainder: hand out leftover points
+    order = sorted(range(len(raw)), key=lambda i: rema[i], reverse=True)
+    k = 0
+    while short > 0 and order:
+        idx = order[k % len(order)]
+        if pts[idx] < capv:                             # never push a name past its cap
+            pts[idx] += 1
+            short -= 1
+        k += 1
+        if k > 4 * len(order):
+            break
+    parts = ["%s %d%%" % (syms[i][0], pts[i]) for i in range(len(syms)) if pts[i] > 0]
+    return " · ".join(parts) if parts else "—"
 
 
 def build_model(candidates, cfg):

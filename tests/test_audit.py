@@ -197,6 +197,36 @@ def test_mode_weights_change_ranking():
     print(f"✅ modes re-rank (aggr: GRW {g_a}>{s_a}; cons: SAFE {s_c}>{g_c})")
 
 
+def test_modes_change_allocation_not_ranking():
+    """The CURRENT contract (post-restructure): investor MODE shapes the PORTFOLIO
+    ALLOCATION only. Research ranking stays OBJECTIVE (balanced weights) and identical
+    across modes — main.py ranks every dashboard with balanced, mode never enters the rank."""
+    import copy
+    recs = [
+        _rec(ticker="CMP", engines=["compounder"], conviction_score=8, total_score=82,
+             fundamental_score=75, opportunity_score=60, risk_score=30, market_cap=2e11, investable=True),
+        _rec(ticker="ACC", engines=["accelerator"], conviction_score=7, total_score=78,
+             fundamental_score=65, opportunity_score=85, risk_score=55, market_cap=3e10, investable=True),
+        _rec(ticker="FUT", engines=["future_leader"], conviction_score=6, total_score=70,
+             fundamental_score=58, opportunity_score=80, risk_score=70, market_cap=5e9, investable=True),
+    ]
+    bal = CFG["modes"]["balanced"]["rank"]
+    order = [r["ticker"] for r in sorted(recs, key=lambda r: scoring.overall_rank(r, CFG, bal), reverse=True)]
+
+    def alloc_rows(mode):
+        cfg = copy.deepcopy(CFG)
+        cfg["portfolio"] = dict(cfg["portfolio"])
+        cfg["portfolio"]["allocation"] = CFG["modes"][mode]["allocation"]
+        rows, _ = portfolio.build_model(recs, cfg)
+        return {row["bucket"]: row["allocation_pct"] for row in rows}
+
+    aggr, cons = alloc_rows("aggressive"), alloc_rows("conservative")
+    order2 = [r["ticker"] for r in sorted(recs, key=lambda r: scoring.overall_rank(r, CFG, bal), reverse=True)]
+    assert order == order2, "objective ranking must be stable / independent of mode"
+    assert aggr != cons, "investor modes must change the portfolio allocation"
+    print(f"✅ modes change ALLOCATION not RANKING (objective order={order}; aggr≠cons)")
+
+
 def test_movers_empty_on_first_run():
     """movers() must not crash and returns [] when there's no prior snapshot."""
     mem = {"AAA": {"ticker": "AAA", "name": "A", "metrics": {"rank": 80}, "prev_metrics": None}}
