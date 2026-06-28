@@ -453,6 +453,69 @@ def _holdings_list(rows):
     return "<div class='list'>" + out + "</div>"
 
 
+# bucket-label keyword → (segment color, legend name)
+_DONUT_MAP = [
+    ("مُركِّبون", "#5b8fd6", "نواة (مُركِّبون)"),
+    ("مُسرِّعون", "#46b08c", "مُسرِّعون"),
+    ("قادة",      "#8a7fe0", "قادة المستقبل"),
+    ("ETF",       "#3fa7c4", "ETF حلال"),
+    ("ذهب",       "#d8a23a", "ذهب (حماية)"),
+    ("مضاربات",   "#d9777f", "مضاربات"),
+    ("كاش",       "#6b7480", "كاش"),
+]
+
+
+def _alloc_donut(rows, meta):
+    """Clean animated allocation ring + legend — the visual face of the portfolio."""
+    segs = []
+    for r in rows:
+        lbl = r.get("bucket", "")
+        if "تحقّق" in lbl:                       # skip the sum-mismatch warning row
+            continue
+        try:
+            pct = int(round(float(str(r.get("allocation_pct", "0")).replace("%", "").strip())))
+        except Exception:
+            pct = 0
+        if pct <= 0:
+            continue
+        color, name = "#6b7480", lbl
+        for key, c, nm in _DONUT_MAP:
+            if key in lbl:
+                color, name = c, nm
+                break
+        segs.append((pct, color, name))
+    if not segs:
+        return ""
+    total = sum(p for p, _, _ in segs) or 100
+    ring, cum = "", 0.0
+    for i, (pct, color, _) in enumerate(segs):
+        share = pct * 100.0 / total
+        ring += ("<circle class='seg' cx='100' cy='100' r='72' fill='none' stroke='%s' "
+                 "stroke-width='20' pathLength='100' style='--dash:%.2f 100;"
+                 "stroke-dashoffset:%.2f;animation-delay:%.2fs'></circle>"
+                 % (color, max(0.0, share - 0.7), -cum, 0.07 * i))   # -0.7 = hairline gap between slices
+        cum += share
+    nav = meta.get("modes_nav") or []
+    active = meta.get("active_mode")
+    mode_lbl = next((l for k, l, _f in nav if k == active), "التوزيع الذكي")
+    center = ("<text x='100' y='94' class='dc-t'>محفظتي</text>"
+              "<text x='100' y='116' class='dc-s'>%s</text>" % _h(mode_lbl))
+    svg = ("<svg viewBox='0 0 200 200' class='donut' role='img' aria-label='توزيع المحفظة'>"
+           "<g transform='rotate(-90 100 100)'>"
+           "<circle class='ring-bg' cx='100' cy='100' r='72' fill='none' stroke-width='20'></circle>"
+           + ring + "</g>" + center + "</svg>")
+    legend = ""
+    for pct, color, name in segs:
+        lp = int(round(pct * 100.0 / total))      # normalized to match the ring; sums to 100
+        legend += ("<div class='dli'><span class='ddot' style='background:%s'></span>"
+                   "<span class='dnm'>%s</span>"
+                   # static text = the real value (so prefers-reduced-motion shows it, not 0);
+                   # the count-up animates from 0→value only when motion is enabled.
+                   "<span class='dpc'><span class='cnt' data-c='%d' data-d='0'>%d</span>%%</span></div>"
+                   % (color, _h(name), lp, lp))
+    return "<div class='dchart'>%s<div class='dleg'>%s</div></div>" % (svg, legend)
+
+
 def _portfolio_list(rows):
     out = ""
     for r in rows:
@@ -740,6 +803,23 @@ body.anim .ldetail.open{max-height:1600px;opacity:1}
 @keyframes glowr{0%,100%{text-shadow:none}40%{text-shadow:0 0 10px #d9777f55}}
 body.anim .reveal .pnl-pos{animation:glowg 1.1s ease .2s 1}
 body.anim .reveal .pnl-neg{animation:glowr 1.1s ease .2s 1}
+/* ═══ دونت توزيع المحفظة (الواجهة) ═══ */
+.dchart{display:flex;gap:16px;align-items:center;flex-wrap:wrap;justify-content:center;
+  background:linear-gradient(180deg,#11171e,#0e131a);border:1px solid #1f2630;border-radius:18px;padding:16px 14px;margin:6px 0 16px}
+.donut{width:184px;height:184px;flex:none}
+.donut .ring-bg{stroke:#1a212a}
+.donut .seg{stroke-dasharray:var(--dash);stroke-linecap:butt}
+body.anim .donut .seg{animation:dgrow .95s cubic-bezier(.34,1,.5,1) both}
+@keyframes dgrow{from{stroke-dasharray:0 100}to{stroke-dasharray:var(--dash)}}
+.dc-t{fill:#eef2f7;font-size:19px;font-weight:800;text-anchor:middle;dominant-baseline:middle;font-family:inherit}
+.dc-s{fill:#7b8694;font-size:10px;text-anchor:middle;dominant-baseline:middle;font-family:inherit}
+.dleg{display:grid;grid-template-columns:1fr 1fr;gap:7px 18px;flex:1;min-width:230px}
+.dli{display:flex;align-items:center;gap:8px;font-size:12.5px}
+.ddot{width:11px;height:11px;border-radius:3px;flex:none}
+.dnm{color:#c4ccd6;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dpc{color:#eef2f7;font-weight:700;font-variant-numeric:tabular-nums;flex:none}
+@media(max-width:620px){.donut{width:158px;height:158px}}
+@media(max-width:430px){.dleg{grid-template-columns:1fr;min-width:0}}
 @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
 """
 
@@ -785,7 +865,7 @@ function updateAll(b){
 (function(){
   try{ if(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return; }catch(e){}
   document.body.classList.add('anim');
-  var sels='.today,.list,.bn2,.card2,.plist,.acc,.modebar,.bn-intro,h3.sec';
+  var sels='.today,.list,.bn2,.card2,.plist,.acc,.dchart,.modebar,.bn-intro,h3.sec';
   var io=new IntersectionObserver(function(es){es.forEach(function(e){
     if(e.isIntersecting){e.target.classList.add('reveal');
       e.target.querySelectorAll('.cnt').forEach(countUp);io.unobserve(e.target);}});},
@@ -793,7 +873,7 @@ function updateAll(b){
   function wire(root){(root||document).querySelectorAll(sels).forEach(function(el){io.observe(el);});}
   wire();
   // count up any numbers already on screen (above the fold)
-  setTimeout(function(){document.querySelectorAll('.reveal .cnt,.strip0 .cnt').forEach(countUp);},120);
+  setTimeout(function(){document.querySelectorAll('.reveal .cnt,.strip0 .cnt,.dchart .cnt').forEach(countUp);},120);
   // when a tab becomes visible, reveal its freshly-shown content + grow its bars
   window.addEventListener('click',function(ev){
     var b=ev.target.closest && ev.target.closest('.tabbtn'); if(!b) return;
@@ -886,6 +966,7 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
         "<p class='lead'>محفظة ذكية مبنية على البحث: كل خانة تختار <b>الأفضل تلقائياً</b> من الفلتر — "
         "خانة الذهب/التحوّط تختار أقوى سهم ذهب من الفحص (مو ثابتة على AEM)، وكل خانة لها وزنها. "
         "الأوزان تتبدّل حسب <b>وضع المحفظة</b> فوق. بحث وتوزيع — مو «بيع/اشترِ الآن».</p>"
+        + _alloc_donut(portfolio_rows, meta)
         + "<h3 class='sec'>📊 التوزيع الذكي — الأفضل من كل خانة %s</h3>" % _i("portfolio")
         + _portfolio_list(portfolio_rows)
         + "<h3 class='sec'>📌 مراكزي الحالية</h3>"

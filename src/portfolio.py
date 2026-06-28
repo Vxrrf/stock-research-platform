@@ -36,13 +36,30 @@ def _gold_picks(candidates, cfg, n=2):
     out = []
     for r in candidates:
         ind = (r.get("industry") or "").lower()
-        sec = (r.get("sector") or "").lower()
-        is_gold = ("gold" in ind or "silver" in ind or "precious" in ind
-                   or (("materials" in sec) and r.get("cyclical")))
+        # gold/silver/precious ONLY — the hedge bucket must stay a true gold play, not a
+        # copper/lithium miner that happens to out-score (if none qualify, _gold_row → RMAU).
+        is_gold = "gold" in ind or "silver" in ind or "precious" in ind
         if is_gold and r.get("investable", True) and (mode == "info" or r.get("halal_status") != "fail"):
             out.append(r)
     out.sort(key=lambda r: (r.get("conviction_score") or 0), reverse=True)
     return out[:n]
+
+
+def _spec_picks(candidates, cfg, n=3):
+    """Speculation sleeve — hot, high-MOMENTUM, non-core punts (TTWO-style). Kept SMALL by
+    design (high risk, exit fast). Ranked by 1-year momentum among names that are NOT steady
+    compounders and NOT funds; data-artifact runs (>+350%/yr) excluded as suspect."""
+    mode = ((cfg.get("halal", {}) or {}).get("mode") or "gate").lower()
+
+    def ok(r):
+        return (r.get("investable", True) and not r.get("is_fund") and not r.get("data_suspect")
+                and (mode == "info" or r.get("halal_status") != "fail"))
+
+    pool = [r for r in candidates if ok(r)
+            and "compounder" not in (r.get("engines") or [])      # core quality belongs in نواة, not مضاربات
+            and 0.4 <= (r.get("one_year_return") or 0) <= 3.5]    # hot (+40%↑) but not a split artifact
+    pool.sort(key=lambda r: (r.get("one_year_return") or 0), reverse=True)
+    return pool[:n]
 
 
 def _gold_row(gold, total_pct):
@@ -50,7 +67,7 @@ def _gold_row(gold, total_pct):
     balanced so the actual-gold ETF keeps real ballast and isn't swamped by the miner."""
     if not gold:
         return "RMAU %.0f%%" % (total_pct * 100)          # no miner found → all physical gold
-    miner = gold[0]["ticker"]
+    miner = gold[0].get("ticker")
     return "%s %.0f%% · RMAU %.0f%%" % (miner, total_pct * 0.55 * 100, total_pct * 0.45 * 100)
 
 
@@ -58,7 +75,7 @@ def _weighted(bucket, total_pct, cap, etfs=None):
     """Position sizing INSIDE a bucket: conviction-weighted, capped per name. Returns a
     readable 'TICKER X% · TICKER Y%' string so the user sees exactly how much to put."""
     items = list(bucket or [])
-    syms = [(r["ticker"], max(0.1, (r.get("conviction_score") or 1))) for r in items]
+    syms = [(r.get("ticker"), max(0.1, (r.get("conviction_score") or 1))) for r in items]
     syms += [(e, 1.0) for e in (etfs or [])]            # ETFs get an equal base weight
     if not syms:
         return "—"
@@ -80,12 +97,14 @@ def build_model(candidates, cfg):
     accel = _bucket(candidates, "accelerator", p.get("max_accelerators", 8), cfg)
     fut = _bucket(candidates, "future_leader", p.get("max_future_leaders", 10), cfg)
     gold = _gold_picks(candidates, cfg, n=1)       # data-driven best gold miner (replaces AEM if it out-scores)
+    spec = _spec_picks(candidates, cfg)            # small high-risk speculation sleeve (TTWO-style)
     cap_c = p.get("max_single_compounder_pct", 0.12)
     cap_f = p.get("max_single_future_leader_pct", 0.03)
 
     rows = []
     a_comp, a_accel, a_fut = alloc.get("compounders", 0), alloc.get("accelerators", 0), alloc.get("future_leaders", 0)
-    a_etf, a_gold, a_cash = alloc.get("broad_market_etf", 0), alloc.get("gold_etf", 0), alloc.get("cash", 0)
+    a_etf, a_gold = alloc.get("broad_market_etf", 0), alloc.get("gold_etf", 0)
+    a_spec, a_cash = alloc.get("speculation", 0), alloc.get("cash", 0)
     specs = [
         ("🏛️ مُركِّبون (نواة)", _weighted(comp, a_comp, cap_c), a_comp,
          f"جودة تدوم — موزّعة بالقناعة، كل اسم ≤ {cap_c:.0%}"),
@@ -95,6 +114,8 @@ def build_model(candidates, cfg):
         ("🛡️ ETF حلال/واسع", _weighted([], a_etf, 0, etfs.get("broad_market_etf", [])), a_etf, "تحوّط واسع متوافق شرعياً"),
         ("🥇 ذهب (حماية)", _gold_row(gold, a_gold), a_gold,
          "أفضل سهم ذهب من الفحص + RMAU (ذهب حلال فعلي) — حماية وقت الأزمات"),
+        ("⚡ مضاربات (صغيرة)", _weighted(spec, a_spec, max(0.02, a_spec / 2)), a_spec,
+         "رهانات قصيرة المدى عالية المخاطرة (مثل TTWO) — وزن صغير بقصد، اخرج بسرعة"),
         ("💵 كاش (ذخيرة)", "—", a_cash, "ذخيرة للتقلّب والشراء بالهبوط"),
     ]
     for label, holdings, pct, note in specs:
@@ -105,7 +126,8 @@ def build_model(candidates, cfg):
         rows.append({"bucket": "⚠️ تحقّق", "allocation_pct": f"{s:.0%}",
                      "suggested_holdings": "—",
                      "notes": "المجموع لا يساوي 100% — عدّل config.yaml"})
-    return rows, {"compounders": comp, "accelerators": accel, "future_leaders": fut}
+    return rows, {"compounders": comp, "accelerators": accel, "future_leaders": fut,
+                  "gold": gold, "speculation": spec}
 
 
 def _read_holdings():

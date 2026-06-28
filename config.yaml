@@ -213,8 +213,10 @@ halal:
     - electronic gaming & multimedia
 
 # ─────────────────────────────────────────────────────────────────────
-#  INVESTOR MODES — نفس البيانات، عدسة مختلفة (محافظ / متوازن / هجومي)
-#  يغيّر أوزان الترتيب الكلي (rank_score) + توزيع المحفظة. balanced = الافتراضي.
+#  INVESTOR MODES — وضع المحفظة (محافظ / متوازن / هجومي)
+#  ⚠️ الوضع يغيّر «توزيع المحفظة» فقط — البحث والترتيب (rank_score) يبقى
+#  موضوعياً دايماً (أوزان balanced لكل الداشبوردات). حقول `rank` أدناه legacy
+#  (تُستخدم باختبار الوحدة فقط، main.py ما يطبّقها على الترتيب). balanced = الافتراضي.
 #  المنصّة تولّد الثلاثة كل تشغيل وتقدر تبدّل بينها من الأزرار فوق.
 # ─────────────────────────────────────────────────────────────────────
 modes:
@@ -222,17 +224,17 @@ modes:
     label: "⚖️ متوازن"
     desc: "توازن بين الجودة والفرصة والحماية — الوضع الافتراضي."
     rank: {conv: 0.40, opp: 0.20, lowrisk: 0.15, fund: 0.15, total: 0.10}
-    allocation: {compounders: 0.30, accelerators: 0.16, future_leaders: 0.12, broad_market_etf: 0.13, gold_etf: 0.12, cash: 0.17}
+    allocation: {compounders: 0.30, accelerators: 0.16, future_leaders: 0.12, broad_market_etf: 0.13, gold_etf: 0.12, speculation: 0.05, cash: 0.12}
   aggressive:
     label: "🔥 هجومي"
     desc: "يرفع وزن الفرصة والصيد (x5–x10) ويخفّض وزن المخاطرة — تقلّب أعلى."
     rank: {conv: 0.30, opp: 0.34, lowrisk: 0.06, fund: 0.12, total: 0.18}
-    allocation: {compounders: 0.24, accelerators: 0.22, future_leaders: 0.20, broad_market_etf: 0.10, gold_etf: 0.08, cash: 0.16}
+    allocation: {compounders: 0.24, accelerators: 0.22, future_leaders: 0.20, broad_market_etf: 0.10, gold_etf: 0.08, speculation: 0.08, cash: 0.08}
   conservative:
     label: "🛡️ محافظ"
     desc: "يرفع وزن الجودة وانخفاض المخاطرة والحماية — تذبذب أقل، صبر أطول."
     rank: {conv: 0.36, opp: 0.10, lowrisk: 0.28, fund: 0.20, total: 0.06}
-    allocation: {compounders: 0.34, accelerators: 0.10, future_leaders: 0.06, broad_market_etf: 0.18, gold_etf: 0.14, cash: 0.18}
+    allocation: {compounders: 0.34, accelerators: 0.10, future_leaders: 0.06, broad_market_etf: 0.18, gold_etf: 0.14, speculation: 0.03, cash: 0.15}
 
 # ─────────────────────────────────────────────────────────────────────
 #  PORTFOLIO BUILDER  (spec §16 — 25y/o, high-risk, growth + protection)
@@ -246,7 +248,8 @@ portfolio:
     future_leaders: 0.12           # small, DISTRIBUTED asymmetric bets (x3–x10 hunt)
     broad_market_etf: 0.13         # halal/broad hedge
     gold_etf: 0.12                 # crisis protection (higher now: war/oil shock)
-    cash: 0.17                     # dry powder for volatility
+    speculation: 0.05              # SMALL high-risk sleeve — short-horizon punts (TTWO-style)
+    cash: 0.12                     # dry powder for volatility
   max_single_compounder_pct: 0.12  # cap any one core name
   max_single_future_leader_pct: 0.03  # each future leader stays tiny (survive an -80%)
   max_single_stock_pct: 0.15       # rebalance flag (spec §17)
