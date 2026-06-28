@@ -106,6 +106,8 @@ def update(cfg, records, run_date, ranked):
             "rank": rec.get("rank_score"), "conv": rec.get("conviction_score"),
             "opp": rec.get("opportunity_score"), "risk": rec.get("risk_score"),
             "fund": rec.get("fundamental_score"), "upside": rec.get("analyst_upside_percent"),
+            # forward-revision baseline: lets next run see the DIRECTION estimates moved
+            "target_mean": rec.get("target_mean"), "rec_mean": rec.get("rec_mean"),
         }
         mem[sym] = entry
 

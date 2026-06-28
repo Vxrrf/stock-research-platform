@@ -208,7 +208,8 @@ def risk_score(rec, cfg):
     return round(100.0 * val, 1)
 
 
-DEFAULT_RANK_WEIGHTS = {"conv": 0.40, "opp": 0.20, "lowrisk": 0.15, "fund": 0.15, "total": 0.10}
+# renormalized to sum 1.0 after adding the small forward term (conviction stays dominant)
+DEFAULT_RANK_WEIGHTS = {"conv": 0.38, "opp": 0.18, "lowrisk": 0.14, "fund": 0.14, "total": 0.08, "fwd": 0.08}
 
 
 def overall_rank(rec, cfg, weights=None):
@@ -223,9 +224,14 @@ def overall_rank(rec, cfg, weights=None):
     lowrisk = (100.0 - risk) if risk is not None else 50.0
     fund = rec.get("fundamental_score") or 0.0
     total = rec.get("total_score") or 0.0
-    base = (w.get("conv", 0.40) * conv + w.get("opp", 0.20) * opp
-            + w.get("lowrisk", 0.15) * lowrisk + w.get("fund", 0.15) * fund
-            + w.get("total", 0.10) * total)
+    base = (w.get("conv", 0.38) * conv + w.get("opp", 0.18) * opp
+            + w.get("lowrisk", 0.14) * lowrisk + w.get("fund", 0.14) * fund
+            + w.get("total", 0.08) * total)
+    # forward outlook (نظرة مستقبلية) — small, confidence-gated so empty/LOW forward data
+    # barely moves rank; research stays objective. fwd score 0..10 → 0..100 scale.
+    fwd_term = (rec.get("forward_outlook_score") or 0) * 10.0
+    fwd_cfac = {"HIGH": 1.0, "MED": 0.7, "LOW": 0.4}.get(rec.get("forward_outlook_confidence"), 0.4)
+    base += w.get("fwd", 0.08) * fwd_term * fwd_cfac
     eng = len(rec.get("engines") or []) * 2.0                  # quality signal
     conf = (rec.get("independent_confirmations") or 0) * 1.5
     cmul = {"HIGH": 1.0, "MEDIUM": 0.96, "LOW": 0.88}.get(rec.get("confidence"), 0.92)

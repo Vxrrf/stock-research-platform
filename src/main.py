@@ -227,9 +227,19 @@ def main():
             except Exception as e:
                 print(f"  political tracker skipped: {e}")
 
-    # ── 4) total score + conviction + engines + rank (shared pipeline) ──
+    # ── 4·pre) forward-outlook reads bottleneck + catalyst tags and the PRIOR analyst
+    #          snapshot (for revision DIRECTION) — so attach them BEFORE scoring ──
+    bn_data = bottlenecks_mod.load()
+    bottlenecks_mod.classify(records, bn_data)          # tag supply-chain chokepoint(s)
+    why_notes = load_why_notes()
     for rec in records:
-        pipeline.finalize_scores(rec, cfg, buys=buys)
+        rec["why_note"] = why_notes.get(str(rec.get("ticker") or "").upper())
+    prev_mem = memory_mod.load_memory(cfg)              # cheap read; update() still writes the new snapshot later
+
+    # ── 4) total score + conviction + engines + forward outlook + rank (shared pipeline) ──
+    for rec in records:
+        pipeline.finalize_scores(rec, cfg, buys=buys,
+                                 prev_metrics=(prev_mem.get(rec["ticker"]) or {}).get("metrics"))
 
     # ── 4a) investability gates BEFORE ranking, then re-rank — so the not-investable
     #        rank floor reaches CSVs/memory too, not just the dashboard (Codex review fix) ──
@@ -237,15 +247,6 @@ def main():
     gates_mod.apply_all(records, cfg, watchlist)
     for rec in records:
         rec["rank_score"] = scoring.overall_rank(rec, cfg, _bal_w)
-
-    # ── 4b) bottleneck lens: tag each stock with the supply-chain chokepoint(s) it sits in ──
-    bn_data = bottlenecks_mod.load()
-    bottlenecks_mod.classify(records, bn_data)
-
-    # ── 4c) attach live 'THE WHY' notes (auto, no per-run web) ──
-    why_notes = load_why_notes()
-    for rec in records:
-        rec["why_note"] = why_notes.get(str(rec.get("ticker") or "").upper())
 
     # ── 4d) THE CHECK peer comparison — only for the names we actually display (holdings + top) ──
     _ranked_now = sorted(records, key=lambda r: (r.get("rank_score") or 0), reverse=True)

@@ -86,6 +86,10 @@ def blank_record(ticker):
         "target_mean": None,
         "target_high": None,
         "target_low": None,
+        # forward outlook (نظرة مستقبلية) — set by forward.py, None-safe everywhere
+        "forward_outlook_score": None,
+        "forward_outlook_confidence": None,
+        "forward_drivers": [],
         "analyst_upside_percent": None,
         # momentum / risk
         "one_year_return": None,
@@ -183,6 +187,7 @@ RANKED_COLS = [
     "ai_exposure_score", "rev_growth", "rev_cagr_3y", "eps_growth_fwd",
     "forward_pe", "ev_ebitda", "roic", "roe", "fcf_margin", "debt_to_equity",
     "analyst_upside_percent", "num_analysts", "rec_key",
+    "forward_outlook_score", "forward_outlook_confidence",
     "one_year_return", "pct_below_52w_high",
     "independent_confirmations", "external_bonus",
     "insider_confidence_score", "earnings_score_adj", "news_impact_score",

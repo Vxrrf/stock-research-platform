@@ -18,14 +18,20 @@ import csv
 from config_loader import ROOT
 
 
+def _fwd_tilt(r):
+    """Forward-outlook tilt for portfolio sorting — ONLY when confidence is HIGH/MED, so a
+    LOW/empty outlook can never jump the queue. Portfolio leans toward who's trending up."""
+    return (r.get("forward_outlook_score") or 0) if r.get("forward_outlook_confidence") in ("HIGH", "MED") else 0
+
+
 def _bucket(records, engine, cap, cfg):
-    """Members of an engine, halal not-fail, investable (data/gates ok), sorted by conviction.
-    NOTE: halal 'unknown' is KEPT (it means verify-first, not exclude) — only 'fail' & not-investable are dropped."""
+    """Members of an engine, halal not-fail, investable (data/gates ok), sorted by conviction
+    then forward tilt then total. NOTE: halal 'unknown' is KEPT (verify-first, not exclude)."""
     mode = ((cfg.get("halal", {}) or {}).get("mode") or "gate").lower()
     out = [r for r in records
            if engine in (r.get("engines") or []) and r.get("investable", True)
            and (mode == "info" or r.get("halal_status") != "fail")]   # info: rank by quality, verify halal yourself
-    out.sort(key=lambda r: (r.get("conviction_score") or 0, r.get("total_score") or 0), reverse=True)
+    out.sort(key=lambda r: (r.get("conviction_score") or 0, _fwd_tilt(r), r.get("total_score") or 0), reverse=True)
     return out[:cap]
 
 
@@ -41,7 +47,7 @@ def _gold_picks(candidates, cfg, n=2):
         is_gold = "gold" in ind or "silver" in ind or "precious" in ind
         if is_gold and r.get("investable", True) and (mode == "info" or r.get("halal_status") != "fail"):
             out.append(r)
-    out.sort(key=lambda r: (r.get("conviction_score") or 0), reverse=True)
+    out.sort(key=lambda r: (r.get("conviction_score") or 0, _fwd_tilt(r)), reverse=True)
     return out[:n]
 
 
@@ -58,7 +64,7 @@ def _spec_picks(candidates, cfg, n=3):
     pool = [r for r in candidates if ok(r)
             and "compounder" not in (r.get("engines") or [])      # core quality belongs in نواة, not مضاربات
             and 0.4 <= (r.get("one_year_return") or 0) <= 3.5]    # hot (+40%↑) but not a split artifact
-    pool.sort(key=lambda r: (r.get("one_year_return") or 0), reverse=True)
+    pool.sort(key=lambda r: (r.get("one_year_return") or 0, _fwd_tilt(r)), reverse=True)
     return pool[:n]
 
 

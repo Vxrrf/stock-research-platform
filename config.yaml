@@ -223,18 +223,27 @@ modes:
   balanced:
     label: "⚖️ متوازن"
     desc: "توازن بين الجودة والفرصة والحماية — الوضع الافتراضي."
-    rank: {conv: 0.40, opp: 0.20, lowrisk: 0.15, fund: 0.15, total: 0.10}
+    rank: {conv: 0.38, opp: 0.18, lowrisk: 0.14, fund: 0.14, total: 0.08, fwd: 0.08}
     allocation: {compounders: 0.30, accelerators: 0.16, future_leaders: 0.12, broad_market_etf: 0.13, gold_etf: 0.12, speculation: 0.05, cash: 0.12}
   aggressive:
     label: "🔥 هجومي"
     desc: "يرفع وزن الفرصة والصيد (x5–x10) ويخفّض وزن المخاطرة — تقلّب أعلى."
-    rank: {conv: 0.30, opp: 0.34, lowrisk: 0.06, fund: 0.12, total: 0.18}
+    rank: {conv: 0.27, opp: 0.30, lowrisk: 0.05, fund: 0.11, total: 0.15, fwd: 0.12}
     allocation: {compounders: 0.24, accelerators: 0.22, future_leaders: 0.20, broad_market_etf: 0.10, gold_etf: 0.08, speculation: 0.08, cash: 0.08}
   conservative:
     label: "🛡️ محافظ"
     desc: "يرفع وزن الجودة وانخفاض المخاطرة والحماية — تذبذب أقل، صبر أطول."
-    rank: {conv: 0.36, opp: 0.10, lowrisk: 0.28, fund: 0.20, total: 0.06}
+    rank: {conv: 0.34, opp: 0.09, lowrisk: 0.27, fund: 0.19, total: 0.05, fwd: 0.06}
     allocation: {compounders: 0.34, accelerators: 0.10, future_leaders: 0.06, broad_market_etf: 0.18, gold_etf: 0.14, speculation: 0.03, cash: 0.15}
+
+# ─────────────────────────────────────────────────────────────────────
+#  FORWARD OUTLOOK (النظرة المستقبلية) — تُغذّي الترتيب بوزن صغير وتميل المحفظة
+#  للأقوى مستقبلياً. توقّع مرجّح بصدق — مو نبوءة. (forward.py)
+# ─────────────────────────────────────────────────────────────────────
+forward:
+  noise_floor: 0.03          # تجاهل تحرّك الهدف أقل من ±3% (ضجيج إعادة ترقيم)
+  why_note_fresh_days: 120   # محفّز أقدم من هذا = «ملاحظة قديمة»
+  min_analysts: 6            # تغطية أقل من هذا → الثقة LOW
 
 # ─────────────────────────────────────────────────────────────────────
 #  PORTFOLIO BUILDER  (spec §16 — 25y/o, high-risk, growth + protection)

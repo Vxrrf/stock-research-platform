@@ -13,6 +13,7 @@ import json
 import re
 from collections import Counter
 import framework
+import forward
 
 # strip pictographic emoji (zero-emoji identity) while preserving arrows (↑, U+2190-21FF)
 # and chevrons (⌃⌄, U+2300-23FF), which are functional in the UI
@@ -206,6 +207,10 @@ GLOSSARY = {
               "w": "يغيّر «توزيع محفظتك» فقط — البحث والترتيب يبقى موضوعياً (نفس الترتيب في كل الأوضاع). «هجومي» يرفع وزن قادة المستقبل والمضاربات؛ «محافظ» يرفع الجودة والذهب والكاش.",
               "b": "يشكّل محفظتك حسب شخصيتك الاستثمارية بدون ما يلمس ترتيب البحث.",
               "e": "بدّل من الأزرار فوق: «هجومي» يكبّر سلّة الفرص والمضاربات؛ «محافظ» يكبّر النواة والحماية."},
+    "forward": {"t": "النظرة المستقبلية (0–10)",
+                "w": "توقّع مرجّح يستبق الجاي: اتجاه تقديرات المحللين (يرفعون/يخفّضون الأهداف)، النمو المتوقّع، المحفّزات القريبة، وعنق الزجاجة. ليست وعداً ولا نبوءة.",
+                "b": "تشوف من تتحسّن توقّعاته مو بس وضعه الحالي — والمحفظة تميل للأقوى مستقبلياً.",
+                "e": "شارة الثقة تنزل تلقائياً لو البيانات ناقصة أو لسه ما عندنا تاريخ تقديرات: «الاتجاه غير متاح بعد»."},
     "movers": {"t": "أبرز التغيّرات (ليش تغيّر الترتيب؟)",
                "w": "أكثر الأسهم تحرّكاً في الترتيب من آخر تشغيل، مع السبب الرئيسي: هل القناعة ارتفعت؟ المخاطرة نزلت؟ الفرصة تحسّنت؟",
                "b": "ما تشوف رقم يتغيّر بدون تفسير — تعرف ليش صعد أو نزل سهم.",
@@ -280,7 +285,26 @@ def _ldetail(r):
             + "</div>")
     # if this is a suggested buy, show the exact entry/stop/target plan too
     trade = _trade_inner(r.get("trade"), pr, header="📋 لو اشتريته الحين — خطة الدخول والوقف") if r.get("trade") else ""
-    return "<div class='ldetail'>%s%s%s%s</div>" % (grid, trade, _why_block(r.get("why_note")), _peers_block(r.get("peers")))
+    return "<div class='ldetail'>%s%s%s%s%s</div>" % (
+        grid, _forward_block(r), trade, _why_block(r.get("why_note")), _peers_block(r.get("peers")))
+
+
+def _forward_block(r):
+    """النظرة المستقبلية — a labelled weighted expectation (not advice). On-palette: sage
+    score, a quiet confidence chip distinct from the conviction bar and halal dot."""
+    s = r.get("forward_outlook_score")
+    if s is None:
+        return ""
+    conf = (r.get("forward_outlook_confidence") or "LOW")
+    conf_ar = {"HIGH": "ثقة عالية", "MED": "ثقة متوسطة", "LOW": "ثقة منخفضة"}.get(conf, conf)
+    sval = ("%.1f" % s).rstrip("0").rstrip(".")
+    drivers = "".join("<div class='fwd-d'>%s</div>" % _h(d) for d in (r.get("forward_drivers") or [])[:3])
+    return ("<div class='fwd'>"
+            "<div class='fwd-h'><span class='fwd-t'>نظرة مستقبلية %s</span>"
+            "<b class='n fwd-s'>%s</b><span class='fwd-x'>/10</span>"
+            "<span class='fwd-c fwd-%s'>%s</span></div>%s"
+            "<div class='fwd-dis'>%s</div></div>"
+            % (_i("forward"), sval, conf.lower(), conf_ar, drivers, _h(forward.DISCLAIMER_AR)))
 
 
 def _why_block(w):
@@ -531,6 +555,29 @@ def _alloc_donut(rows, meta):
     return "<div class='dchart'>%s<div class='dleg'>%s</div></div>" % (svg, legend)
 
 
+def _fwd_pulse(records):
+    """One-line forward pulse: how many names have analysts RAISING vs CUTTING estimates
+    (only HIGH/MED confidence). Falls back to a strong-outlook count when targets are flat."""
+    up = dn = strong = 0
+    for r in records:
+        if r.get("forward_outlook_confidence") not in ("HIGH", "MED"):
+            continue
+        ds = " ".join(r.get("forward_drivers") or [])
+        if "يرفعون" in ds:
+            up += 1
+        elif "يخفّضون" in ds:
+            dn += 1
+        if (r.get("forward_outlook_score") or 0) >= 7 and r.get("forward_outlook_confidence") == "HIGH":
+            strong += 1
+    if up or dn:
+        return ("<div class='fpulse'>نبض المحفظة المستقبلي: <b class='n fp-up'>%d</b> تُرفع تقديراتها · "
+                "<b class='n fp-dn'>%d</b> تُخفّض %s</div>" % (up, dn, _i("forward")))
+    if strong:
+        return ("<div class='fpulse'>نبض المحفظة المستقبلي: <b class='n fp-up'>%d</b> اسم نظرته المستقبلية قوية "
+                "(ثقة عالية) %s</div>" % (strong, _i("forward")))
+    return ""
+
+
 def _bucket_meta(label):
     """Map a (possibly emoji-prefixed) bucket label to its sage shade + clean name."""
     for key, color, name in _DONUT_MAP:
@@ -760,6 +807,21 @@ h4{font-size:13px;margin:18px 0 8px;color:var(--t2);font-weight:600}
 .wq span{display:block;color:var(--sage);font-size:11px;font-weight:600;margin-bottom:2px}
 .wq div{color:var(--t1);line-height:1.6}
 .wfoot{margin-top:9px;border-top:1px solid var(--hair);padding-top:7px}
+/* النظرة المستقبلية */
+.fwd{padding:13px 14px;background:rgba(255,255,255,.015);border-top:1px solid var(--hair)}
+.fwd-h{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.fwd-t{font-size:11px;color:var(--t3);font-weight:600}
+.fwd-s{font-size:21px;color:var(--sage);font-weight:400}
+.fwd-x{font-size:11px;color:var(--t3)}
+.fwd-c{margin-inline-start:auto;font-size:10.5px;border-radius:7px;padding:2px 9px}
+.fwd-high{background:var(--sage16);color:var(--sage)}
+.fwd-med{background:var(--field);color:var(--t2)}
+.fwd-low{background:var(--field);color:var(--t3)}
+.fwd-d{font-size:12.5px;color:var(--t2);margin-top:7px;padding-inline-start:13px;position:relative}
+.fwd-d::before{content:'';position:absolute;right:0;top:7px;width:5px;height:5px;border-radius:50%;background:var(--sage)}
+.fwd-dis{font-size:10.5px;color:var(--t4);margin-top:10px;line-height:1.55;border-top:1px solid var(--hair);padding-top:8px}
+.fpulse{font-size:12px;color:var(--t2);margin:0 0 10px;display:flex;align-items:center;gap:7px}
+.fpulse .fp-up{color:var(--sage)}.fpulse .fp-dn{color:var(--risk)}
 /* THE CHECK peers */
 .peers{padding:12px 14px;background:rgba(255,255,255,.015);border-top:1px solid var(--hair)}
 .pr2{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:6px;padding:6px;font-size:12.5px;align-items:center}
@@ -1010,6 +1072,7 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
         "<p class='lead'>محفظة ذكية مبنية على البحث: كل خانة تختار <b>الأفضل تلقائياً</b> من الفلتر — "
         "خانة الذهب/التحوّط تختار أقوى سهم ذهب من الفحص (مو ثابتة على AEM)، وكل خانة لها وزنها. "
         "الأوزان تتبدّل حسب <b>وضع المحفظة</b> فوق. بحث وتوزيع — مو «بيع/اشترِ الآن».</p>"
+        + _fwd_pulse(records)
         + _alloc_donut(portfolio_rows, meta)
         + "<h3 class='sec'>📊 التوزيع الذكي — الأفضل من كل خانة %s</h3>" % _i("portfolio")
         + _portfolio_list(portfolio_rows)

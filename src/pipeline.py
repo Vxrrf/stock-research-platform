@@ -28,6 +28,7 @@ import engines as engines_mod
 import political as political_mod
 import sanity
 import framework
+import forward as forward_mod
 
 
 def _clamp(x, lo=0.0, hi=100.0):
@@ -50,7 +51,7 @@ def enrich_record(rec, cfg, ext, overrides=None):
     return rec
 
 
-def finalize_scores(rec, cfg, buys=None, rank_weights=None):
+def finalize_scores(rec, cfg, buys=None, rank_weights=None, prev_metrics=None):
     """Total score + conviction + engines + rank. Mirrors main.py step 4 EXACTLY,
     including theme bonus, external confirmations, earnings/insider/political/news
     adjustments and the hype penalty — so total_score is never just fundamental_score."""
@@ -80,6 +81,7 @@ def finalize_scores(rec, cfg, buys=None, rank_weights=None):
         return rec
     conviction_mod.compute(rec, cfg)
     engines_mod.classify(rec, cfg)
+    forward_mod.forward_outlook(rec, cfg, prev_metrics)               # نظرة مستقبلية — must precede rank
     rec["rank_score"] = scoring.overall_rank(rec, cfg, rank_weights)  # penalises suspect/not-investable
     framework.annotate(rec)          # personal playbook tag (Growth / Gold-Cyclical / Trading)
     return rec
