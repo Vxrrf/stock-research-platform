@@ -607,6 +607,84 @@ def _portfolio_list(rows):
     return "<div class='plist'>" + out + "</div>"
 
 
+def _invest_panel(portfolio_rows, cfg):
+    """Merged planner: enter the amount you're investing now → split across the smart
+    allocation with a per-stock cap (after the cap, route new money to funds + rebalance)."""
+    cap = int((cfg.get("portfolio") or {}).get("max_per_stock_usd", 3000))
+    data = []
+    for r in portfolio_rows:
+        try:
+            pctn = float(str(r.get("allocation_pct", "0")).replace("%", "").strip())
+        except Exception:
+            pctn = 0.0
+        if pctn <= 0:
+            continue
+        shade, name = _bucket_meta(r.get("bucket", ""))
+        names = re.findall(r"([A-Z]{2,6}) (\d+)%", r.get("suggested_holdings", "") or "")
+        data.append({"b": name, "c": shade, "pct": pctn,
+                     "names": [{"t": t, "p": int(pp)} for t, pp in names]})
+    return ("<div class='invest'>"
+            "<div class='inv-h'>مبلغي للاستثمار الآن</div>"
+            "<input type='number' id='invamt' inputmode='decimal' placeholder='مثال: 1000' "
+            "class='inv-in n' oninput='splitInvest()'>"
+            "<div id='invout'></div>"
+            "<div class='inv-cap muted xs'>سقف المركز للسهم الواحد <b class='n'>$%d</b> — بعده وجّه الجديد "
+            "للصناديق/الكاش وأعِد الموازنة.</div>"
+            "<script>window.__INV=%s;window.__CAP=%d;</script></div>"
+            % (cap, json.dumps(data, ensure_ascii=False), cap))
+
+
+def _newspaper(today, news_rows, opps, records, meta):
+    """خانة اليوم كجريدة: خلاصة + أخبار بمؤشّر تأثير + فرص + تخفيضات + أبرز التحرّكات."""
+    secs = []
+    if today:
+        rows = "".join(
+            "<div class='th-row%s'><span class='te'></span><div>%s</div></div>"
+            % (" rk" if ("مخاطر" in t or "مشكوك" in t) else "", t) for _e, t in today)
+        secs.append("<div class='today'><div class='th-h'>خلاصة اليوم</div>%s</div>" % rows)
+
+    if news_rows:
+        col = {"positive": "fp-up", "negative": "fp-dn", "neutral": "muted"}
+        ar = {"positive": "إيجابي", "negative": "سلبي", "neutral": "محايد"}
+        rows = ""
+        for n in news_rows[:8]:
+            d = n.get("impact_direction", "neutral")
+            rows += ("<div class='np-news'><span class='np-imp %s'></span>"
+                     "<div class='np-h'>%s <span class='muted xs'>%s · %s</span></div></div>"
+                     % (col.get(d, "muted"), _h(n.get("event_name", "")), _h(n.get("date", "")), ar.get(d, d)))
+        secs.append("<div class='card2'><h4>أخبار اليوم وتأثيرها %s</h4>%s</div>" % (_i("news"), rows))
+
+    cand = [r for r in opps if r.get("action") == "Candidate"][:5]
+    if cand:
+        rows = "".join(
+            "<div class='np-row'><b class='n'>%s</b><span class='muted xs'>قناعة %s · نظرة %s</span></div>"
+            % (_h(r["ticker"]), r.get("conviction_score") or "—",
+               r.get("forward_outlook_score") if r.get("forward_outlook_score") is not None else "—") for r in cand)
+        secs.append("<div class='card2'><h4>فرص اليوم</h4>%s</div>" % rows)
+
+    dn = [r for r in records if (not r.get("is_fund")) and (
+        any("يخفّضون" in d for d in (r.get("forward_drivers") or []))
+        or r.get("lifecycle_status") in ("Falling Conviction", "Fallen Angel"))][:6]
+    if dn:
+        rows = "".join(
+            "<div class='np-row'><b class='n'>%s</b><span class='fp-dn xs'>%s</span></div>"
+            % (_h(r["ticker"]), _h(next((d for d in (r.get("forward_drivers") or []) if "يخفّضون" in d),
+                                        r.get("lifecycle_status") or "تراجع"))) for r in dn)
+        secs.append("<div class='card2'><h4>انتبه — تقديرات/قناعة تنزل</h4>%s</div>" % rows)
+
+    mv = meta.get("movers") or []
+    if mv:
+        rows = "".join(
+            "<div class='np-row'><b class='n'>%s</b><span class='%s xs'>%s %s</span></div>"
+            % (_h(m.get("ticker")), "fp-up" if m.get("direction") == "up" else "fp-dn",
+               "▲" if m.get("direction") == "up" else "▼", _h(m.get("driver") or "")) for m in mv[:6])
+        secs.append("<div class='card2'><h4>أبرز تحرّكات الترتيب %s</h4>%s</div>" % (_i("movers"), rows))
+
+    if not secs:
+        return "<p class='muted pad'>لا جديد اليوم.</p>"
+    return "<h3 class='sec'>اليوم — جريدة محفظتك</h3>" + "".join(secs)
+
+
 def _bottleneck_v2(chains):
     intro = ("<div class='bn-intro'>🔗 <b>عنق الزجاجة</b> = العنصر النادر اللي الكل محتاجه، ومن يملكه يكسب أكثر شي. "
              "نصطاد العنق <b>القادم</b> قبل ما يغلى. "
@@ -727,7 +805,7 @@ def _not_inv_compact(records):
 CSS = """
 :root{--sage:#84B4A6;--sage16:color-mix(in oklab,#84B4A6 16%,transparent);--risk:#C0926E;
 --bg:#0C0E13;--card:#13161B;--field:#15181E;--hair:rgba(255,255,255,.06);--sheen:inset 0 1px 0 rgba(255,255,255,.04);
---t1:#E8EBEF;--t2:#9BA2AD;--t3:#646B76;--t4:#545B65;
+--t1:#EEF1F5;--t2:#AEB6C2;--t3:#7B848F;--t4:#5E6670;
 --s1:#7BA79A;--s2:#6A9086;--s3:#597971;--s4:#4B655F;--s5:#3D514C;--s6:#314140}
 *{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
 body{margin:0;min-height:100vh;background:#0C0E13;background-image:linear-gradient(180deg,#10131A,#0C0E13);background-attachment:fixed;
@@ -773,8 +851,8 @@ padding:9px 0 0;margin:8px 0 2px;border-bottom:1px solid var(--hair);overflow-x:
 .tabbtn{flex:0 0 auto;background:none;border:0;border-bottom:2px solid transparent;color:var(--t3);font-size:13.5px;font-weight:500;padding:8px 13px 11px;
 cursor:pointer;white-space:nowrap;font-family:inherit}
 .tabbtn.on{color:var(--t1);border-bottom-color:var(--sage)}
-.tabpanel{display:none;animation:fade .2s ease}.tabpanel.show{display:block}
-@keyframes fade{from{opacity:.4}to{opacity:1}}
+.tabpanel{display:none}.tabpanel.show{display:block;animation:glass .42s cubic-bezier(.22,.9,.3,1)}
+@keyframes glass{from{opacity:0;transform:translateY(14px) scale(.985);filter:blur(7px)}to{opacity:1;transform:none;filter:blur(0)}}
 h3.sec{font-size:15px;margin:22px 0 6px;font-weight:600}h3.sec .c{color:var(--t3);font-weight:400;font-size:12px}
 h4{font-size:13px;margin:18px 0 8px;color:var(--t2);font-weight:600}
 .lead{color:var(--t2);font-size:12.5px;margin:0 0 10px;line-height:1.6}
@@ -822,6 +900,25 @@ h4{font-size:13px;margin:18px 0 8px;color:var(--t2);font-weight:600}
 .fwd-dis{font-size:10.5px;color:var(--t4);margin-top:10px;line-height:1.55;border-top:1px solid var(--hair);padding-top:8px}
 .fpulse{font-size:12px;color:var(--t2);margin:0 0 10px;display:flex;align-items:center;gap:7px}
 .fpulse .fp-up{color:var(--sage)}.fpulse .fp-dn{color:var(--risk)}
+/* لوحة الاستثمار (مدموجة بالمحفظة) */
+.invest{background:var(--card);border:1px solid var(--hair);box-shadow:var(--sheen);border-radius:16px;padding:16px;margin:12px 0 16px}
+.inv-h{font-size:12px;color:var(--t2);font-weight:600;margin-bottom:9px}
+.inv-in{width:100%;background:var(--field);border:1px solid var(--hair);color:var(--t1);border-radius:12px;padding:13px 15px;font-size:20px;text-align:center;outline:none;caret-color:var(--sage);font-family:'IBM Plex Mono',ui-monospace,monospace}
+.inv-in:focus{border-color:color-mix(in oklab,var(--sage) 40%,var(--hair))}
+.inv-cap{margin-top:11px;line-height:1.6}
+.inv-b{display:flex;align-items:center;gap:8px;margin:13px 0 4px;font-size:13px;font-weight:600;border-top:1px solid var(--hair);padding-top:11px}
+.inv-bk{width:9px;height:9px;border-radius:3px;flex:none}.inv-bn{flex:1}
+.inv-b>b{color:var(--sage);font-weight:400}
+.inv-row{display:flex;justify-content:space-between;font-size:12.5px;color:var(--t2);padding:3px 0;padding-inline-start:17px}
+.inv-row>b{color:var(--t1);font-weight:400}
+/* جريدة اليوم */
+.np-news{display:flex;align-items:flex-start;gap:11px;padding:9px 0;border-top:1px solid var(--hair)}
+.np-news:first-child{border-top:0}
+.np-imp{width:7px;height:7px;border-radius:50%;flex:none;margin-top:6px;background:var(--t3)}
+.np-imp.fp-up{background:var(--sage)}.np-imp.fp-dn{background:var(--risk)}
+.np-h{font-size:13px;color:var(--t1);line-height:1.55}
+.np-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--hair)}
+.np-row:first-child{border-top:0}.np-row .fp-up{color:var(--sage)}.np-row .fp-dn{color:var(--risk)}
 /* THE CHECK peers */
 .peers{padding:12px 14px;background:rgba(255,255,255,.015);border-top:1px solid var(--hair)}
 .pr2{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:6px;padding:6px;font-size:12.5px;align-items:center}
@@ -955,6 +1052,20 @@ function tab(id,btn){var ps=document.querySelectorAll('.tabpanel');for(var i=0;i
  document.getElementById(id).classList.add('show');
  var bs=document.querySelectorAll('.tabbtn');for(var j=0;j<bs.length;j++)bs[j].classList.remove('on');
  btn.classList.add('on');window.scrollTo({top:0,behavior:'smooth'});}
+// لوحة الاستثمار: قسّم المبلغ على التوزيع الذكي مع سقف لكل سهم
+function _m(x){return '$'+Math.round(x).toLocaleString('en-US');}
+function splitInvest(){
+  var el=document.getElementById('invamt');if(!el)return;
+  var a=parseFloat(el.value)||0,out=document.getElementById('invout');if(!out)return;
+  if(a<=0){out.innerHTML='';return;}
+  var D=window.__INV||[],cap=window.__CAP||1e9,h='';
+  for(var i=0;i<D.length;i++){var b=D[i],bAmt=a*(b.pct/100);if(bAmt<0.5)continue;
+    h+='<div class="inv-b"><span class="inv-bk" style="background:'+b.c+'"></span><span class="inv-bn">'+b.b+'</span><b class="n">'+_m(bAmt)+'</b></div>';
+    for(var j=0;j<b.names.length;j++){var nm=b.names[j],amt=a*(nm.p/100),over=amt>cap;
+      h+='<div class="inv-row"><span class="n">'+nm.t+'</span><b class="n">'+_m(over?cap:amt)+(over?' <span class="fp-dn">+ للصناديق</span>':'')+'</b></div>';}
+  }
+  out.innerHTML=h;
+}
 function exp(el){var d=el.nextElementSibling;if(!d||!d.classList.contains('ldetail'))return;
  var open=d.classList.toggle('open');var c=el.querySelector('.chev');if(c)c.textContent=open?'⌃':'⌄';}
 function updateAll(b){
@@ -1047,52 +1158,42 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
                    fc.get("FRESH", 0), fc.get("FRESH", 0))
     )
 
-    # holdings + watchlist lists
-    watch = [r for r in buckets.get("watchlist", []) if _vis(r)]
-
-    # tab panels
+    # tab panels — محفظتي = command center (mode + invest amount + smart allocation + positions);
+    # اليوم = newspaper; البحث = ranked research with the bottleneck lens folded in.
     _opp_lead = (
-        ("<p class='lead' style='color:#d9b066'>⚠️ <b>الترتيب بالجودة (القناعة)</b> — النقطة الملوّنة "
-         "تبيّن قراءتنا الشرعية التقريبية، لكن <b>أنت تتأكّد من الحلال على Zoya سهم سهم قبل الشراء</b>. "
-         "اضغط أي سهم للتفاصيل · الرقم على اليسار = القناعة %s.</p>" % _i("conviction"))
+        ("<p class='lead'><b>الترتيب بالجودة (القناعة)</b> — النقطة قراءة شرعية تقريبية، "
+         "تأكّد الحلال على Zoya سهم سهم. الرقم على اليسار = القناعة %s.</p>" % _i("conviction"))
         if _hmode == "info" else
-        ("<p class='lead'>النقطة الخضراء = حلال مبدئياً · الصفراء = تحتاج تأكيد. اضغط أي سهم تفتح تفاصيله. "
-         "🔑 = مالك عنق زجاجة. الرقم على اليسار = القناعة %s.</p>" % _i("conviction")))
-    _opp_title = ("🎯 أقوى الفرص <span class='c'>(مرتّبة بالجودة — تأكّد الحلال بنفسك)</span>"
-                  if _hmode == "info" else "🎯 أقوى الفرص <span class='c'>(مفلترة على نظامك + الحلال)</span>")
+        ("<p class='lead'>اضغط أي سهم تفتح تفاصيله · الرقم على اليسار = القناعة %s.</p>" % _i("conviction")))
     tab_opp = (
         "<div id='t-opp' class='tabpanel'>"
-        "<h3 class='sec'>%s</h3>%s" % (_opp_title, _opp_lead)
+        "<h3 class='sec'>أقوى الفرص <span class='c'>(مرتّبة بالجودة)</span></h3>%s" % _opp_lead
         + _stock_list(opps)
+        + "<h3 class='sec'>عنق الزجاجة عبر القطاعات %s</h3>" % _i("bottleneck")
+        + _bottleneck_v2(meta.get("bottlenecks") or [])
         + "</div>"
     )
     tab_port = (
         "<div id='t-port' class='tabpanel show'>"
-        "<h3 class='sec'>💼 محفظتي — الواجهة</h3>"
-        "<p class='lead'>محفظة ذكية مبنية على البحث: كل خانة تختار <b>الأفضل تلقائياً</b> من الفلتر — "
-        "خانة الذهب/التحوّط تختار أقوى سهم ذهب من الفحص (مو ثابتة على AEM)، وكل خانة لها وزنها. "
-        "الأوزان تتبدّل حسب <b>وضع المحفظة</b> فوق. بحث وتوزيع — مو «بيع/اشترِ الآن».</p>"
+        + _mode_bar(meta)
+        + _invest_panel(portfolio_rows, cfg)
         + _fwd_pulse(records)
         + _alloc_donut(portfolio_rows, meta)
-        + "<h3 class='sec'>📊 التوزيع الذكي — الأفضل من كل خانة %s</h3>" % _i("portfolio")
+        + "<h3 class='sec'>التوزيع الذكي %s</h3>" % _i("portfolio")
         + _portfolio_list(portfolio_rows)
-        + "<h3 class='sec'>📌 مراكزي الحالية</h3>"
-        "<p class='lead'>اضغط أي سهم تشوف <b>خطة تنبيهاتك</b>: خط الخطر −40% + هدفين حسب الدفتر + قاعدة الحصاد.</p>"
+        + "<h3 class='sec'>مراكزي الحالية</h3>"
         + _holdings_list(he)
-        + "<h3 class='sec'>⭐ قائمتي %s</h3>" % _i("watchlist")
-        + _stock_list(watch)
         + "</div>"
     )
-    tab_bn = (
-        "<div id='t-bn' class='tabpanel'>"
-        "<h3 class='sec'>🔗 عنق الزجاجة عبر القطاعات</h3>"
-        + _bottleneck_v2(meta.get("bottlenecks") or [])
+    tab_today = (
+        "<div id='t-today' class='tabpanel'>"
+        + _newspaper(today, news_rows, opps, records, meta)
         + "</div>"
     )
     tab_more = (
         "<div id='t-more' class='tabpanel'>"
         "<h3 class='sec'>📈 التعرّض %s</h3><div class='card2-wrap'>%s</div>" % (_i("exposure"), _exposure_compact(visible))
-        + "<h4>📡 إشارات المؤثرين %s</h4><div class='muted xs'>إشارة ضعيفة للمراجعة فقط.</div>%s" % (
+        + "<h4>📡 إشارات المؤثرين %s</h4><div class='muted xs'>إشارة ضعيفة للمراجعة فقط · لأحدث توصياتهم على إنستقرام قُل لكلود «شوف المؤثرين» يفتحها ويلخّصها لك.</div>%s" % (
             _i("signals"), _signals_compact(meta.get("signals_rows") or []))
         + "<h4>🧪 اختبار بأثر رجعي %s</h4>%s" % (_i("backtest"), _backtest_compact(meta.get("backtest")))
         + _not_inv_compact(buckets.get("not_investable", []))
@@ -1103,10 +1204,10 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
 
     tabs = (
         "<div class='tabs'>"
-        "<button class='tabbtn on' onclick=\"tab('t-port',this)\">💼 محفظتي</button>"
-        "<button class='tabbtn' onclick=\"tab('t-opp',this)\">🎯 الفرص</button>"
-        "<button class='tabbtn' onclick=\"tab('t-bn',this)\">🔗 عنق الزجاجة</button>"
-        "<button class='tabbtn' onclick=\"tab('t-more',this)\">🧰 المزيد</button>"
+        "<button class='tabbtn on' onclick=\"tab('t-port',this)\">محفظتي</button>"
+        "<button class='tabbtn' onclick=\"tab('t-today',this)\">اليوم</button>"
+        "<button class='tabbtn' onclick=\"tab('t-opp',this)\">البحث</button>"
+        "<button class='tabbtn' onclick=\"tab('t-more',this)\">المزيد</button>"
         "</div>"
     )
 
@@ -1117,11 +1218,9 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
 
     src_txt = _h(meta.get("data_source", "yfinance"))
     header = (
-        "<div class='top'><h1>📊 %s</h1>"
+        "<div class='top'><h1>%s</h1>"
         "<div class='btns'>"
-        "<button class='ico' title='وضع محترف: يكشف الأرقام الخام' onclick='document.body.classList.toggle(\"pro\")'>⚙︎ محترف</button>"
-        "<a class='ico' href='planner.html'>💼 المخطّط</a>"
-        "<button class='ico pri' onclick='updateAll(this)'>🔄 حدّث</button></div></div>"
+        "<button class='ico pri' onclick='updateAll(this)'>حدّث</button></div></div>"
         "<div class='sub'>منصّة بحث شخصية — بحث وليست توصية · المصدر: %s · آخر فحص %s</div>"
         "<div id='updmsg'></div>" % (_h(name), src_txt, _h(meta.get("generated_at")))
     )
@@ -1137,8 +1236,8 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
     # zero-emoji identity: strip pictographs from all visible content + glossary text,
     # leave the JS code untouched (its chevrons ⌃⌄ are functional and preserved anyway)
     content = _strip_emoji(
-        header + _mode_bar(meta) + status + _today_hero(today) + tabs + search
-        + tab_port + tab_opp + tab_bn + tab_more
+        header + status + tabs + search
+        + tab_port + tab_today + tab_opp + tab_more
         + "<footer>%s · يُولَّد محلياً · القرار والمسؤولية عليك</footer>" % _h(name)
         + modal)
     body = content + "<script>var GL=%s;%s</script>" % (

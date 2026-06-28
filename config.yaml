@@ -262,6 +262,7 @@ portfolio:
   max_single_compounder_pct: 0.12  # cap any one core name
   max_single_future_leader_pct: 0.03  # each future leader stays tiny (survive an -80%)
   max_single_stock_pct: 0.15       # rebalance flag (spec §17)
+  max_per_stock_usd: 3000          # سقف المركز للسهم الواحد ($) — بعده وجّه الجديد للصناديق وأعد الموازنة
   drawdown_flag_pct: -0.25         # position down 25% => review (spec §17)
   max_compounders: 8
   max_accelerators: 8
