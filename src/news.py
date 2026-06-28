@@ -30,6 +30,40 @@ _NEG = ["miss", "misses", "downgrade", "cut", "cuts", "lawsuit", "probe",
         "subpoena", "decline", "weak demand", "bankruptcy"]
 
 
+_POS = ("surge", "rise", "jump", "beat", "record", "soar", "rally", "gain", "upgrade",
+        "strong", "boost", "high", "top", "win", "robust", "outperform")
+_NEG = ("fall", "drop", "plunge", "miss", "cut", "slump", "crash", "war", "sink", "tumble",
+        "downgrade", "weak", "fear", "loss", "sell-off", "slip", "warn", "recession", "default")
+
+
+def live_news(cfg, limit=12):
+    """LIVE market news from Finnhub (free, auto-updating) — makes 'today' genuinely fresh and
+    independent of any hand-maintained file. Crude keyword sentiment drives the impact dot.
+    Returns [] if no Finnhub key (the caller then falls back to the curated yaml)."""
+    import sources
+    import datetime as _dt
+    fh = sources.FinnhubClient(cfg)
+    if not fh.enabled:
+        return []
+    out = []
+    for n in (fh.market_news("general") or [])[:limit]:
+        head = (n.get("headline") or "").strip()
+        if not head:
+            continue
+        hl = head.lower()
+        pos = sum(w in hl for w in _POS)
+        neg = sum(w in hl for w in _NEG)
+        direction = "positive" if pos > neg else ("negative" if neg > pos else "neutral")
+        dt = n.get("datetime")
+        try:
+            date = _dt.datetime.utcfromtimestamp(int(dt)).strftime("%Y-%m-%d") if dt else ""
+        except Exception:
+            date = ""
+        out.append({"event_name": head, "date": date, "impact_direction": direction,
+                    "source": n.get("source", "")})
+    return out
+
+
 def _load_events():
     p = os.path.join(ROOT, "data", "news_events.yaml")
     try:

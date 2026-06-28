@@ -41,6 +41,11 @@ class FinnhubClient:
     def quote(self, sym):
         return self._get("/quote", {"symbol": sym})
 
+    def market_news(self, category="general"):
+        """Live general market news (free). Returns a list of {headline, datetime, source, ...}."""
+        d = self._get("/news", {"category": category})
+        return d if isinstance(d, list) else []
+
 
 def analyst_confirmation(rec, fh):
     """Add Finnhub as a 2nd analyst source and compare to the primary rating.

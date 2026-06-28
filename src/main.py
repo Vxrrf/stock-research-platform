@@ -245,6 +245,15 @@ def main():
         news_rows, market_risk = news_mod.build(focused, records, cfg, headlines=not args.no_trackers)
     except Exception as e:
         print(f"  news module skipped: {e}")
+    try:
+        # LIVE market news (Finnhub, free) so 'today' is genuinely fresh + auto-updating in the
+        # cloud — independent of any hand-maintained file. Falls back to the yaml if no key.
+        live = news_mod.live_news(cfg)
+        if live:
+            news_rows = live + news_rows
+            print(f"live news: {len(live)} fresh headlines from Finnhub")
+    except Exception as e:
+        print(f"  live news skipped: {e}")
     if not args.no_trackers:
         print(f"trackers on {len(focused)} focused names (earnings/insider"
               f"{'' if args.no_political else '/political'})...")
