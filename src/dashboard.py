@@ -463,6 +463,25 @@ def _mode_bar(meta):
             % (seg, _h(desc)))
 
 
+def _trade_chips(r):
+    """A compact, always-visible stop + first sell-target line for a portfolio holding —
+    so you see at a glance what stop/sell prices to set (full plan still on expand)."""
+    t = r.get("trade") or {}
+    bits = []
+    stp = t.get("stop") or {}
+    if stp.get("price"):
+        bits.append("وقف <b class='n'>%.2f</b>" % stp["price"])
+    p1 = t.get("profit1") or {}
+    if p1.get("price"):
+        bits.append("جني أول <b class='n'>%.2f</b>" % p1["price"])
+    acc = t.get("accumulate") or {}
+    if acc.get("price"):
+        bits.append("تجميع <b class='n'>%.2f</b>" % acc["price"])
+    if not bits:
+        return ""
+    return "<div class='tchips'>%s</div>" % " · ".join(bits)
+
+
 def _holdings_list(rows):
     if not rows:
         return "<p class='muted pad'>لا محفظة محمّلة — عبّي أسهمك في <b>data/holdings.csv</b>.</p>"
@@ -482,11 +501,11 @@ def _holdings_list(rows):
         out += (
             "<div class='lrow' onclick='exp(this)'><div class='lmain'>"
             "<div class='lt'><b class='n'>%s</b> <span class='vd'>%s</span>%s</div>"
-            "<div class='lsub'>%s</div>%s</div>"
+            "<div class='lsub'>%s</div>%s%s</div>"
             "<div class='hpnl'>%s<div class='muted xs'>%s</div></div><span class='chev'>⌄</span></div>"
             "%s"
             % (_h(r["ticker"]), _h(r["verdict"]), pbtag, _h(r.get("why", "")), better,
-               pnl, _h(r.get("hold_label") or ""), _hold_detail(r))
+               _trade_chips(r), pnl, _h(r.get("hold_label") or ""), _hold_detail(r))
         )
     return "<div class='list'>" + out + "</div>"
 
@@ -610,19 +629,49 @@ def _portfolio_list(rows):
 _FUND_TICKERS = {"HLAL", "SPUS", "VOO", "RMAU", "GLD", "IAU", "SPY", "QQQ"}
 
 
+def _position_cap(rec, base):
+    """A per-stock $ cap that DIFFERS by the name's importance: scales up with conviction +
+    a strong forward outlook + a core role, and shrinks with risk + small-bet roles — so a
+    core compounder gets a bigger ceiling than a speculative punt. (base from config)."""
+    m = 1.0
+    eng = rec.get("engines") or []
+    if "compounder" in eng:
+        m *= 1.35
+    elif "accelerator" in eng:
+        m *= 0.9
+    if "future_leader" in eng:
+        m *= 0.5
+    conv = rec.get("conviction_score") or 0
+    if conv >= 9:
+        m *= 1.25
+    elif conv >= 8:
+        m *= 1.1
+    elif conv and conv < 6:
+        m *= 0.7
+    if rec.get("forward_outlook_confidence") == "HIGH" and (rec.get("forward_outlook_score") or 0) >= 8:
+        m *= 1.2
+    risk = rec.get("risk_score")
+    if isinstance(risk, (int, float)) and risk >= 70:
+        m *= 0.7
+    cap = int(round(base * m / 100.0)) * 100
+    return max(500, min(int(base * 2), cap))
+
+
 def _invest_panel(portfolio_rows, cfg, records):
-    """Merged planner with a CUMULATIVE per-stock cap: track (in the browser) how much you've
-    put into each name across deposits. When a stock hits its cap it stops taking new money —
-    the overflow routes to funds + rebalance — UNLESS it's a strong name (may exceed)."""
-    cap = int((cfg.get("portfolio") or {}).get("max_per_stock_usd", 3000))
-    # "strong" = high conviction OR a high-confidence forward outlook → may exceed its cap
-    strong = {}
+    """Merged planner with a CUMULATIVE, PER-STOCK cap (each name's ceiling differs by quality).
+    Track (in the browser) how much you've put into each name across deposits; a full stock
+    stops taking new money — overflow routes to funds + rebalance — UNLESS it's a strong name."""
+    base = int((cfg.get("portfolio") or {}).get("max_per_stock_usd", 3000))
+    info = {}
     for r in records:
         t = r.get("ticker")
         if not t:
             continue
-        strong[t] = bool((r.get("conviction_score") or 0) >= 8.5 or (
-            r.get("forward_outlook_confidence") == "HIGH" and (r.get("forward_outlook_score") or 0) >= 8))
+        info[t] = {
+            "cap": _position_cap(r, base),
+            "s": bool((r.get("conviction_score") or 0) >= 9 or (
+                r.get("forward_outlook_confidence") == "HIGH" and (r.get("forward_outlook_score") or 0) >= 8)),
+        }
     data = []
     for r in portfolio_rows:
         try:
@@ -633,9 +682,12 @@ def _invest_panel(portfolio_rows, cfg, records):
             continue
         shade, name = _bucket_meta(r.get("bucket", ""))
         names = re.findall(r"([A-Z]{2,6}) (\d+)%", r.get("suggested_holdings", "") or "")
-        data.append({"b": name, "c": shade, "pct": pctn,
-                     "names": [{"t": t, "p": int(pp), "s": strong.get(t, False),
-                                "f": (t in _FUND_TICKERS)} for t, pp in names]})
+        rows = []
+        for t, pp in names:
+            nf = info.get(t, {})
+            rows.append({"t": t, "p": int(pp), "s": nf.get("s", False),
+                         "f": (t in _FUND_TICKERS), "cap": nf.get("cap", base)})
+        data.append({"b": name, "c": shade, "pct": pctn, "names": rows})
     return ("<div class='invest'>"
             "<div class='inv-h'>مبلغي للاستثمار الآن</div>"
             "<input type='number' id='invamt' inputmode='decimal' placeholder='مثال: 1000' "
@@ -644,10 +696,11 @@ def _invest_panel(portfolio_rows, cfg, records):
             "<div class='inv-btns'>"
             "<button class='ibtn' onclick='recordInvest()'>سجّلت إني استثمرت</button>"
             "<button class='ibtn ghost' onclick='resetInvest()'>تصفير التتبّع</button></div>"
-            "<div class='inv-cap muted xs'>سقف المركز لكل سهم <b class='n'>$%d</b> <b>تراكمياً</b> — لمّا يمتلئ "
-            "نوقف الضخ فيه (إلا لو قوي) ونوجّه فلوسه للصناديق + إعادة موازنة. التتبّع محفوظ على جهازك فقط.</div>"
-            "<script>window.__INV=%s;window.__CAP=%d;</script></div>"
-            % (cap, json.dumps(data, ensure_ascii=False), cap))
+            "<div class='inv-cap muted xs'>سقف المركز <b>يختلف لكل سهم</b> حسب قناعته وتوقّعاته ومخاطره "
+            "(قاعدته <b class='n'>$%d</b>) — لمّا يمتلئ نوقف الضخ فيه (إلا لو قوي) ونوجّه فلوسه للصناديق + "
+            "إعادة موازنة. التتبّع محفوظ على جهازك فقط.</div>"
+            "<script>window.__INV=%s;</script></div>"
+            % (base, json.dumps(data, ensure_ascii=False)))
 
 
 def _newspaper(today, news_rows, opps, records, meta):
@@ -885,6 +938,7 @@ h4{font-size:13px;margin:18px 0 8px;color:var(--t2);font-weight:600}
 .nm{color:var(--t3);font-size:12px}
 .kk{font-size:11px}.eg{font-size:10.5px;color:var(--t2);background:var(--field);border-radius:6px;padding:1px 7px}
 .lsub{color:var(--t3);font-size:12px;margin-top:3px}
+.tchips{font-size:12px;color:var(--t2);margin-top:5px;line-height:1.5}.tchips b{color:var(--t1);font-weight:400}
 .cv{display:inline-flex;flex-direction:column;align-items:flex-end;gap:3px;flex:0 0 auto;min-width:38px}
 .cv b{font-size:16px;font-weight:500}.cv i{display:block;height:3px;border-radius:3px;width:0}
 .cv-hi b{color:var(--sage)}.cv-hi i{background:var(--sage)}
@@ -1081,15 +1135,15 @@ function _m(x){return '$'+Math.round(x).toLocaleString('en-US');}
 function _cum(){try{return JSON.parse(localStorage.getItem('inv_cum')||'{}');}catch(e){return {};}}
 function _saveCum(c){try{localStorage.setItem('inv_cum',JSON.stringify(c));}catch(e){}}
 function _split(){
-  // returns the cap-aware allocation for the amount in the box (None of this mutates storage)
+  // cap-aware allocation for the amount in the box; each name has its OWN cap (nm.cap)
   var a=parseFloat((document.getElementById('invamt')||{}).value)||0;
-  var D=window.__INV||[],cap=window.__CAP||1e9,cum=_cum(),names=[],extra=0;
+  var D=window.__INV||[],cum=_cum(),names=[],extra=0;
   for(var i=0;i<D.length;i++){var b=D[i];
-    for(var j=0;j<b.names.length;j++){var nm=b.names[j],raw=a*(nm.p/100),give=raw,full=false,al=cum[nm.t]||0;
+    for(var j=0;j<b.names.length;j++){var nm=b.names[j],cap=nm.cap||1e9,raw=a*(nm.p/100),give=raw,full=false,al=cum[nm.t]||0;
       if(!nm.f && !nm.s){var room=Math.max(0,cap-al);give=Math.min(raw,room);if(room<=0){full=true;}extra+=(raw-give);}
-      names.push({t:nm.t,b:b.b,c:b.c,give:give,full:full,already:al,fund:nm.f,strong:nm.s,over:(nm.s&&al>=cap)});}
+      names.push({t:nm.t,b:b.b,c:b.c,give:give,full:full,already:al,cap:cap,fund:nm.f,strong:nm.s,over:(nm.s&&al>=cap)});}
   }
-  return {a:a,cap:cap,names:names,extra:extra};
+  return {a:a,names:names,extra:extra};
 }
 function splitInvest(){
   var out=document.getElementById('invout');if(!out)return;
@@ -1103,10 +1157,13 @@ function splitInvest(){
       var tag='';
       if(n.full){tag=' <span class="fp-dn">ممتلئ → للصناديق</span>';}
       else if(n.over){tag=' <span class="fp-up">قوي — تجاوز مسموح</span>';}
-      var prog=n.fund?'':'<span class="inv-prog">'+_m(n.already)+'/'+_m(S.cap)+'</span>';
+      var prog=n.fund?'':'<span class="inv-prog">'+_m(n.already)+'/'+_m(n.cap)+'</span>';
       h+='<div class="inv-row"><span class="n">'+n.t+'</span>'+prog+'<b class="n">'+_m(n.give)+tag+'</b></div>';
     });
   });
+  // name-less buckets (كاش) still get their share — show it so the full amount is accounted for
+  (window.__INV||[]).forEach(function(b){if((!b.names||!b.names.length)&&b.pct>0){var amt=S.a*(b.pct/100);
+    if(amt>=0.5)h+='<div class="inv-b"><span class="inv-bk" style="background:'+b.c+'"></span><span class="inv-bn">'+b.b+'</span><b class="n">'+_m(amt)+'</b></div>';}});
   if(S.extra>0.5){h+='<div class="inv-extra">+ '+_m(S.extra)+' فائض الأسهم الممتلئة → وجّهه للصناديق (ETF/كاش) وأعد الموازنة.</div>';}
   out.innerHTML=h;
 }
@@ -1289,7 +1346,7 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
     # zero-emoji identity: strip pictographs from all visible content + glossary text,
     # leave the JS code untouched (its chevrons ⌃⌄ are functional and preserved anyway)
     content = _strip_emoji(
-        header + status + tabs + search
+        header + status + tabs
         + tab_port + tab_today + tab_opp + tab_more
         + "<footer>%s · يُولَّد محلياً · القرار والمسؤولية عليك</footer>" % _h(name)
         + modal)
