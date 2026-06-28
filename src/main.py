@@ -305,9 +305,11 @@ def main():
         actions.apply(rec, cfg)
 
     # ── 7) buckets (rebuilt per investor mode, since rank order changes) ──
+    _hmode = ((cfg.get("halal", {}) or {}).get("mode") or "gate").lower()
+
     def _ok(r):
-        return (r.get("action") != "Avoid" and r.get("halal_status") != "fail"
-                and r.get("investable", True))
+        halal_ok = (_hmode == "info") or (r.get("halal_status") != "fail")  # info: rank by quality
+        return r.get("action") != "Avoid" and halal_ok and r.get("investable", True)
 
     def make_buckets(ranked_list):
         b = {a: [] for a in schema.ACTIONS}

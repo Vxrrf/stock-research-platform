@@ -21,9 +21,10 @@ from config_loader import ROOT
 def _bucket(records, engine, cap, cfg):
     """Members of an engine, halal not-fail, investable (data/gates ok), sorted by conviction.
     NOTE: halal 'unknown' is KEPT (it means verify-first, not exclude) — only 'fail' & not-investable are dropped."""
+    mode = ((cfg.get("halal", {}) or {}).get("mode") or "gate").lower()
     out = [r for r in records
-           if engine in (r.get("engines") or []) and r.get("halal_status") != "fail"
-           and r.get("investable", True)]
+           if engine in (r.get("engines") or []) and r.get("investable", True)
+           and (mode == "info" or r.get("halal_status") != "fail")]   # info: rank by quality, verify halal yourself
     out.sort(key=lambda r: (r.get("conviction_score") or 0, r.get("total_score") or 0), reverse=True)
     return out[:cap]
 

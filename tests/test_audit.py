@@ -27,6 +27,17 @@ CFG = config_loader.load_config()
 EXT = config_loader.load_external_lists()
 
 
+def _gate_cfg():
+    """A copy of config in strict halal GATE mode (for the gate-behaviour tests)."""
+    import copy
+    g = copy.deepcopy(CFG)
+    g.setdefault("halal", {})["mode"] = "gate"
+    return g
+
+
+GATE = _gate_cfg()
+
+
 def _rec(**kw):
     r = schema.blank_record(kw.get("ticker", "TST"))
     r.update(kw)
@@ -39,23 +50,35 @@ def test_halal_unknown_NOT_excluded_from_portfolio():
                   conviction_score=8, total_score=80, market_cap=2e10, investable=True)
     bad = _rec(ticker="BBB", halal_status="fail", engines=["compounder"],
                conviction_score=8, total_score=80, market_cap=2e10, investable=True)
-    picks = portfolio._bucket([strong, bad], "compounder", 8, CFG)
+    picks = portfolio._bucket([strong, bad], "compounder", 8, GATE)
     syms = [p["ticker"] for p in picks]
     assert "AAA" in syms, "halal-unknown wrongly excluded from portfolio"
-    assert "BBB" not in syms, "halal-fail must be excluded from portfolio"
-    print("✅ halal unknown kept in portfolio; halal fail excluded")
+    assert "BBB" not in syms, "halal-fail must be excluded from portfolio (gate mode)"
+    print("✅ [gate] halal unknown kept in portfolio; halal fail excluded")
 
 
 def test_halal_unknown_cannot_be_candidate():
     r = _rec(halal_status="unknown", fundamental_score=90, total_score=90, confidence="HIGH")
-    actions.apply(r, CFG)
-    assert r["action"] == "Verify Halal First", f"unknown should be Verify Halal First, got {r['action']}"
-    print("✅ halal unknown -> Verify Halal First (never Candidate)")
+    actions.apply(r, GATE)
+    assert r["action"] == "Verify Halal First", f"[gate] unknown should be Verify Halal First, got {r['action']}"
+    print("✅ [gate] halal unknown -> Verify Halal First (never Candidate)")
+
+
+def test_info_mode_ranks_by_quality():
+    """info mode: a high-quality halal-unknown name CAN be a Candidate (user verifies on Zoya)."""
+    r = _rec(halal_status="unknown", fundamental_score=90, total_score=90, confidence="HIGH")
+    actions.apply(r, CFG)        # CFG is info mode
+    assert r["action"] == "Candidate", f"info mode: strong unknown should be Candidate, got {r['action']}"
+    # and a halal-fail strong name is NOT auto-Avoided in info mode (shown, flagged)
+    f = _rec(halal_status="fail", fundamental_score=90, total_score=90, confidence="HIGH")
+    actions.apply(f, CFG)
+    assert f["action"] != "Avoid", "info mode: halal-fail should be ranked by quality, not auto-Avoided"
+    print("✅ [info] quality ranks regardless of halal (halal shown as flag, user verifies)")
 
 
 def test_halal_fail_is_avoid():
     r = _rec(halal_status="fail", fundamental_score=90, total_score=90)
-    actions.apply(r, CFG)
+    actions.apply(r, GATE)
     assert r["action"] == "Avoid"
     print("✅ halal fail -> Avoid")
 

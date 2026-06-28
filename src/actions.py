@@ -34,15 +34,18 @@ def compute(rec, cfg):
     if rec.get("is_fund"):
         return "Watch", "صندوق/ETF — حيازة أساسية (core)، ليس سهماً نقيّمه فردياً"
 
-    # ── HARD halal gate ──
-    if hs == "fail":
-        reason = "AVOID - fails Sharia screen"
-        if rec.get("halal_reasons"):
-            reason += f" ({rec['halal_reasons'][0]})"
-        return "Avoid", reason
-    if hs == "unknown":
-        return "Verify Halal First", (rec.get("halal_reasons") or
-                                      ["halal status unverified — confirm on Zoya/Musaffa"])[0]
+    # ── halal: GATE (hide haram, verify unknown) OR INFO (rank by quality, you verify on Zoya) ──
+    mode = ((cfg.get("halal", {}) or {}).get("mode") or "gate").lower()
+    if mode != "info":
+        if hs == "fail":
+            reason = "AVOID - fails Sharia screen"
+            if rec.get("halal_reasons"):
+                reason += f" ({rec['halal_reasons'][0]})"
+            return "Avoid", reason
+        if hs == "unknown":
+            return "Verify Halal First", (rec.get("halal_reasons") or
+                                          ["halal status unverified — confirm on Zoya/Musaffa"])[0]
+    # info mode: halal is shown as a flag (the dot), not a gate — quality decides the action below.
 
     # ── data quality gate: not-investable or suspect data can NEVER be a Candidate ──
     if not rec.get("investable", True):
@@ -67,7 +70,9 @@ def compute(rec, cfg):
         if rec.get("analyst_upside_percent") is not None:
             bits.append(f"{rec['analyst_upside_percent']:+.0%} to mean target")
         extra = f" ({'; '.join(bits)})" if bits else ""
-        return "Candidate", "passes halal + strong fundamentals + acceptable risk-reward" + extra
+        base_reason = ("جودة قوية + مخاطرة مقبولة — تأكّد الحلال على Zoya قبل الشراء"
+                       if mode == "info" else "passes halal + strong fundamentals + acceptable risk-reward")
+        return "Candidate", base_reason + extra
 
     if fund >= rm_min or total >= rm_min:
         return "Research More", "promising but not yet strong enough to be a Candidate"

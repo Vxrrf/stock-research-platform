@@ -805,7 +805,11 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
     name = app.get("name", "مرصد الأسهم")
     top_n = (cfg.get("output", {}) or {}).get("top_n_dashboard", 20)
 
+    _hmode = ((cfg.get("halal", {}) or {}).get("mode") or "gate").lower()
+
     def _vis(r):
+        if _hmode == "info":
+            return r.get("action") != "Avoid"   # info: show all (incl. haram, flagged) — Avoid = weak only
         return r.get("action") != "Avoid" and r.get("halal_status") != "fail"
     visible = [r for r in records if _vis(r)]
     ranked = sorted(visible, key=lambda r: (r.get("rank_score") or 0), reverse=True)
@@ -830,7 +834,11 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
         today.append(("🔵", "فرص/بدائل في محفظتك: <b class='n'>%s</b>." % "، ".join(opps_h)))
     else:
         today.append(("✅", "محفظتك: لا إجراء عاجل اليوم."))
-    if pass_cands:
+    top_cands = [r for r in ranked if r.get("action") == "Candidate"][:3]
+    if _hmode == "info" and top_cands:
+        names = "، ".join(_h(r["ticker"]) for r in top_cands)
+        today.append(("🎯", "أقوى المرشّحين بالجودة: <b class='n'>%s</b> — <b>تأكّد حلالهم على Zoya قبل الشراء</b>." % names))
+    elif pass_cands:
         today.append(("🟢", "أقوى مرشّح حلال مؤكّد: <b class='n'>%s</b> (قناعة %s)." % (
             _h(pass_cands[0]["ticker"]), pass_cands[0].get("conviction_score"))))
     else:
@@ -854,11 +862,18 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
     watch = [r for r in buckets.get("watchlist", []) if _vis(r)]
 
     # tab panels
+    _opp_lead = (
+        ("<p class='lead' style='color:#d9b066'>⚠️ <b>الترتيب بالجودة (القناعة)</b> — النقطة الملوّنة "
+         "تبيّن قراءتنا الشرعية التقريبية، لكن <b>أنت تتأكّد من الحلال على Zoya سهم سهم قبل الشراء</b>. "
+         "اضغط أي سهم للتفاصيل · الرقم على اليسار = القناعة %s.</p>" % _i("conviction"))
+        if _hmode == "info" else
+        ("<p class='lead'>النقطة الخضراء = حلال مبدئياً · الصفراء = تحتاج تأكيد. اضغط أي سهم تفتح تفاصيله. "
+         "🔑 = مالك عنق زجاجة. الرقم على اليسار = القناعة %s.</p>" % _i("conviction")))
+    _opp_title = ("🎯 أقوى الفرص <span class='c'>(مرتّبة بالجودة — تأكّد الحلال بنفسك)</span>"
+                  if _hmode == "info" else "🎯 أقوى الفرص <span class='c'>(مفلترة على نظامك + الحلال)</span>")
     tab_opp = (
         "<div id='t-opp' class='tabpanel show'>"
-        "<h3 class='sec'>🎯 أقوى الفرص <span class='c'>(مفلترة على نظامك + الحلال)</span></h3>"
-        "<p class='lead'>النقطة الخضراء = حلال مبدئياً · الصفراء = تحتاج تأكيد. اضغط أي سهم تفتح تفاصيله. "
-        "🔑 = مالك عنق زجاجة. الرقم على اليسار = القناعة %s.</p>" % _i("conviction")
+        "<h3 class='sec'>%s</h3>%s" % (_opp_title, _opp_lead)
         + _stock_list(opps)
         + "</div>"
     )

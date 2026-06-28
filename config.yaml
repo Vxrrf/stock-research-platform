@@ -172,6 +172,10 @@ crowding:
 #  HALAL / SHARIA GATE  (spec §11 — pass / fail / unknown)
 # ─────────────────────────────────────────────────────────────────────
 halal:
+  # mode: "info"  → رشّح بالجودة (القناعة)، واعرض الحلال كمؤشّر فقط — أنت تتأكّد سهم سهم على Zoya.
+  #       "gate"  → الحلال بوابة صارمة (حرام يُخفى، unknown ما يصير مرشّح). [الوضع الأصلي]
+  # المالك اختار info: فلترنا الشرعي تقريبي (أخطأ مثل IREN)، والتأكيد النهائي على Zoya/Musaffa.
+  mode: "info"
   debt_to_marketcap_max: 0.33
   cash_to_marketcap_max: 0.33
   receivables_to_marketcap_max: 0.49
