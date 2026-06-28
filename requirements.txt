@@ -1,6 +1,0 @@
-# Mazer Research Platform
-yfinance>=0.2.40      # fallback live data source
-pandas>=2.0
-requests>=2.31        # FMP client + free political datasets
-lxml>=5.0
-pyyaml>=6.0           # config.yaml + external_lists.yaml + news_events.yaml
