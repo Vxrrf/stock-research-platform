@@ -26,6 +26,10 @@ def _strip_emoji(s):
     return _EMOJI_RE.sub("", s) if s else s
 
 
+# عملة العرض — تُضبَط من config في build(). المبالغ والسقوف بالريال؛ أسعار الأسهم تبقى دولاراً.
+_CUR = {"symbol": "$", "rate": 1.0}
+
+
 def _h(x):
     return html.escape(str(x)) if x is not None else "—"
 
@@ -610,13 +614,14 @@ def _bucket_meta(label):
 
 def _kfmt(x):
     x = x or 0
-    return ("$%.1fk" % (x / 1000.0)).replace(".0k", "k") if x >= 1000 else "$%d" % x
+    s = _CUR["symbol"]
+    return (("%.1fk" % (x / 1000.0)).replace(".0k", "k") + " " + s) if x >= 1000 else ("%d %s" % (x, s))
 
 
 def _portfolio_list(rows, records, cfg):
     """Each bucket → its weight + a per-stock breakdown showing each name's weight, its OWN
     cap, and (where a plan exists) the stop + first sell-target — so you see what to set."""
-    base = int((cfg.get("portfolio") or {}).get("max_per_stock_usd", 3000))
+    base = int(round((cfg.get("portfolio") or {}).get("max_per_stock_usd", 3000) * _CUR["rate"]))
     by_t = {r.get("ticker"): r for r in records if r.get("ticker")}
     out = ""
     for r in rows:
@@ -691,7 +696,7 @@ def _invest_panel(portfolio_rows, cfg, records):
     """Merged planner with a CUMULATIVE, PER-STOCK cap (each name's ceiling differs by quality).
     Track (in the browser) how much you've put into each name across deposits; a full stock
     stops taking new money — overflow routes to funds + rebalance — UNLESS it's a strong name."""
-    base = int((cfg.get("portfolio") or {}).get("max_per_stock_usd", 3000))
+    base = int(round((cfg.get("portfolio") or {}).get("max_per_stock_usd", 3000) * _CUR["rate"]))
     info = {}
     for r in records:
         t = r.get("ticker")
@@ -717,9 +722,10 @@ def _invest_panel(portfolio_rows, cfg, records):
             nf = info.get(t, {})
             rows.append({"t": t, "p": int(pp), "s": nf.get("s", False),
                          "f": (t in _FUND_TICKERS), "cap": nf.get("cap", base)})
-        # leftover when caps bind a bucket (e.g. «AAA 12% · غير موزّع 18%») — the unparsed remainder
-        # must NOT vanish from the calculator; route its share to funds/cash so the FULL amount is accounted.
-        lo = max(0.0, pctn - sum(int(pp) for _, pp in names))
+        # leftover when caps bind a NAMED bucket (e.g. «AAA 12% · غير موزّع 18%») — route to funds/cash.
+        # Nameless buckets (cash) get lo=0: they're already shown by the name-less-bucket renderer, so
+        # adding lo here too would DOUBLE-COUNT them.
+        lo = max(0.0, pctn - sum(int(pp) for _, pp in names)) if names else 0.0
         data.append({"b": name, "c": shade, "pct": pctn, "names": rows, "lo": round(lo, 2)})
     return ("<div class='invest'>"
             "<div class='inv-h'>مبلغي للاستثمار الآن</div>"
@@ -730,10 +736,10 @@ def _invest_panel(portfolio_rows, cfg, records):
             "<button class='ibtn' onclick='recordInvest()'>سجّلت إني استثمرت</button>"
             "<button class='ibtn ghost' onclick='resetInvest()'>تصفير التتبّع</button></div>"
             "<div class='inv-cap muted xs'>سقف المركز <b>يختلف لكل سهم</b> حسب قناعته وتوقّعاته ومخاطره "
-            "(قاعدته <b class='n'>$%d</b>) — لمّا يمتلئ نوقف الضخ فيه (إلا لو قوي) ونوجّه فلوسه للصناديق + "
+            "(قاعدته <b class='n'>%d</b> %s) — لمّا يمتلئ نوقف الضخ فيه (إلا لو قوي) ونوجّه فلوسه للصناديق + "
             "إعادة موازنة. التتبّع محفوظ على جهازك فقط.</div>"
-            "<script>window.__INV=%s;</script></div>"
-            % (base, json.dumps(data, ensure_ascii=False)))
+            "<script>window.__CUR=%s;window.__INV=%s;</script></div>"
+            % (base, _CUR["symbol"], json.dumps(_CUR["symbol"]), json.dumps(data, ensure_ascii=False)))
 
 
 def _newspaper(today, news_rows, opps, records, meta):
@@ -1213,7 +1219,7 @@ function tab(id,btn){var ps=document.querySelectorAll('.tabpanel');for(var i=0;i
  var bs=document.querySelectorAll('.tabbtn');for(var j=0;j<bs.length;j++)bs[j].classList.remove('on');
  btn.classList.add('on');window.scrollTo({top:0,behavior:'smooth'});}
 // لوحة الاستثمار: قسّم المبلغ على التوزيع الذكي مع سقف تراكمي لكل سهم (محفوظ على الجهاز)
-function _m(x){return '$'+Math.round(x).toLocaleString('en-US');}
+function _m(x){return Math.round(x).toLocaleString('en-US')+' '+(window.__CUR||'$');}
 function _cum(){try{return JSON.parse(localStorage.getItem('inv_cum')||'{}');}catch(e){return {};}}
 function _saveCum(c){try{localStorage.setItem('inv_cum',JSON.stringify(c));}catch(e){}}
 function _split(){
@@ -1419,6 +1425,12 @@ def _crowd_cheap(records):
 def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg):
     app = (cfg.get("app", {}) or {})
     name = app.get("name", "مرصد الأسهم")
+    _c = (cfg.get("currency", {}) or {})            # عملة العرض (الريال) للمبالغ والسقوف
+    _CUR["symbol"] = _c.get("symbol", "$")
+    try:
+        _CUR["rate"] = float(_c.get("usd_rate", 1.0) or 1.0)
+    except Exception:
+        _CUR["rate"] = 1.0
     top_n = (cfg.get("output", {}) or {}).get("top_n_dashboard", 20)
 
     _hmode = ((cfg.get("halal", {}) or {}).get("mode") or "gate").lower()

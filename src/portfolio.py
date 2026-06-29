@@ -68,13 +68,19 @@ def _spec_picks(candidates, cfg, n=3):
     return pool[:n]
 
 
-def _gold_row(gold, total_pct, etf="GLD"):
-    """Hedge sizing: best miner from the scan + a physically-backed gold ETF (configurable +
-    broker-available), deliberately balanced so the gold ETF keeps real ballast, not swamped."""
-    if not gold:
-        return "%s %.0f%%" % (etf, total_pct * 100)        # no miner found → all physical gold
-    miner = gold[0].get("ticker")
-    return "%s %.0f%% · %s %.0f%%" % (miner, total_pct * 0.55 * 100, etf, total_pct * 0.45 * 100)
+def _gold_row(gold, total_pct, etf="GLD", etf_weight=0.0):
+    """Hedge sizing. DEFAULT: real gold MINING STOCKS only (tradable on XTB as real shares — the
+    gold ETFs are CFD-only / unavailable on the owner's broker). etf_weight>0 re-adds a physical
+    gold ETF blend for brokers where it's a real ETF."""
+    miners = [g.get("ticker") for g in (gold or []) if g.get("ticker")]
+    ew = max(0.0, min(0.9, etf_weight or 0.0))
+    if not miners:
+        return ("%s %.0f%%" % (etf, total_pct * 100)) if ew > 0 else "—"
+    if ew <= 0:                                            # miners-only (default): split across picks
+        if len(miners) >= 2:
+            return "%s %.0f%% · %s %.0f%%" % (miners[0], total_pct * 0.6 * 100, miners[1], total_pct * 0.4 * 100)
+        return "%s %.0f%%" % (miners[0], total_pct * 100)
+    return "%s %.0f%% · %s %.0f%%" % (miners[0], total_pct * (1 - ew) * 100, etf, total_pct * ew * 100)
 
 
 def _weighted(bucket, total_pct, cap, etfs=None):
@@ -118,12 +124,12 @@ def build_model(candidates, cfg):
     comp = _bucket(candidates, "compounder", p.get("max_compounders", 8), cfg)
     accel = _bucket(candidates, "accelerator", p.get("max_accelerators", 8), cfg)
     fut = _bucket(candidates, "future_leader", p.get("max_future_leaders", 10), cfg)
-    gold = _gold_picks(candidates, cfg, n=1)       # data-driven best gold miner (replaces AEM if it out-scores)
+    gold = _gold_picks(candidates, cfg, n=2)       # top gold miners (real XTB shares) for the hedge sleeve
     spec = _spec_picks(candidates, cfg)            # small high-risk speculation sleeve (TTWO-style)
 
     # de-duplicate across sleeves so each ticker is sized ONCE — a name strong in two lenses
-    # is HELD once, not double-counted (priority: core > accelerator > future > speculation)
-    _seen = set()
+    # is HELD once, not double-counted (priority: gold/core > accelerator > future > speculation)
+    _seen = set(g.get("ticker") for g in gold if g.get("ticker"))   # gold sleeve claims its names first
 
     def _dedup(lst):
         out = []
@@ -150,9 +156,10 @@ def build_model(candidates, cfg):
         ("🌱 قادة المستقبل", _weighted(fut, a_fut, cap_f), a_fut,
          f"رهانات صغيرة موزّعة (x3–x10) — كل اسم ≤ {cap_f:.0%} عشان -80% يبقى محتمَل"),
         ("🛡️ ETF حلال/واسع", _weighted([], a_etf, 0, etfs.get("broad_market_etf", [])), a_etf, "تحوّط واسع متوافق شرعياً"),
-        ("🥇 ذهب (حماية)", _gold_row(gold, a_gold, p.get("gold_etf_symbol", "GLD")), a_gold,
-         "أفضل سهم ذهب من الفحص + %s (ETF ذهب مدعوم بالمعدن، متوفّر بمعظم الوسطاء) — حماية وقت الأزمات؛ أكّد الحلال"
-         % p.get("gold_etf_symbol", "GLD")),
+        ("🥇 ذهب (حماية)", _gold_row(gold, a_gold, p.get("gold_etf_symbol", "GLD"), p.get("gold_etf_weight", 0.0)),
+         a_gold,
+         "أسهم تعدين ذهب حقيقية (تنشري بـ XTB بلا CFD) — صناديق الذهب عندك CFD فقط/غير متوفّرة. "
+         "حماية وقت الأزمات؛ أكّد التوفّر والحلال بنفسك"),
         ("⚡ مضاربات (صغيرة)", _weighted(spec, a_spec, max(0.02, a_spec / 2)), a_spec,
          "رهانات قصيرة المدى عالية المخاطرة (مثل TTWO) — وزن صغير بقصد، اخرج بسرعة"),
     ]
