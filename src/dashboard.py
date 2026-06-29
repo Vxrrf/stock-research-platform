@@ -416,7 +416,7 @@ def _hold_detail(r):
 def _lrow(r, idx=None):
     t = r.get("ticker")
     hal = r.get("halal_status")
-    src = "✓" if str(r.get("halal_source") or "").startswith("manual") else ""
+    src = "م" if str(r.get("halal_source") or "").startswith("manual") else ""  # «م»=موثّق يدوياً (✓ يُحذَف بمصفّي الإيموجي)
     theme = THEME_AR.get(r.get("primary_theme"), r.get("primary_theme") or "")
     act = ACTION_AR.get(r.get("action"), r.get("action") or "")
     bn = "<span class='kk' title='مالك عنق زجاجة'>🔑</span>" if r.get("bottleneck_owner") else ""
@@ -902,7 +902,9 @@ def _consensus_board(board, holdings):
         nlbl = ("<span class='cbn'>×%d</span>" % r["n"]) if r.get("n") else ""
         conv = r.get("conv")
         if r.get("in_platform") and conv is not None:
-            hal = {"pass": "حلال✓", "fail": "حلال✗", "unknown": "حلال؟"}.get(r.get("halal"), "")
+            # TEXT labels (not ✓/✗ glyphs — those get stripped by _strip_emoji, leaving pass/fail
+            # indistinguishable except by color: a haram stock would read «حلال». Use words.)
+            hal = HALAL_AR.get(r.get("halal"), "")
             halcls = {"pass": "ok", "fail": "bad", "unknown": "unk"}.get(r.get("halal"), "unk")
             verdict = "<span class='cbcv'>قناعتنا %.1f</span><span class='hc %s'>%s</span>" % (conv, halcls, hal)
         else:
