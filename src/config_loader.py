@@ -52,6 +52,10 @@ def load_config():
     # Finnhub key (free, finnhub.io) — same priority; a cloud-reliable 2nd source (CI secret)
     fh = os.environ.get("FINNHUB_API_KEY", "") or (cfg.get("data", {}) or {}).get("finnhub_api_key") or ""
     cfg["data"]["finnhub_api_key"] = fh.strip()
+    # FRED key (free, optional) — enables the REAL high-yield credit spread (HY OAS). api.stlouisfed.org
+    # is reachable from CI (only fred.stlouisfed.org's website is IP-blocked). Dormant until the key is set.
+    fred = os.environ.get("FRED_API_KEY", "") or (cfg.get("data", {}) or {}).get("fred_api_key") or ""
+    cfg["data"]["fred_api_key"] = fred.strip()
     cfg["_root"] = ROOT
     return cfg
 

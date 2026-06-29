@@ -301,7 +301,7 @@ def detect(records, market_risk, cfg=None, persist=True, macro=None):
             "candidate_pct": round(cand_pct, 3),
             "breadth_down": round(breadth_down, 3) if isinstance(breadth_down, (int, float)) else None,
             "vix": (macro or {}).get("vix"), "yield_spread": (macro or {}).get("yield_spread"),
-            "yield_inverted": (macro or {}).get("inverted"),
+            "yield_inverted": (macro or {}).get("inverted"), "hy_spread": (macro or {}).get("hy_spread"),
             "macro_label": (macro or {}).get("label_ar"),
             "n": n,
             "risk_trend": ("rising" if rising else ("easing" if (prev_risk is not None and risk_rank < prev_risk) else "flat")),

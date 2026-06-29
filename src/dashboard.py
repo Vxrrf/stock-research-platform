@@ -1351,6 +1351,9 @@ def _regime_detail(meta):
         extra_m += metric("VIX (الخوف)", "%.0f" % vix)
     if isinstance(ys, (int, float)):
         extra_m += metric("منحنى العائد" + (" (مقلوب)" if m.get("yield_inverted") else ""), "%+.2f" % ys)
+    hy = m.get("hy_spread")
+    if isinstance(hy, (int, float)):
+        extra_m += metric("فروقات الائتمان", "%.1f%%" % hy)
     if isinstance(bd, (int, float)):
         extra_m += metric("اتساع الهبوط", "%d%%" % round(bd * 100))
     if extra_m:

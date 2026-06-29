@@ -36,6 +36,31 @@ def _vix_rank(v):
     return 3 if v >= 40 else (2 if v >= 28 else (1 if v >= 20 else 0))
 
 
+def _hy_rank(h):                                        # HY OAS % — فارق ائتمان الشركات الحقيقي
+    return 3 if h >= 8.0 else (2 if h >= 5.5 else (1 if h >= 4.0 else 0))
+
+
+def _fred_hy(cfg, timeout=12):
+    """فارق HY الحقيقي (BAMLH0A0HYM2) من FRED API — يحتاج مفتاحاً مجانياً. خامل بدونه."""
+    key = ((cfg.get("data", {}) or {}).get("fred_api_key") or "").strip()
+    if not key:
+        return None, None
+    try:
+        import requests
+        url = ("https://api.stlouisfed.org/fred/series/observations?series_id=BAMLH0A0HYM2"
+               "&file_type=json&sort_order=desc&limit=8&api_key=" + key)
+        r = requests.get(url, headers={"User-Agent": _UA}, timeout=timeout)
+        r.raise_for_status()
+        vals = [float(o["value"]) for o in r.json().get("observations", [])
+                if o.get("value") not in (None, ".", "")]
+        latest = vals[0] if vals else None
+        prior = vals[5] if len(vals) > 5 else (vals[-1] if vals else None)
+        return latest, prior
+    except Exception as e:
+        print(f"  macro (FRED HY) fetch failed: {e}")
+        return None, None
+
+
 def _path(cfg):
     return os.path.join(state_dir(cfg), _CACHE)
 
@@ -85,11 +110,15 @@ def signals(cfg=None, timeout=15, max_age_h=6, persist=True):
         spread_prior = (rows[5]["year10"] - rows[5]["year2"]) if len(rows) > 5 else (
             (rows[-1]["year10"] - rows[-1]["year2"]) if rows else None)
 
+        hy, hy_prior = _fred_hy(cfg, timeout)            # فارق HY الحقيقي (إن وُجد مفتاح FRED)
+
         if isinstance(vix_px, (int, float)):
             out = {"vix": round(vix_px, 2),
                    "vix_avg50": round(vix_avg50, 2) if isinstance(vix_avg50, (int, float)) else None,
                    "yield_spread": round(spread, 2) if isinstance(spread, (int, float)) else None,
                    "yield_spread_prior": round(spread_prior, 2) if isinstance(spread_prior, (int, float)) else None,
+                   "hy_spread": round(hy, 2) if isinstance(hy, (int, float)) else None,
+                   "hy_prior": round(hy_prior, 2) if isinstance(hy_prior, (int, float)) else None,
                    "fetched_local": now_local().strftime("%Y-%m-%d %H:%M"),
                    "updated_utc": iso(now_utc())}
             if persist:
@@ -115,8 +144,10 @@ def _derive(d):
     avg50 = d.get("vix_avg50")
     spread = d.get("yield_spread")
     prior = d.get("yield_spread_prior")
+    hy = d.get("hy_spread")
 
-    d["stress_rank"] = _vix_rank(vix or 0)
+    # الضغط الحادّ = الأسوأ بين الخوف (VIX) وفارق ائتمان الشركات الحقيقي (HY OAS، إن توفّر مفتاح FRED)
+    d["stress_rank"] = max(_vix_rank(vix or 0), _hy_rank(hy) if isinstance(hy, (int, float)) else 0)
     # اتجاه الخوف: VIX نسبةً لمتوسّطه ٥٠ يوماً (فوقه = متوتّر/يصعد، تحته = يهدأ)
     if isinstance(vix, (int, float)) and isinstance(avg50, (int, float)) and avg50 > 0:
         d["vix_dir"] = "rising" if vix > avg50 * 1.05 else ("falling" if vix < avg50 * 0.95 else "flat")
@@ -137,7 +168,8 @@ def _derive(d):
     if isinstance(spread, (int, float)):
         curve = (" · منحنى العائد %s (10y−2y = %+.2f)"
                  % (("مقلوب — تحذير ركود" if d["inverted"] else "طبيعي"), spread))
-    d["label_ar"] = "الخوف %s %s — VIX %s%s" % (lvl, dirw, _num(vix), curve)
+    hyc = (" · فروقات ائتمان الشركات %.1f%%" % hy) if isinstance(hy, (int, float)) else ""
+    d["label_ar"] = "الخوف %s %s — VIX %s%s%s" % (lvl, dirw, _num(vix), hyc, curve)
     return d
 
 
