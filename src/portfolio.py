@@ -277,7 +277,8 @@ def evaluate_holdings(records, cfg, deltas=None):
         r = by.get(h["ticker"])
         if not r:
             rows.append({"ticker": h["ticker"], "name": "—", "conviction": None, "rank": None,
-                         "pnl": None, "halal": "—", "lifecycle": "—",
+                         "pnl": None, "halal": "—", "lifecycle": "—", "sleeve": "unknown",
+                         "action": "بيانات ناقصة — اضغط «حدّث» وراجعه يدوياً",
                          "verdict": "⚪ لا بيانات — حدّث", "why": "ما لقيت بيانات هالسهم هالتشغيل"})
             continue
         conv = r.get("conviction_score") or 0
@@ -293,21 +294,72 @@ def evaluate_holdings(records, cfg, deltas=None):
             rows.append({"ticker": r["ticker"], "name": r.get("name"), "conviction": None,
                          "rank": r.get("rank_score"), "pnl": pnl, "halal": hal, "lifecycle": "Core",
                          "verdict": "🟦 صندوق أساسي — احتفظ", "why": "حيازة جوهرية (core)، ليست سهماً نقيّمه فردياً",
+                         "sleeve": "core_fund", "action": "نواة طويلة المدى — حيازة جوهرية، مو سهماً نقيّمه فردياً",
                          "hold_label": "طويل المدى (نواة)", "better": None,
                          "days_until_earnings": None, "pnl_suspect": pnl_suspect})
             continue
+        _dd = (cfg.get("portfolio", {}) or {}).get("drawdown_flag_pct", -0.25)
+        _fund = r.get("fundamental_score") or 0
+        _deep_dd = (pnl is not None and pnl <= _dd and conv >= 6)   # نازل بقوة لكن أساسه سليم
+        # ── VERDICT badge = ملاحظة بحثية (بلا أوامر «بيع/زِد» — المنصّة لا توجّه شراء/بيع) ──
         if hal == "fail":
-            verdict, why = "🔴 بيع — غير متوافق شرعياً", "فشل الفلتر الشرعي"
+            verdict, why = "🔴 غير متوافق شرعياً", "فشل الفلتر الشرعي"
         elif conv >= 8:
-            verdict, why = "🟢 احتفظ / زِد", f"قناعة عالية {conv}/10"
-        elif pnl is not None and pnl <= cfg.get("portfolio", {}).get("drawdown_flag_pct", -0.25) and conv >= 6:
-            # سهم قوي هبط = فرصة شراء، مو بيع (لا تبيع الجوهرة بالغلط)
-            verdict, why = "🔵 فرصة تجميع (لا تبيع)", f"هبط {pnl:+.0%} لكن الأساسيات قوية (قناعة {conv}/10)"
-        elif conv < 5 or (lc == "Falling Conviction") or (lc == "Fallen Angel" and (r.get("fundamental_score") or 0) < 45):
-            # don't say 'sell' on a Fallen Angel that still has strong fundamentals (panic-sell guard)
-            verdict, why = "🔴 بيع", f"قناعة ضعيفة/تنزل ({conv}/10){' · '+lc if lc else ''}"
+            verdict, why = "🟢 قناعة عالية", f"قناعة عالية {conv}/10"
+        elif _deep_dd:
+            verdict, why = "🔵 هبوط مع أساس قوي (Fallen Angel)", f"هبط {pnl:+.0%} لكن الأساسيات قوية (قناعة {conv}/10)"
+        elif conv < 5 or (lc == "Falling Conviction") or (lc == "Fallen Angel" and _fund < 45):
+            verdict, why = "🔴 قناعة ضعيفة/تنزل — راجع الأطروحة", f"قناعة ضعيفة/تنزل ({conv}/10){' · '+lc if lc else ''}"
         else:
-            verdict, why = "⚪ احتفظ", f"قناعة {conv}/10، أداء مستقر"
+            verdict, why = "⚪ مستقر — ضمن قواعدك", f"قناعة {conv}/10، أداء مستقر"
+        # ── per-stock ACTION = the owner's OWN rules, sleeve-aware. Distinguishes a DURABLE compounder
+        #    (let it ride) from a CYCLICAL strong-riser (ride the strength but SECURE profit — it rises
+        #    THEN corrects). Mirrors his rules with «قاعدتك تقترح» — never a bare buy/sell order. ──
+        eng = r.get("engines") or []
+        _take = (cfg.get("portfolio", {}) or {}).get("profit_take_flag_pct", 0.15)
+        _spec = set((cfg.get("portfolio", {}) or {}).get("speculative_sleeve", []) or [])
+        cyc = bool(r.get("cyclical"))                              # دوري (ذاكرة/أشباه موصلات/سلع) → يصعد ثم يصحّح
+        if r["ticker"] in {"AEM", "SLV", "GLD", "IAU", "IGLN", "EGLN"} or r.get("primary_theme") == "gold":
+            sleeve = "protection"
+        elif r["ticker"] in _spec:
+            sleeve = "spec"                                        # رهان مضاربة معلَن → قاعدة الـ20%
+        elif cyc and conv >= 6:
+            sleeve = "cyclical"                                    # قوي لكنه دوري — اركب الصعود وأمّن الربح
+        elif ("compounder" in eng or lc in ("Long-Term Compounder", "High Conviction") or conv >= 7) and not cyc:
+            sleeve = "core"                                        # مُركّب دائم غير دوري → خلّه يركّب
+        else:
+            sleeve = "other"                                       # مو معلَن بقائمتك ولا واضح → حياد
+        if hal == "fail":
+            action = "غير متوافق شرعياً — راجع الأطروحة (قاعدتك: حلال فقط)"
+        elif conv < 5 or lc == "Falling Conviction":
+            action = "القصة ضعفت (كسر أطروحة، مو مجرّد تذبذب) — راجع الأطروحة للخروج"
+        elif lc == "Fallen Angel" and _fund >= 45:
+            action = "تماسُك — أساسياته قوية رغم الهبوط؛ موضع تجميع لا بيع خوف"
+        elif sleeve == "protection":
+            action = "حماية (ذهب/فضة) — تحرّك بطيء؛ يوازن محفظتك"
+        elif sleeve == "cyclical":
+            if pnl is not None and pnl >= _take:
+                action = f"قوي لكنه دوري ورابح {pnl:+.0%} — يصعد ثم يصحّح؛ قاعدتك تقترح تأمين جزء من الربح وركوب الباقي"
+            elif pnl is not None and pnl <= _dd:
+                action = "دوري نازل بقوة — راقب الدورة؛ قوي بس مو مُركّب دائم (تماسُك لو الأساس سليم)"
+            else:
+                action = "قوي لكنه دوري (يصعد ثم يصحّح) — اركب الصعود وأمّن الربح عند القوة، مو مسك أبدي"
+        elif sleeve == "core":
+            if _deep_dd:
+                action = "مُركّب نازل بقوة لكن أساسه صلب — موضع تجميع/تماسُك، لا بيع خوف"
+            elif pnl is None or pnl >= 0:
+                action = "مُركّب قوي دائم — خلّه يركّب؛ أرباح النواة لا تُجنى (البيع يصغّر كرة الثلج)"
+            else:
+                action = "مُركّب قوي — التذبذب اليومي ضوضاء؛ ابقَ ضمن أطروحتك"
+        elif sleeve == "spec":
+            if pnl is not None and pnl >= _take:
+                action = f"مضاربة رابحة {pnl:+.0%} — قاعدتك تقترح تأمين ٢٠٪ من الربح وركوب الباقي"
+            elif pnl is not None and pnl < 0:
+                action = "مضاربة تحت سعرك — راقب القصة؛ ما وصل لتأمين ربح"
+            else:
+                action = "مضاربة — راقب؛ عند ربح ≥١٥٪ قاعدتك تقترح تأمين ٢٠٪"
+        else:  # other — غير مصنّف
+            action = f"مو ضمن نواتك ولا مضاربتك المعلَنة — قناعتنا {conv:.0f}/10؛ راجعه حسب قاعدتك"
         # specific holding-period COUNTDOWN: if we know buy_date, show months remaining
         hold_label = r.get("suggested_hold_label")
         target = r.get("suggested_hold_months")
@@ -331,6 +383,7 @@ def evaluate_holdings(records, cfg, deltas=None):
         rows.append({"ticker": r["ticker"], "name": r.get("name"), "conviction": conv,
                      "rank": r.get("rank_score"), "pnl": pnl, "halal": hal,
                      "lifecycle": lc, "verdict": verdict, "why": why,
+                     "sleeve": sleeve, "action": action,
                      "hold_label": hold_label, "better": better,
                      "days_until_earnings": r.get("days_until_earnings"),
                      "pnl_suspect": pnl_suspect, "playbook": pb,

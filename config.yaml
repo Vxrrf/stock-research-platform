@@ -316,6 +316,8 @@ portfolio:
   gold_etf_symbol: GLD             # ETF الذهب (يظهر كخيار مع أسهم التعدين)
   gold_etf_weight: 0.4             # خانة الذهب = مُعدِّنون (أسهم حقيقية) 60% + GLD 40% — لك الخيار (GLD على XTB = CFD)
   drawdown_flag_pct: -0.25         # position down 25% => review (spec §17)
+  profit_take_flag_pct: 0.15       # رهان مضاربة رابح ≥15% → فعّل قاعدة سحب 20% من الربح («وش تسوي»)
+  speculative_sleeve: [TTWO, CELH, ZETA, RKLB, PLTR]   # رهانات المالك المتقلّبة — تطبّق قاعدة الـ20%؛ النواة (NVDA/MSFT/NOW/AVGO/META/AMZN) تُمسَك
   max_compounders: 8
   max_accelerators: 8
   max_future_leaders: 10

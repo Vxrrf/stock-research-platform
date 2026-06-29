@@ -486,6 +486,19 @@ def _trade_chips(r):
     return "<div class='tchips'>%s</div>" % " · ".join(bits)
 
 
+def _holdings_lean(meta):
+    """سطر واحد: كيف يميل العقل العاقل بقواعدك حسب وضع السوق الحالي (إضافة، والقرار لك)."""
+    rg = meta.get("regime") or {}
+    mode = rg.get("recommended_mode")
+    if mode == "conservative":
+        lean = "السوق <b>دفاعي</b> — قواعدك تميل لتأمين جزء من أرباح المضاربات والتمسّك بالنواة."
+    elif mode == "aggressive":
+        lean = "السوق <b>هجومي</b> — قواعدك تميل للمسك والإضافة على القوي دون استعجال جني أرباح النواة."
+    else:
+        lean = "السوق <b>متوازن</b> — قواعدك: المسك على النواة، وتأمين ~٢٠٪ من المضاربات الرابحة (≥١٥٪)."
+    return "<div class='hlean'><b>العقل العاقل:</b> %s <span class='muted xs'>· والقرار لك</span></div>" % lean
+
+
 def _holdings_list(rows):
     if not rows:
         return "<p class='muted pad'>لا محفظة محمّلة — عبّي أسهمك في <b>data/holdings.csv</b>.</p>"
@@ -505,13 +518,20 @@ def _holdings_list(rows):
         better = ("<div class='muted xs'>↑ بديل أقوى في دوره: <b class='n'>%s</b>%s</div>"
                   % (_h(b["ticker"]), bh)) if b else ""
         pbtag = ("<span class='eg'>%s</span>" % framework.PLAYBOOK_AR.get(r.get("playbook"), "")) if r.get("playbook") else ""
+        # وش تسوي — قاعدتك مطبّقة على هالسهم (لكل سهم سطر مختلف). تأطير بحثي مو أمر بيع/شراء.
+        a = r.get("action") or ""
+        acls = ("exit" if ("للخروج" in a or "غير متوافق" in a) else
+                "take" if "تسحب" in a else "hold")
+        act = ("<div class='haction %s'><span class='hact-l'>وش تسوي</span><span class='hact-t'>%s</span></div>"
+               % (acls, _h(a))) if a else ""
         out += (
             "<div class='lrow' onclick='exp(this)'><div class='lmain'>"
             "<div class='lt'><b class='n'>%s</b> <span class='vd'>%s</span>%s</div>"
+            "%s"
             "<div class='lsub'>%s</div>%s%s</div>"
             "<div class='hpnl'>%s<div class='muted xs'>%s</div></div><span class='chev'>⌄</span></div>"
             "%s"
-            % (_h(r["ticker"]), _h(r["verdict"]), pbtag, _h(r.get("why", "")), better,
+            % (_h(r["ticker"]), _h(r["verdict"]), pbtag, act, _h(r.get("why", "")), better,
                _trade_chips(r), pnl, _h(r.get("hold_label") or ""), _hold_detail(r))
         )
     return "<div class='list'>" + out + "</div>"
@@ -528,80 +548,6 @@ _DONUT_MAP = [
     ("مضاربات",   "#C0926E", "مضاربات"),
     ("كاش",       "#314140", "كاش"),
 ]
-
-
-def _alloc_donut(rows, meta):
-    """Clean animated allocation ring + legend — the visual face of the portfolio."""
-    segs = []
-    for r in rows:
-        lbl = r.get("bucket", "")
-        if "تحقّق" in lbl:                       # skip the sum-mismatch warning row
-            continue
-        try:
-            pct = int(round(float(str(r.get("allocation_pct", "0")).replace("%", "").strip())))
-        except Exception:
-            pct = 0
-        if pct <= 0:
-            continue
-        color, name = "#6b7480", lbl
-        for key, c, nm in _DONUT_MAP:
-            if key in lbl:
-                color, name = c, nm
-                break
-        segs.append((pct, color, name))
-    if not segs:
-        return ""
-    total = sum(p for p, _, _ in segs) or 100
-    ring, cum = "", 0.0
-    for i, (pct, color, _) in enumerate(segs):
-        share = pct * 100.0 / total
-        ring += ("<circle class='seg' cx='100' cy='100' r='72' fill='none' stroke='%s' "
-                 "stroke-width='20' pathLength='100' style='--dash:%.2f 100;"
-                 "stroke-dashoffset:%.2f;animation-delay:%.2fs'></circle>"
-                 % (color, max(0.0, share - 0.7), -cum, 0.07 * i))   # -0.7 = hairline gap between slices
-        cum += share
-    nav = meta.get("modes_nav") or []
-    active = meta.get("active_mode")
-    mode_lbl = next((l for k, l, _f in nav if k == active), "التوزيع الذكي")
-    center = ("<text x='100' y='94' class='dc-t'>محفظتي</text>"
-              "<text x='100' y='116' class='dc-s'>%s</text>" % _h(mode_lbl))
-    svg = ("<svg viewBox='0 0 200 200' class='donut' role='img' aria-label='توزيع المحفظة'>"
-           "<g transform='rotate(-90 100 100)'>"
-           "<circle class='ring-bg' cx='100' cy='100' r='72' fill='none' stroke-width='20'></circle>"
-           + ring + "</g>" + center + "</svg>")
-    legend = ""
-    for pct, color, name in segs:
-        lp = int(round(pct * 100.0 / total))      # normalized to match the ring; sums to 100
-        legend += ("<div class='dli'><span class='ddot' style='background:%s'></span>"
-                   "<span class='dnm'>%s</span>"
-                   # static text = the real value (so prefers-reduced-motion shows it, not 0);
-                   # the count-up animates from 0→value only when motion is enabled.
-                   "<span class='dpc'><span class='cnt' data-c='%d' data-d='0'>%d</span>%%</span></div>"
-                   % (color, _h(name), lp, lp))
-    return "<div class='dchart'>%s<div class='dleg'>%s</div></div>" % (svg, legend)
-
-
-def _fwd_pulse(records):
-    """One-line forward pulse: how many names have analysts RAISING vs CUTTING estimates
-    (only HIGH/MED confidence). Falls back to a strong-outlook count when targets are flat."""
-    up = dn = strong = 0
-    for r in records:
-        if r.get("forward_outlook_confidence") not in ("HIGH", "MED"):
-            continue
-        ds = " ".join(r.get("forward_drivers") or [])
-        if "يرفعون" in ds:
-            up += 1
-        elif "يخفّضون" in ds:
-            dn += 1
-        if (r.get("forward_outlook_score") or 0) >= 7 and r.get("forward_outlook_confidence") == "HIGH":
-            strong += 1
-    if up or dn:
-        return ("<div class='fpulse'>نبض المحفظة المستقبلي: <b class='n fp-up'>%d</b> تُرفع تقديراتها · "
-                "<b class='n fp-dn'>%d</b> تُخفّض %s</div>" % (up, dn, _i("forward")))
-    if strong:
-        return ("<div class='fpulse'>نبض المحفظة المستقبلي: <b class='n fp-up'>%d</b> اسم نظرته المستقبلية قوية "
-                "(ثقة عالية) %s</div>" % (strong, _i("forward")))
-    return ""
 
 
 def _bucket_meta(label):
@@ -1211,6 +1157,15 @@ h4{font-size:13px;margin:18px 0 8px;color:var(--t2);font-weight:600}
 .hc.ok{color:var(--sage);background:var(--sage16)}
 .hc.bad{color:var(--risk);background:color-mix(in oklab,var(--risk) 15%,transparent)}
 .hc.unk{color:var(--t3);background:var(--field)}
+/* «وش تسوي» — قاعدتك مطبّقة لكل سهم */
+.haction{display:flex;gap:8px;align-items:baseline;margin:5px 0 3px;padding:6px 10px;border-radius:9px;background:var(--field);border-right:3px solid var(--t4)}
+.haction .hact-l{font-size:9.5px;font-weight:700;color:var(--t3);flex:0 0 auto;letter-spacing:.3px;transform:translateY(-1px)}
+.haction .hact-t{font-size:12.5px;color:var(--t1);line-height:1.55}
+.haction.exit{border-right-color:var(--risk);background:color-mix(in oklab,var(--risk) 9%,var(--field))}
+.haction.take{border-right-color:#d3a24e;background:color-mix(in oklab,#d3a24e 10%,var(--field))}
+.haction.hold{border-right-color:var(--sage);background:color-mix(in oklab,var(--sage) 8%,var(--field))}
+.hlean{font-size:12px;color:var(--t2);background:var(--card);border:1px solid var(--hair);border-radius:11px;padding:9px 12px;margin:2px 0 8px;line-height:1.6}
+.hlean b{color:var(--sage);font-weight:600}
 .bt-line{font-size:13.5px;padding:4px 0 8px}
 details.mini{font-size:12px}details.mini summary{cursor:pointer;color:var(--t2)}
 .cav{margin:7px 16px 0;padding:0;color:var(--risk);font-size:12px}.cav li{margin:4px 0}
@@ -1635,7 +1590,8 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
         + _invest_panel(portfolio_rows, cfg, records)
         + "<h3 class='sec'>التوزيع الذكي %s</h3>" % _i("portfolio")
         + _portfolio_list(portfolio_rows, records, cfg)
-        + "<h3 class='sec'>مراكزي الحالية</h3>"
+        + "<h3 class='sec'>مراكزي الحالية <span class='c'>(وش تسوي بكل سهم)</span></h3>"
+        + _holdings_lean(meta)
         + _holdings_list(he)
         + "</div>"
     )
