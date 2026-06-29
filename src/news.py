@@ -51,6 +51,90 @@ def _direction(head):
     return "positive" if pos > neg else ("negative" if neg > pos else "neutral")
 
 
+# ── Arabic market news (Investing.com Arabic RSS — native عربي، متعلّق بالسوق، يصل من السحابة) ──
+_AR_POS = ("صعود", "ارتفاع", "يرتفع", "مكاسب", "قفز", "يقفز", "قوي", "قوية", "تفوز", "فوز", "اتفاقية",
+           "نمو", "صفقة", "ربح", "أرباح", "تعافي", "يصعد", "إيجاب", "رابح", "يربح", "تتفوّق", "تتجاوز")
+_AR_NEG = ("هبوط", "تراجع", "يتراجع", "ضغوط", "تحذير", "خسائر", "خسارة", "ينخفض", "انخفاض", "سلبي",
+           "سلبية", "أدنى", "يهبط", "ركود", "مخاوف", "قلق", "تخفيض", "يخفّض", "صدمة", "أزمة", "ضعف")
+
+
+def _ar_direction(t):
+    pos = sum(w in t for w in _AR_POS)
+    neg = sum(w in t for w in _AR_NEG)
+    return "positive" if pos > neg else ("negative" if neg > pos else "neutral")
+
+
+def _ar_ago(pubdate):
+    """«منذ ساعة / منذ يومين» من pubDate الـRSS — إحساس Investing.com. الصيغة: «2026-06-29 13:51:38»."""
+    import datetime as _dt
+    pubdate = (pubdate or "").strip()
+    if not pubdate:
+        return ""
+    dt = None
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S"):
+        try:
+            dt = _dt.datetime.strptime(pubdate[:19], fmt)
+            break
+        except Exception:
+            pass
+    if dt is None:
+        try:
+            from email.utils import parsedate_to_datetime
+            dt = parsedate_to_datetime(pubdate).replace(tzinfo=None)
+        except Exception:
+            return ""
+    try:
+        secs = (_dt.datetime.utcnow() - dt).total_seconds()
+        if secs < 0:
+            secs = 0
+        if secs < 3600:
+            return "منذ %d د" % max(1, int(secs // 60))
+        if secs < 86400:
+            return "منذ %d س" % int(secs // 3600)
+        return "منذ %d يوم" % int(secs // 86400)
+    except Exception:
+        return ""
+
+
+def _fetch_arabic_news(limit=14, timeout=12):
+    """عناوين عربية متعلّقة بالسوق من Investing.com (curl أساساً — يصل من CI، requests احتياطاً)."""
+    import re
+    urls = ["https://sa.investing.com/rss/news_25.rss", "https://sa.investing.com/rss/news.rss"]
+    out, seen = [], set()
+    skip = {"كافة الأخبار", "أخبار أسواق الأسهم", "الأكثر شعبية"}
+    for url in urls:
+        text = None
+        try:
+            import subprocess
+            r = subprocess.run(["curl", "-sS", "--max-time", str(timeout), "-A", "Mozilla/5.0", url],
+                               capture_output=True, text=True, timeout=timeout + 5)
+            if r.returncode == 0 and r.stdout.strip():
+                text = r.stdout
+        except Exception:
+            text = None
+        if not text:
+            try:
+                import requests
+                text = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=timeout).text
+            except Exception:
+                continue
+        for it in re.findall(r"<item>(.*?)</item>", text, re.S):
+            tm = re.search(r"<title>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</title>", it, re.S)
+            dm = re.search(r"<pubDate>(.*?)</pubDate>", it, re.S)
+            if not tm:
+                continue
+            import html as _html
+            title = _html.unescape(re.sub(r"<[^>]+>", "", tm.group(1))).strip()
+            if not title or title in skip or title.lower() in seen:
+                continue
+            seen.add(title.lower())
+            out.append({"event_name": title, "date": _ar_ago(dm.group(1) if dm else ""),
+                        "impact_direction": _ar_direction(title), "source": "Investing.com"})
+            if len(out) >= limit:
+                return out
+    return out
+
+
 def _fmt_date(dt):
     import datetime as _dt
     try:
@@ -59,43 +143,40 @@ def _fmt_date(dt):
         return ""
 
 
-def live_news(cfg, focus_tickers=None, limit=12):
-    """LIVE, MARKET-FOCUSED news from Finnhub (free, auto-updating) — leads with the user's own
-    holdings' news, then market-relevant general headlines (filtered). Makes 'today' genuinely
-    fresh + independent of any hand-maintained file. [] if no key → caller falls back to the yaml."""
+def live_news(cfg, focus_tickers=None, limit=14):
+    """LIVE, MARKET-FOCUSED news — LEADS with native Arabic market headlines (Investing.com RSS,
+    like the user expects), then the user's own holdings' news from Finnhub. Auto-updating + cloud-
+    reachable (curl). Falls back gracefully; [] only if everything fails → caller uses the yaml."""
     import sources
     import datetime as _dt
-    fh = sources.FinnhubClient(cfg)
-    if not fh.enabled:
-        return []
     out, seen = [], set()
 
-    # 1) the user's holdings/watchlist news — the most relevant news to him (per-ticker)
-    today = _dt.date.today()
-    frm = (today - _dt.timedelta(days=6)).isoformat()
-    for t in (focus_tickers or [])[:8]:
-        for n in (fh.company_news(t, frm, today.isoformat()) or [])[:2]:
-            head = (n.get("headline") or "").strip()
-            if not head or head.lower() in seen:
-                continue
-            seen.add(head.lower())
-            out.append({"event_name": "[%s] %s" % (t, head), "date": _fmt_date(n.get("datetime")),
-                        "impact_direction": _direction(head), "source": n.get("source", "")})
+    # 0) LEAD with native ARABIC market news (gold/Fed/dollar/stocks — like Investing.com)
+    try:
+        for n in _fetch_arabic_news(limit=limit):
+            k = (n.get("event_name") or "").lower()
+            if k and k not in seen:
+                seen.add(k)
+                out.append(n)
+    except Exception as e:
+        print(f"  arabic news skipped: {e}")
 
-    # 2) general market news — filtered for market relevance (drops random world/lifestyle news)
-    for n in (fh.market_news("general") or [])[:40]:
-        head = (n.get("headline") or "").strip()
-        if not head or head.lower() in seen:
-            continue
-        hl = head.lower()
-        if not any(w in hl for w in _MKT):        # not market-relevant → skip
-            continue
-        seen.add(hl)
-        out.append({"event_name": head, "date": _fmt_date(n.get("datetime")),
-                    "impact_direction": _direction(head), "source": n.get("source", "")})
-        if len(out) >= limit:
-            break
-    return out[:limit]
+    # 1) the user's holdings' news from Finnhub (holdings-specific; English, tagged by ticker)
+    fh = sources.FinnhubClient(cfg)
+    if fh.enabled:
+        today = _dt.date.today()
+        frm = (today - _dt.timedelta(days=6)).isoformat()
+        for t in (focus_tickers or [])[:8]:
+            for n in (fh.company_news(t, frm, today.isoformat()) or [])[:2]:
+                head = (n.get("headline") or "").strip()
+                if not head or head.lower() in seen:
+                    continue
+                seen.add(head.lower())
+                out.append({"event_name": "[%s] %s" % (t, head), "date": _fmt_date(n.get("datetime")),
+                            "impact_direction": _direction(head), "source": n.get("source", "")})
+                if len(out) >= limit + 8:
+                    break
+    return out[:limit + 8]
 
 
 def _load_events():
