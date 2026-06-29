@@ -31,6 +31,10 @@ def evaluate(rec, cfg, is_holding=False):
     if rec.get("_earnings_invalid"):
         reasons.append("تاريخ أرباح غير صالح")
 
+    # ── broker availability — أسماء غير قابلة للتداول على XTB (تأكيد المالك) ──
+    if rec.get("ticker") in set(g.get("broker_unavailable", []) or []):
+        reasons.append("غير متوفّر على XTB")
+
     # ── hard gates (config) ──
     na = rec.get("num_analysts")
     if na is not None and na < g.get("min_analysts", 4):

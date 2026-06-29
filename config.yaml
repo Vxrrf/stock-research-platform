@@ -58,6 +58,7 @@ gates:
   upside_floor: -0.05              # target not far below price
   one_year_return_hard_max: 4.0    # +400% in 1y => almost certainly too late
   pe_hard_max: 90.0                # insane valuation => reject
+  broker_unavailable: [AGGI]       # غير متوفّرة على XTB (تأكيد المالك) — تُستبعَد من المرشّحات
 
 # ─────────────────────────────────────────────────────────────────────
 #  GROWTH / EPS / VALUATION THRESHOLDS  (scoring reference points)
