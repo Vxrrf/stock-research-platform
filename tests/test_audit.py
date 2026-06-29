@@ -578,6 +578,16 @@ def test_desk_note_strong_vs_weak_in_dip():
         assert bad not in joined
 
 
+def test_regime_macro_fusion_takes_worse():
+    # news says calm, but live macro (VIX spike + wide credit spreads) screams crisis →
+    # the brain must take the WORSE and defend, never ignore real market stress
+    out = REG.detect(_reg_recs(crowd=0.2, pe=25), "Low", {"regime": {}}, persist=False,
+                     macro={"stress_rank": 3, "label_ar": "أزمة", "rising": True, "easing": False,
+                            "vix": 45, "hy": 9.0})
+    assert out["recommended_mode"] == "conservative", "macro crisis must override calm news → defend"
+    assert out["metrics"].get("vix") == 45, "VIX must surface in metrics"
+
+
 def test_regime_breadth_metric_present():
     recs = _reg_recs(crowd=0.2, pe=25)
     for i, r in enumerate(recs):

@@ -118,13 +118,19 @@ def _stateless_decide(risk_rank, crowd_pct, med_fpe, cand_pct):
             "لا تطرّف واضح — التوازن الافتراضي يكفي.")
 
 
-def detect(records, market_risk, cfg=None, persist=True):
+def detect(records, market_risk, cfg=None, persist=True, macro=None):
     """يرجّع قراءة وضع السوق + الوضع الموصى به، بذاكرةٍ واتجاه. دفاعيّ ضدّ القيم الناقصة.
-    persist=False (تشغيل الماك من الكاش) لا يكتب الحالة — السحابة وحدها تملك ذاكرة الـFSM."""
+    persist=False (تشغيل الماك من الكاش) لا يكتب الحالة — السحابة وحدها تملك ذاكرة الـFSM.
+    macro = إشارات FRED (VIX + فروقات الائتمان) — تُدمَج فترفع قراءة الخطر لو السوق متوتّر فعلاً."""
     cfg = cfg or {}
     P = _params(cfg)
     n, crowd_pct, med_fpe, cand_pct, risk_rank, breadth_down = _metrics(
         records, market_risk, P["breadth_deep"])
+    # دمج الكلّي الحقيقي: نأخذ الأسوأ بين خطر الأخبار وخطر السوق (VIX/فروقات الائتمان).
+    news_rank = risk_rank
+    macro_rank = (macro or {}).get("stress_rank")
+    if isinstance(macro_rank, int):
+        risk_rank = max(news_rank, macro_rank)
     broad_damage = isinstance(breadth_down, (int, float)) and breadth_down >= P["breadth_broad"]
 
     st = _load_state(cfg)
@@ -246,6 +252,8 @@ def detect(records, market_risk, cfg=None, persist=True):
         signals.append("فرص رخيصة %d%%" % round(cand_pct * 100))
     if broad_damage:
         signals.append("هبوط واسع — %d%% بعيدة عن قممها" % round(breadth_down * 100))
+    if macro and macro.get("label_ar") and (macro.get("stress_rank", 0) >= 1 or macro.get("easing")):
+        signals.append(macro["label_ar"])
     if held:
         signals.append("تثبيت مؤقّت لمنع التذبذب")
 
@@ -292,6 +300,8 @@ def detect(records, market_risk, cfg=None, persist=True):
             "med_fwd_pe": round(med_fpe, 1) if med_fpe is not None else None,
             "candidate_pct": round(cand_pct, 3),
             "breadth_down": round(breadth_down, 3) if isinstance(breadth_down, (int, float)) else None,
+            "vix": (macro or {}).get("vix"), "hy_spread": (macro or {}).get("hy"),
+            "macro_label": (macro or {}).get("label_ar"),
             "n": n,
             "risk_trend": ("rising" if rising else ("easing" if (prev_risk is not None and risk_rank < prev_risk) else "flat")),
             "episode_active": episode,

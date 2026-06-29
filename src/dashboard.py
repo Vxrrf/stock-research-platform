@@ -717,7 +717,10 @@ def _invest_panel(portfolio_rows, cfg, records):
             nf = info.get(t, {})
             rows.append({"t": t, "p": int(pp), "s": nf.get("s", False),
                          "f": (t in _FUND_TICKERS), "cap": nf.get("cap", base)})
-        data.append({"b": name, "c": shade, "pct": pctn, "names": rows})
+        # leftover when caps bind a bucket (e.g. «AAA 12% · غير موزّع 18%») — the unparsed remainder
+        # must NOT vanish from the calculator; route its share to funds/cash so the FULL amount is accounted.
+        lo = max(0.0, pctn - sum(int(pp) for _, pp in names))
+        data.append({"b": name, "c": shade, "pct": pctn, "names": rows, "lo": round(lo, 2)})
     return ("<div class='invest'>"
             "<div class='inv-h'>مبلغي للاستثمار الآن</div>"
             "<input type='number' id='invamt' inputmode='decimal' placeholder='مثال: 1000' "
@@ -1218,6 +1221,7 @@ function _split(){
   var a=parseFloat((document.getElementById('invamt')||{}).value)||0;
   var D=window.__INV||[],cum=_cum(),names=[],extra=0;
   for(var i=0;i<D.length;i++){var b=D[i];
+    if(b.lo>0){extra+=a*(b.lo/100);}   // bucket-level «غير موزّع» (caps bound) → funds/cash, never dropped
     for(var j=0;j<b.names.length;j++){var nm=b.names[j],cap=nm.cap||1e9,raw=a*(nm.p/100),give=raw,full=false,al=cum[nm.t]||0;
       if(!nm.f && !nm.s){var room=Math.max(0,cap-al);give=Math.min(raw,room);if(room<=0){full=true;}extra+=(raw-give);}
       names.push({t:nm.t,b:b.b,c:b.c,give:give,full:full,already:al,cap:cap,fund:nm.f,strong:nm.s,over:(nm.s&&al>=cap)});}
@@ -1243,7 +1247,7 @@ function splitInvest(){
   // name-less buckets (كاش) still get their share — show it so the full amount is accounted for
   (window.__INV||[]).forEach(function(b){if((!b.names||!b.names.length)&&b.pct>0){var amt=S.a*(b.pct/100);
     if(amt>=0.5)h+='<div class="inv-b"><span class="inv-bk" style="background:'+b.c+'"></span><span class="inv-bn">'+b.b+'</span><b class="n">'+_m(amt)+'</b></div>';}});
-  if(S.extra>0.5){h+='<div class="inv-extra">+ '+_m(S.extra)+' فائض الأسهم الممتلئة → وجّهه للصناديق (ETF/كاش) وأعد الموازنة.</div>';}
+  if(S.extra>0.5){h+='<div class="inv-extra">+ '+_m(S.extra)+' غير موزّع (أسهم ممتلئة + سقوف الخانات) → وجّهه للصناديق (ETF/كاش) وأعد الموازنة.</div>';}
   out.innerHTML=h;
 }
 function recordInvest(){
@@ -1340,6 +1344,17 @@ def _regime_detail(meta):
                + metric("الازدحام", "%d%%" % round((m.get("crowd_pct") or 0) * 100))
                + metric("وسيط P/E آجل", pe)
                + metric("فرص رخيصة", "%d%%" % round((m.get("candidate_pct") or 0) * 100)))
+    vix, hy = m.get("vix"), m.get("hy_spread")
+    bd = m.get("breadth_down")
+    extra_m = ""
+    if isinstance(vix, (int, float)):
+        extra_m += metric("VIX (الخوف)", "%.0f" % vix)
+    if isinstance(hy, (int, float)):
+        extra_m += metric("فروقات الائتمان", "%.1f%%" % hy)
+    if isinstance(bd, (int, float)):
+        extra_m += metric("اتساع الهبوط", "%d%%" % round(bd * 100))
+    if extra_m:
+        metrics += extra_m
     sigs = rg.get("signals") or []
     sig_html = (("<ul class='rg-sigs'>" + "".join("<li>%s</li>" % _h(s) for s in sigs) + "</ul>")
                 if sigs else "<p class='muted xs'>لا إشارات صارخة — وضع هادئ، التوازن يكفي.</p>")

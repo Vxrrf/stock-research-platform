@@ -45,7 +45,7 @@ jobs:
           # commit docs AND the cloud-owned regime/desk state so the FSM trend/episode memory
           # PERSISTS across runs (otherwise every cloud run cold-starts and the smart regime is defeated).
           git add docs
-          git add -f data/_state/regime_history.json data/_state/desk_state.json 2>/dev/null || true
+          git add -f data/_state/regime_history.json data/_state/desk_state.json data/_state/macro.json 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "no change — link left as-is"
           else
