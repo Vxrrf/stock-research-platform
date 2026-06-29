@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "updated_utc": "2026-06-29T13:49:50+00:00",
+ "updated_utc": "2026-06-29T14:05:57+00:00",
  "history": [
   {
    "ts": "2026-06-29T07:47:36+00:00",
@@ -71,15 +71,25 @@
    "cand_pct": 0.22,
    "regime": "ضغط مرتفع — دفاع",
    "recommended_mode": "conservative"
+  },
+  {
+   "ts": "2026-06-29T14:05:57+00:00",
+   "risk_rank": 2,
+   "market_risk": "High",
+   "crowd_pct": 0.04,
+   "med_fwd_pe": 15.1,
+   "cand_pct": 0.22,
+   "regime": "ضغط مرتفع — دفاع",
+   "recommended_mode": "conservative"
   }
  ],
  "episode_active": true,
  "peak_risk_rank": 2,
  "peak_med_fpe": 15.541941999999999,
- "easing_streak": 6,
- "defensive_runs": 7,
+ "easing_streak": 7,
+ "defensive_runs": 8,
  "calm_streak": 0,
  "relieved": false,
  "current_mode": "conservative",
- "mode_since_run": 6
+ "mode_since_run": 7
 }
