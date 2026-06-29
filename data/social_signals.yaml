@@ -30,6 +30,12 @@ watched_accounts:
   - tradeswitjames
   - bdinvestingg
   - capitallgrowth
+  # ── حسابات استثمار من قائمة «يتابعهم» المالك على إنستقرام (التقطتها عبر كروم ٢٩ يونيو ٢٠٢٦) ──
+  # كل واحد منهم بيوه استثمار/أسهم؛ أحلّل فيديوهاتهم عند الطلب وأقارن كلامهم ببيانات منصّتنا.
+  - khalid.invest      # Khalid — أسهم/استثمار
+  - andy_invests       # Andy Luo | FINANCE
+  - rahul.invests      # Rahul Shirahatti | Personal Finance & Investing
+  - whymattrs          # Matt Tran | Personal Finance & Investing
 
 signals:
   # kevvonz — أكبر رهاناته على بنية AI / neocloud (متحقّق من الكابشنات)

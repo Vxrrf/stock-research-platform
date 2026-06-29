@@ -477,6 +477,7 @@ def main():
         "fresh_counts": fc, "hi": cc.get("HIGH", 0), "med": cc.get("MEDIUM", 0), "low": cc.get("LOW", 0),
         "market_risk_today": market_risk, "examined": len(records), "universe": len(tickers),
         "signals_rows": signals_mod.rows(rby, cfg)[1],
+        "watched_accounts": signals_mod.load()[0],
         "movers": moves, "backtest": bt,
         "bottlenecks": bottlenecks_mod.build_summary(bn_data, rby),
     }

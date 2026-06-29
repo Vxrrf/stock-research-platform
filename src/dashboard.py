@@ -866,6 +866,35 @@ def _signals_compact(rows):
     return "<div class='list'>" + out + "</div>"
 
 
+def _influencer_roster(accounts):
+    """Clickable roster of watched Instagram accounts. Each card links to the profile,
+    opens the account's Reels, and copies a ready 'investigate' prompt for Claude to act on.
+    The static page can't run Claude itself — so 'حقّق' bridges to it: copy prompt + open reels."""
+    accounts = [a for a in (accounts or []) if a]
+    if not accounts:
+        return ("<input class='isearch' placeholder='ابحث مؤثّر…' disabled>"
+                "<p class='iempty'>لا مؤثرين بعد — قول لكلود «ضِف مؤثر» أو أرسل حسابه.</p>")
+    cards = ""
+    for a in sorted(set(accounts), key=str.lower):
+        h = _h(a)
+        av = _h(a.lstrip("_")[:1].upper() or "@")
+        prof = "https://www.instagram.com/%s/" % h
+        reels = "https://www.instagram.com/%s/reels/" % h
+        cards += (
+            "<div class='icard' data-h='%s'>"
+            "<div class='ih'><span class='iav'>%s</span>"
+            "<a class='ihandle' href='%s' target='_blank' rel='noopener'>@%s</a></div>"
+            "<div class='iacts'>"
+            "<a class='ibtn' href='%s' target='_blank' rel='noopener'>🎬 فيديوهاته</a>"
+            "<button class='ibtn pri' onclick=\"invHandle('%s')\">🔍 حقّق</button>"
+            "</div></div>"
+            % (h, av, prof, h, reels, h))
+    return (
+        "<input class='isearch' placeholder='ابحث مؤثّر… (مثلاً invest)' oninput='filterInf(this.value)'>"
+        "<div class='iroster' id='iroster'>" + cards + "</div>"
+        "<p class='muted xs'>«حقّق» ينسخ طلب تحليل فيديوهاته لكلود ويفتح ريلزه — الصق الطلب لي وأنا أشاهدها وأطلّع أسهمها وأقارنها ببياناتنا.</p>")
+
+
 def _backtest_compact(bt):
     if not bt or not bt.get("ok"):
         reason = (bt or {}).get("reason") or "لم يُشغّل بعد"
@@ -1126,6 +1155,20 @@ h4{font-size:13px;margin:18px 0 8px;color:var(--t2);font-weight:600}
 .xt i{display:block;height:100%;background:var(--sage)}
 .srow{display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--hair)}
 .srow:first-child{border-top:0}.srow b{font-size:13.5px;font-weight:600}.srow .fit{margin-right:auto;font-size:12px;color:var(--t2)}
+/* roster المؤثرين (إنستقرام) */
+.isearch{width:100%;box-sizing:border-box;border:1px solid var(--hair);background:var(--field);color:var(--t1);border-radius:11px;padding:9px 13px;font-size:13px;font-family:inherit;margin:8px 0 4px}
+.isearch::placeholder{color:var(--t3)}
+.iroster{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:8px;margin:8px 0 6px}
+.icard{border:1px solid var(--hair);border-radius:13px;background:var(--card);padding:10px 11px;display:flex;flex-direction:column;gap:9px;box-shadow:var(--sheen)}
+.icard .ih{display:flex;align-items:center;gap:8px;min-width:0}
+.iav{width:27px;height:27px;border-radius:50%;flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#0c0f14;background:linear-gradient(135deg,#f58529,#dd2a7b 55%,#8134af)}
+.ihandle{font-size:12.5px;font-weight:600;color:var(--t1);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ihandle:hover{color:var(--sage)}
+.iacts{display:flex;gap:6px}
+.ibtn{flex:1;border:1px solid var(--hair);background:var(--field);color:var(--t2);border-radius:9px;padding:6px 6px;font-size:11px;font-weight:600;cursor:pointer;text-align:center;text-decoration:none;line-height:1.3;white-space:nowrap}
+.ibtn:hover{border-color:var(--sage);color:var(--sage)}
+.ibtn.pri{background:var(--sage16);border-color:transparent;color:var(--sage)}
+.iempty{color:var(--t3);font-size:12px;padding:8px 2px}
 .bt-line{font-size:13.5px;padding:4px 0 8px}
 details.mini{font-size:12px}details.mini summary{cursor:pointer;color:var(--t2)}
 .cav{margin:7px 16px 0;padding:0;color:var(--risk);font-size:12px}.cav li{margin:4px 0}
@@ -1281,6 +1324,20 @@ function updateAll(b){
     document.getElementById('updmsg').innerText=d.ok?'تم':(d.summary||'خطأ');
     if(d.ok)setTimeout(function(){location.reload();},800);else{b.style.opacity=1;b.innerText=o;}
   }).catch(function(){document.getElementById('updmsg').innerText='تعذّر الاتصال بالخادم';b.style.opacity=1;b.innerText=o;});
+}
+/* ═══ المؤثرون: «حقّق» = انسخ طلب تحليل فيديوهاته لكلود + افتح ريلزه · بحث يفلتر القائمة ═══ */
+function invHandle(h){
+  var prompt='شوف فيديوهات @'+h+' على إنستقرام، طلّع الأسهم اللي يذكرها، وقارن كل سهم ببيانات منصّتنا (قناعتنا + الحلال) قبل أي رأي.';
+  var done=function(){window.open('https://www.instagram.com/'+h+'/reels/','_blank','noopener');
+    alert('نسخت طلب التحقيق لكلود — الصقه له. وفتحت ريلز @'+h+'.');};
+  try{ if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(prompt).then(done,done);return;} }catch(e){}
+  try{var t=document.createElement('textarea');t.value=prompt;document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);}catch(e){}
+  done();
+}
+function filterInf(q){q=(q||'').toLowerCase().trim();
+  var cs=document.querySelectorAll('#iroster .icard');
+  for(var i=0;i<cs.length;i++){var h=(cs[i].getAttribute('data-h')||'').toLowerCase();
+    cs[i].style.display=(!q||h.indexOf(q)>=0)?'':'none';}
 }
 /* ═══ موشن: كشف لطيف عند التمرير + تكبير الأشرطة (يحترم reduce-motion) ═══ */
 (function(){
@@ -1560,8 +1617,10 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
         + _not_inv_compact(buckets.get("not_investable", []))
         + "<h4>📰 أثر الأخبار %s</h4>%s" % (_i("news"), _news_compact(news_rows))
         + "<h4>🏛️ النشاط السياسي %s</h4>%s" % (_i("political"), _political_compact(political_rows))
-        + "<h4>📡 إشارات المؤثرين %s</h4><div class='muted xs'>إشارة ضعيفة للمراجعة فقط · لأحدث توصياتهم قُل لكلود «شوف المؤثرين».</div>%s" % (
-            _i("signals"), _signals_compact(meta.get("signals_rows") or []))
+        + "<h4>📡 إشارات المؤثرين %s</h4><div class='muted xs'>إشارة ضعيفة للمراجعة فقط · لأحدث توصياتهم قُل لكلود «شوف المؤثرين».</div>" % _i("signals")
+        + "<div class='muted xs' style='margin-top:6px'>المؤثرون اللي أتابعهم لك (من قائمتك على إنستقرام):</div>"
+        + _influencer_roster(meta.get("watched_accounts") or [])
+        + _signals_compact(meta.get("signals_rows") or [])
         + "</div>"
     )
 
