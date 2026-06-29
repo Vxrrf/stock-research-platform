@@ -38,6 +38,30 @@ watched_accounts:
   - whymattrs          # Matt Tran | Personal Finance & Investing
   - leon_invests       # أضافه المالك ٢٩ يونيو (كتبه ieon — صحّحته لـ leon: Stocks/6-fig، تصنيفات أسهم، يتابعه dentist81+andy)
 
+big_voices:
+  # ⭐ محللون كبار يتابعهم المؤثرون أنفسهم ويثقون فيهم — طبقة فوق المؤثرين (شاركهم dentist81)
+  analysts:
+    - {name: "Tom Lee", org: "Fundstrat", note: "رأس Fundstrat — متفائل طويل المدى؛ يتابعه دكتور فهد ويثق فيه"}
+    - {name: "Mark Newton, CMT", org: "Fundstrat", note: "رفع هدف S&P 500 لـ2026 إلى 8000 (من 7300) — استراتيجي فني، شاركه دكتور فهد في قناته"}
+  # أسهم شاركها دكتور فهد في قناته من مصادر الكبار (تظهر بنجمة ⭐ على رأس القائمة)
+  star_tickers: [PLTR, MU, MRVL, BE, VRT, APH]
+
+consensus:   # «تكرر عند المؤثرين» — ذُكر عند ≥2 مؤثر مختلف (مسح 19 مؤثر، 2026-06-29)
+  - {ticker: MU, n: 8, sentiment: bullish}
+  - {ticker: META, n: 5, sentiment: bullish}
+  - {ticker: NVDA, n: 4, sentiment: bullish}
+  - {ticker: MSFT, n: 4, sentiment: bullish}
+  - {ticker: NOW, n: 4, sentiment: bullish}
+  - {ticker: AAOI, n: 4, sentiment: bullish}
+  - {ticker: AMD, n: 3, sentiment: bullish}
+  - {ticker: AAPL, n: 3, sentiment: bearish}
+  - {ticker: QCOM, n: 3, sentiment: bullish}
+  - {ticker: AMZN, n: 2, sentiment: bullish}
+  - {ticker: SNDK, n: 2, sentiment: bullish}
+  - {ticker: ASTS, n: 2, sentiment: bullish}
+  - {ticker: NBIS, n: 2, sentiment: bullish}
+  - {ticker: BE, n: 2, sentiment: bullish}
+
 signals:
   # kevvonz — أكبر رهاناته على بنية AI / neocloud (متحقّق من الكابشنات)
   - {account: kevvonz, date: "2026-06-20", ticker: IREN, sentiment: bullish, note: "أكبر رهان AI-infra/neocloud — تحقّق الحلال (تعدين كريبتو سابقاً)", source: "TikTok/IG captions"}

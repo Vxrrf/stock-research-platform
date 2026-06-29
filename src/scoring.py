@@ -240,6 +240,11 @@ def overall_rank(rec, cfg, weights=None):
     # investability gate floors the rank so artifacts can't surface as top picks.
     if rec.get("data_suspect") or rec.get("investable") is False:
         rank *= 0.5
+    # NaN/inf guard: a nan input (e.g. missing opportunity_score) poisons the blend, and
+    # `nan or 0` is truthy so nan-ranked artifacts (SPAC warrants like AACIW) float to #1.
+    # Force any non-finite rank to 0.0 so bad-data rows sink to the bottom of every sort.
+    if rank != rank or rank in (float("inf"), float("-inf")):
+        return 0.0
     return round(rank, 1)
 
 

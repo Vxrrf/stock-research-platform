@@ -754,13 +754,16 @@ def _newspaper(today, news_rows, opps, records, meta):
     if news_rows:
         col = {"positive": "fp-up", "negative": "fp-dn", "neutral": "muted"}
         ar = {"positive": "إيجابي", "negative": "سلبي", "neutral": "محايد"}
+        # أهم الأخبار فقط: ذات الأثر (إيجابي/سلبي) أولاً، حد أقصى 5 — مو أي خبر
+        _imp = [n for n in news_rows if n.get("impact_direction") in ("positive", "negative")]
+        show = (_imp or news_rows)[:5]
         rows = ""
-        for n in news_rows[:8]:
+        for n in show:
             d = n.get("impact_direction", "neutral")
             rows += ("<div class='np-news'><span class='np-imp %s'></span>"
                      "<div class='np-h'>%s <span class='muted xs'>%s · %s</span></div></div>"
                      % (col.get(d, "muted"), _h(n.get("event_name", "")), _h(n.get("date", "")), ar.get(d, d)))
-        secs.append("<div class='card2'><h4>أخبار اليوم وتأثيرها %s</h4>%s</div>" % (_i("news"), rows))
+        secs.append("<div class='card2'><h4>أهم أخبار اليوم %s</h4>%s</div>" % (_i("news"), rows))
 
     cand = [r for r in opps if r.get("action") == "Candidate"][:5]
     if cand:
@@ -777,24 +780,7 @@ def _newspaper(today, news_rows, opps, records, meta):
         rows = "".join(_rrow(r) for r in cand)
         secs.append("<div class='card2'><h4>فرص اليوم — رأي المحللين</h4>%s</div>" % rows)
 
-    dn = [r for r in records if (not r.get("is_fund")) and (
-        any("يخفّضون" in d for d in (r.get("forward_drivers") or []))
-        or r.get("lifecycle_status") in ("Falling Conviction", "Fallen Angel"))][:6]
-    if dn:
-        rows = "".join(
-            "<div class='np-row'><b class='n'>%s</b><span class='fp-dn xs'>%s</span></div>"
-            % (_h(r["ticker"]), _h(next((d for d in (r.get("forward_drivers") or []) if "يخفّضون" in d),
-                                        r.get("lifecycle_status") or "تراجع"))) for r in dn)
-        secs.append("<div class='card2'><h4>انتبه — تقديرات/قناعة تنزل</h4>%s</div>" % rows)
-
-    mv = meta.get("movers") or []
-    if mv:
-        rows = "".join(
-            "<div class='np-row'><b class='n'>%s</b><span class='%s xs'>%s %s</span></div>"
-            % (_h(m.get("ticker")), "fp-up" if m.get("direction") == "up" else "fp-dn",
-               "▲" if m.get("direction") == "up" else "▼", _h(m.get("driver") or "")) for m in mv[:6])
-        secs.append("<div class='card2'><h4>أبرز تحرّكات الترتيب %s</h4>%s</div>" % (_i("movers"), rows))
-
+    # (أزلنا «تقديرات/قناعة تنزل» و«أبرز تحرّكات الترتيب» — حشو يومي لمستثمر طويل المدى)
     if not secs:
         return "<p class='muted pad'>لا جديد اليوم.</p>"
     return "<h3 class='sec'>اليوم — جريدة محفظتك</h3>" + "".join(secs)
@@ -893,6 +879,39 @@ def _influencer_roster(accounts):
         "<input class='isearch' placeholder='ابحث مؤثّر… (مثلاً invest)' oninput='filterInf(this.value)'>"
         "<div class='iroster' id='iroster'>" + cards + "</div>"
         "<p class='muted xs'>«حقّق» ينسخ طلب تحليل فيديوهاته لكلود ويفتح ريلزه — الصق الطلب لي وأنا أشاهدها وأطلّع أسهمها وأقارنها ببياناتنا.</p>")
+
+
+def _consensus_board(board, holdings):
+    """★ الكبار (محللون كبار موثوقون) + 🔁 تكرر عند المؤثرين (الأسهم المتكررة مع حكم منصّتنا).
+    أسهم الكبار تطلع بنجمة على رأس القائمة — الفكرة: ميّز الكبار، وارفع المتكرر للأعلى."""
+    board = board or {}
+    analysts = board.get("analysts") or []
+    rows = board.get("rows") or []
+    big = ""
+    for a in analysts:
+        big += ("<div class='bvc'><div class='bvh'><span class='bvstar'>★</span>"
+                "<b>%s</b><span class='bvo'>%s</span></div><div class='bvn'>%s</div></div>"
+                % (_h(a.get("name", "")), _h(a.get("org", "")), _h(a.get("note", ""))))
+    big_html = ("<div class='muted xs' style='margin:2px 0 6px'>★ الكبار — محللون يتابعهم مؤثروك ويثقون فيهم:</div>"
+                "<div class='bvwrap'>%s</div>" % big) if big else ""
+    out = ""
+    for r in rows:
+        t = r.get("ticker", "")
+        star = "<span class='bvstar'>★</span>" if r.get("star") else ""
+        own = "<span class='ochip'>تملكه</span>" if t in holdings else ""
+        nlbl = ("<span class='cbn'>×%d</span>" % r["n"]) if r.get("n") else ""
+        conv = r.get("conv")
+        if r.get("in_platform") and conv is not None:
+            hal = {"pass": "حلال✓", "fail": "حلال✗", "unknown": "حلال؟"}.get(r.get("halal"), "")
+            halcls = {"pass": "ok", "fail": "bad", "unknown": "unk"}.get(r.get("halal"), "unk")
+            verdict = "<span class='cbcv'>قناعتنا %.1f</span><span class='hc %s'>%s</span>" % (conv, halcls, hal)
+        else:
+            verdict = "<span class='muted xs'>خارج نطاقنا</span>"
+        out += ("<div class='cbrow'>%s<b class='n cbt'>%s</b>%s%s<span class='cbv'>%s</span></div>"
+                % (star, _h(t), nlbl, own, verdict))
+    table = ("<div class='muted xs' style='margin:8px 0 4px'>🔁 تكرر عند المؤثرين (الأكثر إجماعاً أولاً · ★=سهم من الكبار):</div>"
+             "<div class='list cblist'>%s</div>" % out) if out else ""
+    return "<div class='cbcard'>%s%s</div>" % (big_html, table)
 
 
 def _backtest_compact(bt):
@@ -1169,6 +1188,27 @@ h4{font-size:13px;margin:18px 0 8px;color:var(--t2);font-weight:600}
 .ibtn:hover{border-color:var(--sage);color:var(--sage)}
 .ibtn.pri{background:var(--sage16);border-color:transparent;color:var(--sage)}
 .iempty{color:var(--t3);font-size:12px;padding:8px 2px}
+/* ★ لوحة الكبار + تكرر عند المؤثرين */
+.cbcard{border:1px solid var(--hair);border-radius:16px;background:var(--card);box-shadow:var(--sheen);padding:14px 14px 8px;margin:6px 0 4px}
+.bvwrap{display:flex;flex-direction:column;gap:7px;margin-bottom:4px}
+.bvc{border:1px solid rgba(240,176,0,.22);background:linear-gradient(180deg,rgba(240,176,0,.06),transparent);border-radius:12px;padding:9px 11px}
+.bvh{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.bvh b{font-size:13px;font-weight:600}
+.bvstar{font-size:13px;color:#f0b000;text-shadow:0 0 6px rgba(240,176,0,.55);flex:0 0 auto;line-height:1}
+.bvstar::before{content:"\2605"}  /* CSS-drawn star — survives the HTML emoji-stripper */
+.bvo{font-size:10.5px;color:var(--t3);background:var(--field);border-radius:6px;padding:1px 7px}
+.bvn{font-size:12px;color:var(--t2);margin-top:4px;line-height:1.5}
+.cblist{margin-top:2px}
+.cbrow{display:flex;align-items:center;gap:8px;padding:9px 13px;border-top:1px solid var(--hair)}
+.cbrow:first-child{border-top:0}
+.cbt{font-size:13.5px;font-weight:600;min-width:46px}
+.cbn{font-size:11px;color:var(--t3);font-family:'IBM Plex Mono',monospace;font-weight:600}
+.ochip{font-size:10px;color:var(--sage);background:var(--sage16);border-radius:6px;padding:1px 7px;font-weight:600}
+.cbv{margin-right:auto;display:flex;align-items:center;gap:6px}
+.cbcv{font-size:11.5px;color:var(--t2)}
+.hc{font-size:10.5px;font-weight:600;border-radius:6px;padding:1px 7px}
+.hc.ok{color:var(--sage);background:var(--sage16)}
+.hc.bad{color:var(--risk);background:color-mix(in oklab,var(--risk) 15%,transparent)}
+.hc.unk{color:var(--t3);background:var(--field)}
 .bt-line{font-size:13.5px;padding:4px 0 8px}
 details.mini{font-size:12px}details.mini summary{cursor:pointer;color:var(--t2)}
 .cav{margin:7px 16px 0;padding:0;color:var(--risk);font-size:12px}.cav li{margin:4px 0}
@@ -1591,8 +1631,6 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
         + _regime_banner(meta)
         + _mode_bar(meta)
         + _invest_panel(portfolio_rows, cfg, records)
-        + _fwd_pulse(records)
-        + _alloc_donut(portfolio_rows, meta)
         + "<h3 class='sec'>التوزيع الذكي %s</h3>" % _i("portfolio")
         + _portfolio_list(portfolio_rows, records, cfg)
         + "<h3 class='sec'>مراكزي الحالية</h3>"
@@ -1604,23 +1642,22 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
         + _newspaper(today, news_rows, opps, records, meta)
         + "</div>"
     )
+    _hold_t = {h.get("ticker") for h in he if h.get("ticker")}
     tab_more = (
         "<div id='t-more' class='tabpanel'>"
-        "<h3 class='sec'>نبض السوق <span class='c'>(قراءة العقل العاقل)</span></h3>"
+        # ★ الكبار + الأسهم المتكررة — على رأس التبويب
+        "<h3 class='sec'>★ الكبار وأكثر الأسهم تكراراً</h3>"
+        + _consensus_board(meta.get("big_board"), _hold_t)
+        # حالة السوق (العقل العاقل)
+        + "<h3 class='sec'>حالة السوق <span class='c'>(قراءة العقل العاقل)</span></h3>"
         + _regime_detail(meta)
-        + "<h3 class='sec'>مزدحم مقابل رخيص</h3>"
-        + _crowd_cheap(visible)
-        + "<h3 class='sec'>📈 التعرّض %s</h3><div class='card2-wrap'>%s</div>" % (_i("exposure"), _exposure_compact(visible))
-        + "<h3 class='sec'>عنق الزجاجة عبر القطاعات %s</h3>" % _i("bottleneck")
-        + _bottleneck_v2(meta.get("bottlenecks") or [])
-        + "<h4>🧪 اختبار بأثر رجعي %s</h4>%s" % (_i("backtest"), _backtest_compact(meta.get("backtest")))
-        + _not_inv_compact(buckets.get("not_investable", []))
-        + "<h4>📰 أثر الأخبار %s</h4>%s" % (_i("news"), _news_compact(news_rows))
-        + "<h4>🏛️ النشاط السياسي %s</h4>%s" % (_i("political"), _political_compact(political_rows))
-        + "<h4>📡 إشارات المؤثرين %s</h4><div class='muted xs'>إشارة ضعيفة للمراجعة فقط · لأحدث توصياتهم قُل لكلود «شوف المؤثرين».</div>" % _i("signals")
-        + "<div class='muted xs' style='margin-top:6px'>المؤثرون اللي أتابعهم لك (من قائمتك على إنستقرام):</div>"
+        # المؤثرون
+        + "<h3 class='sec'>📡 المؤثرون</h3>"
+        + "<div class='muted xs'>إشارة ضعيفة للمراجعة · المؤثرون اللي أتابعهم لك من إنستقرام:</div>"
         + _influencer_roster(meta.get("watched_accounts") or [])
         + _signals_compact(meta.get("signals_rows") or [])
+        # سلة أقوى 15 — مبسّطة (سطر واحد)
+        + "<h4>🧪 اختبار بأثر رجعي %s</h4>%s" % (_i("backtest"), _backtest_compact(meta.get("backtest")))
         + "</div>"
     )
 
@@ -1629,7 +1666,7 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
         "<button class='tabbtn on' onclick=\"tab('t-port',this)\">محفظتي</button>"
         "<button class='tabbtn' onclick=\"tab('t-today',this)\">اليوم</button>"
         "<button class='tabbtn' onclick=\"tab('t-opp',this)\">البحث</button>"
-        "<button class='tabbtn' onclick=\"tab('t-more',this)\">المزيد</button>"
+        "<button class='tabbtn' onclick=\"tab('t-more',this)\">نبض السوق</button>"
         "</div>"
     )
 
