@@ -60,3 +60,12 @@ signals:
   - {account: trending-media, date: "2026-06-20", ticker: BTBT, sentiment: bearish, note: "رفضها فلترنا: حلال fail (بيتكوين)", source: "web/media scan"}
   # joe.investss — قُرئ عبر كروم (إنستقرام، بدون حسابك)
   - {account: joe.investss, date: "2026-06-20", ticker: SOFI, sentiment: bullish, note: "رفضها فلترنا: حلال fail (credit services) رغم قناعة 7.3", source: "Instagram via Chrome"}
+  # tradeswitjames — «Stock tier list» (شاهدت الريل DZyDq8HRGNF بالكوكيز ٢٩ يونيو؛ قرأت الإطارات على الشاشة)
+  # ترتيبه: A=Meta · B=NVDA · C=Apple · D=Lululemon (S فاضي). أقوى خلاف مع منصّتنا: NVDA.
+  - {account: tradeswitjames, date: "2026-06-29", ticker: META, sentiment: bullish, note: "وضعها A (أعلى مرتبة عنده). منصّتنا: قناعة 9.0 لكن بياناتها قديمة (Watch) — حلالها عندك unknown", source: "IG reel tier-list (frames)"}
+  - {account: tradeswitjames, date: "2026-06-29", ticker: NVDA, sentiment: bullish, note: "وضعها B فقط — منصّتنا تخالفه: NVDA رقم ~1 (قناعة 9.4، rank 95.7، حلال pass). جيمس يقلّل منها", source: "IG reel tier-list (frames)"}
+  - {account: tradeswitjames, date: "2026-06-29", ticker: AAPL, sentiment: neutral, note: "وضعها C — متوافق مع منصّتنا (Research More، قناعة 6.5، فاتورة P/E ~29 غالية)", source: "IG reel tier-list (frames)"}
+  - {account: tradeswitjames, date: "2026-06-29", ticker: LULU, sentiment: bearish, note: "وضعها D (الأسوأ) — متوافق مع منصّتنا (Watch، قناعة 5.5، -50% بالسنة). أضعف سهم بالقائمة", source: "IG reel tier-list (frames)"}
+  # tier-list ثانية (ريل DaIpusWxiX7 — بنية الدفع/التجارة): S=Microsoft · A=Visa · B=Shopify · D=Coinbase
+  - {account: tradeswitjames, date: "2026-06-29", ticker: MSFT, sentiment: bullish, note: "وضعها S (الأعلى) — تملكها. منصّتنا: قناعة 8.3 (Watch، بياناتها قديمة). توافق على الجودة", source: "IG reel tier-list#2 (frames)"}
+  - {account: tradeswitjames, date: "2026-06-29", ticker: COIN, sentiment: bearish, note: "وضعها D — كريبتو، غالباً حلال fail؛ تأكّد بنفسك", source: "IG reel tier-list#2 (frames)"}
