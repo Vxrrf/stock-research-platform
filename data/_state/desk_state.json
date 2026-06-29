@@ -1,9 +1,9 @@
 {
- "run_date": "2026-06-29 14:15",
+ "run_date": "2026-06-29 16:24",
  "regime_mode": "conservative",
  "regime_label": "ضغط مرتفع — دفاع",
  "market_risk": "High",
- "crowd_pct": 0.039,
+ "crowd_pct": 0.04,
  "med_fwd_pe": 15.1,
- "candidate_pct": 0.216
+ "candidate_pct": 0.22
 }
