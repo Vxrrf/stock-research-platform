@@ -1344,13 +1344,13 @@ def _regime_detail(meta):
                + metric("الازدحام", "%d%%" % round((m.get("crowd_pct") or 0) * 100))
                + metric("وسيط P/E آجل", pe)
                + metric("فرص رخيصة", "%d%%" % round((m.get("candidate_pct") or 0) * 100)))
-    vix, hy = m.get("vix"), m.get("hy_spread")
+    vix, ys = m.get("vix"), m.get("yield_spread")
     bd = m.get("breadth_down")
     extra_m = ""
     if isinstance(vix, (int, float)):
         extra_m += metric("VIX (الخوف)", "%.0f" % vix)
-    if isinstance(hy, (int, float)):
-        extra_m += metric("فروقات الائتمان", "%.1f%%" % hy)
+    if isinstance(ys, (int, float)):
+        extra_m += metric("منحنى العائد" + (" (مقلوب)" if m.get("yield_inverted") else ""), "%+.2f" % ys)
     if isinstance(bd, (int, float)):
         extra_m += metric("اتساع الهبوط", "%d%%" % round(bd * 100))
     if extra_m:
