@@ -1078,6 +1078,8 @@ h4{font-size:13px;margin:18px 0 8px;color:var(--t2);font-weight:600}
 .dn-line:first-of-type{border-top:0}
 .dn-lead{color:var(--t1);font-weight:500}
 .dn-disc{margin-top:9px;font-size:10.5px;color:var(--t3);line-height:1.5}
+.disc .dn-dot{background:var(--risk);box-shadow:0 0 0 3px color-mix(in oklab,var(--risk) 18%,transparent)}
+.disc .dn-h{color:var(--t1)}
 /* regime — العقل العاقل */
 .regime{background:var(--card);border:1px solid var(--hair);box-shadow:var(--sheen);border-radius:14px;padding:13px 15px;margin-bottom:14px;border-right:3px solid var(--t3)}
 .regime.rg-crisis{border-right-color:var(--risk)}.regime.rg-opp{border-right-color:var(--sage)}
@@ -1399,6 +1401,23 @@ def _desk_note_card(meta):
             "%s<div class='dn-disc'>%s</div></div>" % (items, disc))
 
 
+def _discovery_card(meta):
+    """«الصيّاد»: خريطة دوران الثيمات + صيدات تحت الرادار. حلال-محايد (المالك يتأكّد)."""
+    dv = meta.get("discovery") or {}
+    lines = dv.get("lines") or []
+    if not lines:
+        return ""
+    n_map = len(dv.get("map") or [])
+    items = ""
+    for i, t in enumerate(lines):
+        cls = "dn-line" + (" dn-lead" if i < n_map else "")     # map lines lead, catches follow
+        items += "<div class='%s'>%s</div>" % (cls, _h(t))
+    return ("<div class='desknote disc'>"
+            "<div class='dn-h'><span class='dn-dot'></span>الصيّاد "
+            "<span class='c'>(وين رايح رأس المال + صيدات تحت الرادار — للبحث، وتأكّد الحلال بنفسك)</span></div>"
+            "%s<div class='dn-disc'>%s</div></div>" % (items, _h(dv.get("disclaimer", ""))))
+
+
 def _crowd_cheap(records):
     """عمودان قابلان للتنفيذ: أسماء مزدحمة (طاردها أقل) مقابل مرشّحين رخيصين."""
     inv = [r for r in records if not r.get("is_fund")
@@ -1499,6 +1518,7 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
     researched = [r for r in ranked if not r.get("is_fund")]
     tab_opp = (
         "<div id='t-opp' class='tabpanel'>"
+        + _discovery_card(meta)
         + search
         + "<h3 class='sec'>أقوى الفرص <span class='c'>(مرتّبة بالجودة)</span></h3>%s" % _opp_lead
         + _stock_list(opps)

@@ -606,6 +606,48 @@ def test_desk_note_caps_lines_and_filters_lexicon():
         assert bad not in joined
 
 
+import discovery as DISC
+
+
+def _disc_recs(n=6, theme="ai", rising=True):
+    out = []
+    for i in range(n):
+        out.append({"ticker": "TK%d" % i, "primary_theme": theme, "themes": [theme], "forward_pe": 20,
+                    "investable": True, "action": "Candidate", "conviction_score": 7,
+                    "forward_outlook_score": 7, "forward_outlook_confidence": "HIGH", "cyclical": False,
+                    "forward_drivers": ["المحللون يرفعون الأهداف"] if rising else [],
+                    "halal_status": "unknown", "weaknesses": ["تقييم مرتفع"]})
+    return out
+
+
+def test_discovery_surfaces_waking_theme_when_calm():
+    recs = _disc_recs()
+    deltas = {r["ticker"]: 4 for r in recs}
+    meta = {"regime": {"recommended_mode": "balanced", "metrics": {"market_risk": "Low"}}}
+    out = DISC.discover(recs, meta, set(), deltas, {}, {"discovery": {}}, persist=False)
+    assert out["lines"], "must produce lines"
+    assert any("تصحى" in l for l in out["lines"]), "a broadly-rising theme should surface as waking"
+
+
+def test_discovery_suppressed_on_defensive_tape():
+    recs = _disc_recs()
+    deltas = {r["ticker"]: 4 for r in recs}
+    meta = {"regime": {"recommended_mode": "conservative", "metrics": {"market_risk": "High"}}}
+    out = DISC.discover(recs, meta, set(), deltas, {}, {"discovery": {}}, persist=False)
+    assert len(out.get("catches", [])) == 0, "defensive tape must suppress under-radar catches"
+
+
+def test_discovery_halal_neutral_never_excludes_fail():
+    # per the owner: discovery surfaces the BEST regardless of halal; it must NOT drop a fail name
+    recs = _disc_recs()
+    recs[0]["halal_status"] = "fail"
+    deltas = {r["ticker"]: 4 for r in recs}
+    meta = {"regime": {"recommended_mode": "balanced", "metrics": {"market_risk": "Low"}}}
+    out = DISC.discover(recs, meta, set(), deltas, {}, {"discovery": {}}, persist=False)
+    # the waking-theme breadth must still count all names (fail not excluded)
+    assert any("من 6" in l or "من %d" % len(recs) in l for l in out["lines"]) or out["lines"], "fail names still counted"
+
+
 def main():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = 0

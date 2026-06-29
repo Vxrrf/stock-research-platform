@@ -54,6 +54,7 @@ import framework as framework_mod
 import bottlenecks as bottlenecks_mod
 import regime as regime_mod
 import desk_note as desk_note_mod
+import discovery as discovery_mod
 import macro as macro_mod
 import outputs
 import dashboard
@@ -514,6 +515,16 @@ def main():
             records, base_meta, holdings_eval, deltas, mem, cfg, persist=_persist_state)
     except Exception as e:
         print(f"  desk note skipped: {e}")
+    # ── «الصيّاد»: اكتشاف خارج الصندوق — دوران الثيمات + صيدات تحت الرادار (إضافة، حلال-محايد) ──
+    try:
+        import re as _re
+        _desk_t = set(_re.findall(r"\b[A-Z]{2,6}\b",
+                                  " ".join((base_meta.get("desk_note") or {}).get("lines") or [])))
+        base_meta["discovery"] = discovery_mod.discover(
+            records, base_meta, set(watchlist), deltas, mem, cfg,
+            desk_tickers=_desk_t, persist=_persist_state)
+    except Exception as e:
+        print(f"  discovery (الصيّاد) skipped: {e}")
 
     for mkey, mdef in modes.items():
         mdef = mdef or {}

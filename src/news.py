@@ -21,19 +21,17 @@ import yaml
 
 from config_loader import ROOT
 
-_POS = ["beat", "beats", "upgrade", "raises", "raised", "record", "wins", "win",
-        "contract", "surge", "surges", "expansion", "expands", "outperform",
-        "strong demand", "all-time high", "approval", "launch", "partnership"]
-_NEG = ["miss", "misses", "downgrade", "cut", "cuts", "lawsuit", "probe",
-        "investigation", "recall", "plunge", "plunges", "layoff", "layoffs",
-        "guidance cut", "fraud", "warning", "halts", "delay", "delays",
-        "subpoena", "decline", "weak demand", "bankruptcy"]
-
-
-_POS = ("surge", "rise", "jump", "beat", "record", "soar", "rally", "gain", "upgrade",
-        "strong", "boost", "high", "top", "win", "robust", "outperform")
-_NEG = ("fall", "drop", "plunge", "miss", "cut", "slump", "crash", "war", "sink", "tumble",
-        "downgrade", "weak", "fear", "loss", "sell-off", "slip", "warn", "recession", "default")
+# MERGED: company-specific (earnings/contracts/approvals) + macro/price-action keywords — one list,
+# no silent override (a 2nd definition used to clobber the 1st and lose half the signal).
+_POS = ("beat", "beats", "upgrade", "raises", "raised", "record", "wins", "win", "contract",
+        "surge", "surges", "expansion", "expands", "outperform", "strong demand", "all-time high",
+        "approval", "launch", "partnership", "rise", "jump", "soar", "rally", "gain", "strong",
+        "boost", "high", "top", "robust")
+_NEG = ("miss", "misses", "downgrade", "cut", "cuts", "lawsuit", "probe", "investigation", "recall",
+        "plunge", "plunges", "layoff", "layoffs", "guidance cut", "fraud", "warning", "halts",
+        "delay", "delays", "subpoena", "decline", "weak demand", "bankruptcy", "fall", "drop",
+        "slump", "crash", "war", "sink", "tumble", "weak", "fear", "loss", "sell-off", "slip",
+        "warn", "recession", "default")
 
 
 # keep general headlines only if they're market-relevant (incl. market-moving geopolitics);
