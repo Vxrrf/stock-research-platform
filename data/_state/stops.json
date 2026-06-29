@@ -470,5 +470,117 @@
   "low_52w": 4.17,
   "max_drawdown_1y": -0.4232,
   "ref_price": 5.61
+ },
+ "VRT": {
+  "monthly_vol": 0.1747,
+  "stop_distance": 0.3495,
+  "high_52w": 376.15,
+  "low_52w": 120.59,
+  "max_drawdown_1y": -0.2532,
+  "ref_price": 303.95
+ },
+ "AMSC": {
+  "monthly_vol": 0.2468,
+  "stop_distance": 0.35,
+  "high_52w": 66.68,
+  "low_52w": 25.95,
+  "max_drawdown_1y": -0.6108,
+  "ref_price": 39.73
+ },
+ "STRL": {
+  "monthly_vol": 0.2413,
+  "stop_distance": 0.35,
+  "high_52w": 993.74,
+  "low_52w": 222.54,
+  "max_drawdown_1y": -0.3102,
+  "ref_price": 804.76
+ },
+ "VCTR": {
+  "monthly_vol": 0.0901,
+  "stop_distance": 0.1802,
+  "high_52w": 88.62,
+  "low_52w": 59.52,
+  "max_drawdown_1y": -0.1813,
+  "ref_price": 83.43
+ },
+ "WYNN": {
+  "monthly_vol": 0.1018,
+  "stop_distance": 0.2037,
+  "high_52w": 132.45,
+  "low_52w": 92.82,
+  "max_drawdown_1y": -0.2844,
+  "ref_price": 100.44
+ },
+ "SPGI": {
+  "monthly_vol": 0.0814,
+  "stop_distance": 0.1629,
+  "high_52w": 559.46,
+  "low_52w": 388.95,
+  "max_drawdown_1y": -0.3048,
+  "ref_price": 408.16
+ },
+ "SOFI": {
+  "monthly_vol": 0.1616,
+  "stop_distance": 0.3232,
+  "high_52w": 32.21,
+  "low_52w": 15.15,
+  "max_drawdown_1y": -0.5296,
+  "ref_price": 17.88
+ },
+ "AS": {
+  "monthly_vol": 0.1199,
+  "stop_distance": 0.2398,
+  "high_52w": 41.96,
+  "low_52w": 29.54,
+  "max_drawdown_1y": -0.2878,
+  "ref_price": 34.17
+ },
+ "ATAT": {
+  "monthly_vol": 0.1097,
+  "stop_distance": 0.2194,
+  "high_52w": 42.21,
+  "low_52w": 31.52,
+  "max_drawdown_1y": -0.2532,
+  "ref_price": 32.13
+ },
+ "ARGX": {
+  "monthly_vol": 0.0895,
+  "stop_distance": 0.1789,
+  "high_52w": 929.61,
+  "low_52w": 538.64,
+  "max_drawdown_1y": -0.2858,
+  "ref_price": 887.18
+ },
+ "AERA": {
+  "monthly_vol": 1.8127,
+  "stop_distance": 0.35,
+  "high_52w": 1.52,
+  "low_52w": 0.09,
+  "max_drawdown_1y": -0.8618,
+  "ref_price": 1.13
+ },
+ "AU": {
+  "monthly_vol": 0.1701,
+  "stop_distance": 0.3402,
+  "high_52w": 124.62,
+  "low_52w": 41.58,
+  "max_drawdown_1y": -0.3703,
+  "ref_price": 81.62
+ },
+ "WAY": {
+  "monthly_vol": 0.1378,
+  "stop_distance": 0.2756,
+  "high_52w": 40.89,
+  "low_52w": 17.31,
+  "max_drawdown_1y": -0.5767,
+  "ref_price": 19.9
+ },
+ "YOU": {
+  "monthly_vol": 0.1746,
+  "stop_distance": 0.3492,
+  "high_52w": 62.18,
+  "low_52w": 27.14,
+  "max_drawdown_1y": -0.2291,
+  "ref_price": 55.17
  }
 }
