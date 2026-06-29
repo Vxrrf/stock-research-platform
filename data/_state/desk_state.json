@@ -1,7 +1,7 @@
 {
- "run_date": "2026-06-29 18:58",
- "regime_mode": "conservative",
- "regime_label": "ضغط مرتفع — دفاع",
+ "run_date": "2026-06-29 19:37",
+ "regime_mode": "balanced",
+ "regime_label": "تهدئة الدفاع — توازن",
  "market_risk": "High",
  "crowd_pct": 0.027,
  "med_fwd_pe": 15.3,
