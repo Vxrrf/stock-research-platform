@@ -1,17 +1,7 @@
 {
  "schema": 1,
- "updated_utc": "2026-06-29T21:46:56+00:00",
+ "updated_utc": "2026-06-29T21:57:59+00:00",
  "history": [
-  {
-   "ts": "2026-06-29T15:58:09+00:00",
-   "risk_rank": 2,
-   "market_risk": "High",
-   "crowd_pct": 0.027,
-   "med_fwd_pe": 15.3,
-   "cand_pct": 0.216,
-   "regime": "ضغط مرتفع — دفاع",
-   "recommended_mode": "conservative"
-  },
   {
    "ts": "2026-06-29T16:37:43+00:00",
    "risk_rank": 2,
@@ -81,15 +71,25 @@
    "cand_pct": 0.217,
    "regime": "تهدئة الدفاع — توازن",
    "recommended_mode": "balanced"
+  },
+  {
+   "ts": "2026-06-29T21:57:59+00:00",
+   "risk_rank": 2,
+   "market_risk": "High",
+   "crowd_pct": 0.021,
+   "med_fwd_pe": 15.3,
+   "cand_pct": 0.217,
+   "regime": "تهدئة الدفاع — توازن",
+   "recommended_mode": "balanced"
   }
  ],
  "episode_active": true,
  "peak_risk_rank": 2,
  "peak_med_fpe": 15.541941999999999,
- "easing_streak": 22,
+ "easing_streak": 23,
  "defensive_runs": 0,
  "calm_streak": 0,
  "relieved": true,
  "current_mode": "balanced",
- "mode_since_run": 6
+ "mode_since_run": 7
 }
