@@ -43,10 +43,13 @@ jobs:
         run: |
           git config user.name "mazer-cloud"
           git config user.email "cloud@users.noreply.github.com"
-          # commit docs AND the cloud-owned regime/desk state so the FSM trend/episode memory
-          # PERSISTS across runs (otherwise every cloud run cold-starts and the smart regime is defeated).
+          # commit docs AND the cloud-owned run-state so memory PERSISTS across runs (otherwise every
+          # cloud run cold-starts and the smart regime + run-over-run deltas/movers/discovery are defeated).
+          # watchlist_memory + discovery_state added: the cloud is the primary renderer, so it must own the
+          # run-over-run memory that feeds deltas → discovery/lifecycle, not just the Mac's last push.
           git add docs
-          git add -f data/_state/regime_history.json data/_state/desk_state.json data/_state/macro.json 2>/dev/null || true
+          git add -f data/_state/regime_history.json data/_state/desk_state.json data/_state/macro.json \
+                     data/_state/watchlist_memory.json data/_state/discovery_state.json 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "no change — link left as-is"
           else
