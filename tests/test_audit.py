@@ -22,6 +22,8 @@ import price_targets
 import watchlist_memory
 import pipeline
 import themes
+import regime as REG
+import tempfile
 
 CFG = config_loader.load_config()
 EXT = config_loader.load_external_lists()
@@ -426,6 +428,148 @@ def test_action_respects_investable_fund_and_suspect():
                                         investable=False), CFG)
     assert floored < base, "not-investable must floor the rank"
     print("✅ actions: funds→core, not-investable/suspect never Candidate, rank floored")
+
+
+def _reg_recs(n=50, crowd=0.0, cand=0.0, pe=20):
+    out = []
+    nc, nk = int(n * crowd), int(n * cand)
+    for i in range(n):
+        r = {"ticker": "T%d" % i, "forward_pe": pe, "investable": True, "action": "Watch"}
+        if i < nc:
+            r["crowded_late"] = True
+        if i >= n - nk:
+            r["action"] = "Candidate"
+        out.append(r)
+    return out
+
+
+def _reg_seq(steps):
+    """Drive regime.detect over (market_risk, kwargs) steps on an isolated state file; return modes."""
+    tmp = tempfile.mktemp(suffix=".json")
+    orig = REG._state_path
+    REG._state_path = lambda cfg: tmp
+    try:
+        modes = []
+        for risk, kw in steps:
+            modes.append(REG.detect(_reg_recs(**kw), risk, {"regime": {}})["recommended_mode"])
+        return modes
+    finally:
+        REG._state_path = orig
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+
+
+def test_regime_defends_into_rising_crisis():
+    modes = _reg_seq([("Low", {}), ("Medium", {}),
+                      ("High", dict(crowd=0.2, pe=25)), ("High", dict(crowd=0.2, pe=25))])
+    assert modes[-1] == "conservative", "rising/cresting High risk must recommend defense"
+
+
+def test_regime_attacks_at_the_bottom():
+    # Extreme peak, then risk eases to High with cheap valuations + breadth → must flip aggressive
+    steps = [("Extreme", dict(crowd=0.2, cand=0.15, pe=15))]
+    steps += [("High", dict(crowd=0.2, cand=0.15, pe=15))] * 3
+    modes = _reg_seq(steps)
+    assert "aggressive" in modes, "must catch the recovery (aggressive) at an eased, cheap bottom"
+    assert modes[0] == "conservative", "must still defend at the Extreme peak first"
+
+
+def test_regime_never_stuck_defensive():
+    # risk eases off the peak but never gets cheap and breadth is thin → must NOT stay conservative forever
+    steps = [("Extreme", dict(crowd=0.2, cand=0.04, pe=30))]
+    steps += [("High", dict(crowd=0.2, cand=0.04, pe=30))] * 6
+    modes = _reg_seq(steps)
+    assert modes[-1] == "balanced", "must leave full defense once risk eased off its peak (anti-stuck)"
+
+
+def test_regime_no_whipsaw_on_noise():
+    modes = _reg_seq([("Low", dict(pe=25)), ("Low", dict(pe=25)),
+                      ("High", dict(pe=25)), ("Low", dict(pe=25))])
+    assert "aggressive" not in modes, "a one-run risk spike must never flip to aggressive"
+
+
+def test_regime_extreme_always_defends_even_after_long_relief():
+    # a long High plateau relaxes to balanced (anti-stuck) — but a fresh Extreme spike must STILL defend
+    steps = [("High", dict(crowd=0.2, cand=0.04, pe=30))] * 20   # long defense → relieved → balanced
+    steps += [("Extreme", dict(crowd=0.2, cand=0.04, pe=30))]    # Extreme re-spike
+    modes = _reg_seq(steps)
+    assert modes[-1] == "conservative", "Extreme risk must ALWAYS recommend defense (safety override)"
+
+
+def test_regime_from_cache_does_not_persist_state():
+    # a Mac --from-cache run (persist=False) must not write the FSM state file
+    tmp = tempfile.mktemp(suffix=".json")
+    orig = REG._state_path
+    REG._state_path = lambda cfg: tmp
+    try:
+        REG.detect(_reg_recs(crowd=0.2, pe=25), "High", {"regime": {}}, persist=False)
+        assert not os.path.exists(tmp), "persist=False must NOT write regime state (cloud owns it)"
+    finally:
+        REG._state_path = orig
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+
+
+import desk_note as DN
+_DN_FORBIDDEN = ("اشترِ الآن", "بِع الآن", "بيع الآن", "فرصة العمر", "مضمون", "لا تفوّت", "راح ينفجر")
+
+
+def _dn_meta(mode="balanced", risk="Low", conf="HIGH", crowd=0.2, pe=20, cand=0.05, regime="طبيعي — توازن"):
+    return {"regime": {"regime": regime, "recommended_mode": mode, "confidence": conf,
+                       "metrics": {"market_risk": risk, "crowd_pct": crowd, "med_fwd_pe": pe,
+                                   "candidate_pct": cand}}}
+
+
+def _dn_run(records, meta, he, deltas, mem):
+    tmp = tempfile.mktemp(suffix=".json")
+    orig = DN._state_path
+    DN._state_path = lambda cfg: tmp
+    try:
+        return DN.build_desk_note(records, meta, he, deltas, mem, {"desk_note": {}})
+    finally:
+        DN._state_path = orig
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+
+
+def test_desk_note_first_run_no_fake_trend():
+    out = _dn_run([], _dn_meta(), [], {}, {})
+    assert out["lines"], "must always produce at least the lead line"
+    assert "أول تشغيل" in out["lines"][0], "first run must NOT fake a trend"
+
+
+def test_desk_note_quiet_day_is_quiet():
+    out = _dn_run([], _dn_meta(mode="balanced", conf="HIGH"), [], {}, {})
+    joined = " ".join(out["lines"])
+    assert "يوم هادئ" in joined, "a calm balanced run must read calm, not manufactured"
+    assert len(out["lines"]) <= 2, "quiet day must not pad lines"
+
+
+def test_desk_note_panic_guard_never_commands_sell():
+    rec = {"ticker": "NVDA", "primary_theme": "ai", "score_trend": "up",
+           "conviction_score": 9, "forward_drivers": []}
+    he = [{"ticker": "NVDA", "verdict": "🟢 احتفظ", "conviction": 9, "pnl": -0.30,
+           "pnl_suspect": False, "days_until_earnings": None}]
+    out = _dn_run([rec], _dn_meta(), he, {}, {})
+    joined = " ".join(out["lines"])
+    assert "موضع تماسُك" in joined or "تماسُك" in joined, "down-but-strong name must get the hold guard"
+    for bad in _DN_FORBIDDEN:
+        assert bad not in joined, f"narrator must never emit forbidden phrase: {bad}"
+
+
+def test_desk_note_caps_lines_and_filters_lexicon():
+    out = _dn_run([], _dn_meta(mode="conservative", risk="High", conf="HIGH",
+                               regime="ضغط مرتفع — دفاع"), [], {}, {})
+    assert len(out["lines"]) <= 6, "hard cap of 6 lines"
+    joined = " ".join(out["lines"])
+    for bad in _DN_FORBIDDEN:
+        assert bad not in joined
 
 
 def main():

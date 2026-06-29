@@ -28,7 +28,10 @@ jobs:
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
         run: |
-          python src/main.py --cloud --no-trackers || echo "cloud refresh incomplete — keeping last good snapshot"
+          # NO failure mask: a hard crash (import/syntax/runtime regression) should FAIL loudly (red ✗)
+          # so it's visible — the live link stays at the last good snapshot because the commit step below
+          # won't run. Transient live-fetch failures are handled INSIDE the app (it renders from cache, exit 0).
+          python src/main.py --cloud --no-trackers
       - name: stage snapshot
         run: |
           mkdir -p docs
@@ -39,7 +42,9 @@ jobs:
         run: |
           git config user.name "mazer-cloud"
           git config user.email "cloud@users.noreply.github.com"
-          git add docs
+          # commit docs AND the cloud-owned regime/desk state so the FSM trend/episode memory
+          # PERSISTS across runs (otherwise every cloud run cold-starts and the smart regime is defeated).
+          git add docs data/_state/regime_history.json data/_state/desk_state.json 2>/dev/null || git add docs
           if git diff --cached --quiet; then
             echo "no change — link left as-is"
           else

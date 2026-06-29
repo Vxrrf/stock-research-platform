@@ -53,6 +53,7 @@ import stops as stops_mod
 import framework as framework_mod
 import bottlenecks as bottlenecks_mod
 import regime as regime_mod
+import desk_note as desk_note_mod
 import outputs
 import dashboard
 
@@ -491,10 +492,19 @@ def main():
     buckets_obj = make_buckets(ranked_obj)
 
     # ── «العقل العاقل»: استشعار وضع السوق من إشاراتنا، وترشيح الوضع الأنسب (إضافة لا بديل) ──
+    # persist the FSM/desk memory ONLY on authoritative runs (cloud or live) — a Mac --from-cache
+    # render must not pollute the trend/episode state the cloud owns.
+    _persist_state = bool(args.cloud or args.live)
     try:
-        base_meta["regime"] = regime_mod.detect(records, market_risk, cfg)
+        base_meta["regime"] = regime_mod.detect(records, market_risk, cfg, persist=_persist_state)
     except Exception as e:
         print(f"  regime sense skipped: {e}")
+    # ── «صوت العقل المحترف»: مذكّرة مكتبٍ تقرأ اللوح وتقول ما تغيّر/ما يهمّ — مربوطة بأرقام حقيقية ──
+    try:
+        base_meta["desk_note"] = desk_note_mod.build_desk_note(
+            records, base_meta, holdings_eval, deltas, mem, cfg, persist=_persist_state)
+    except Exception as e:
+        print(f"  desk note skipped: {e}")
 
     for mkey, mdef in modes.items():
         mdef = mdef or {}

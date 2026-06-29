@@ -1060,6 +1060,15 @@ h4{font-size:13px;margin:18px 0 8px;color:var(--t2);font-weight:600}
 .pr b{font-size:23px;font-weight:400;color:var(--t1)}
 .pbar{height:3px;border-radius:3px;margin:0 14px 2px;opacity:.9}
 .phold{padding:0 14px 12px;margin-top:2px;color:var(--t3)}
+/* desk note — صوت العقل المحترف */
+.desknote{background:var(--card);border:1px solid var(--hair);box-shadow:var(--sheen);border-radius:14px;padding:14px 16px;margin-bottom:14px}
+.dn-h{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--t2);margin-bottom:10px}
+.dn-h .c{font-weight:400;color:var(--t3);font-size:11.5px}
+.dn-dot{width:7px;height:7px;border-radius:50%;background:var(--sage);flex:none;box-shadow:0 0 0 3px var(--sage16)}
+.dn-line{font-size:13.5px;line-height:1.75;color:var(--t2);padding:7px 0;border-top:1px solid var(--hair)}
+.dn-line:first-of-type{border-top:0}
+.dn-lead{color:var(--t1);font-weight:500}
+.dn-disc{margin-top:9px;font-size:10.5px;color:var(--t3);line-height:1.5}
 /* regime — العقل العاقل */
 .regime{background:var(--card);border:1px solid var(--hair);box-shadow:var(--sheen);border-radius:14px;padding:13px 15px;margin-bottom:14px;border-right:3px solid var(--t3)}
 .regime.rg-crisis{border-right-color:var(--risk)}.regime.rg-opp{border-right-color:var(--sage)}
@@ -1350,6 +1359,20 @@ def _regime_detail(meta):
     )
 
 
+def _desk_note_card(meta):
+    """«صوت العقل المحترف»: مذكّرة مكتبٍ أول-شخص — يقرأ اللوح ويقول ما يهمّ، بأرقام حقيقية."""
+    dn = meta.get("desk_note") or {}
+    lines = dn.get("lines") or []
+    if not lines:
+        return ""
+    items = "".join("<div class='dn-line%s'>%s</div>"
+                    % ((" dn-lead" if i == 0 else ""), _h(t)) for i, t in enumerate(lines))
+    disc = _h(dn.get("disclaimer", ""))
+    return ("<div class='desknote'>"
+            "<div class='dn-h'><span class='dn-dot'></span>قراءة العقل <span class='c'>(يفكّر لك كل تشغيل)</span></div>"
+            "%s<div class='dn-disc'>%s</div></div>" % (items, disc))
+
+
 def _crowd_cheap(records):
     """عمودان قابلان للتنفيذ: أسماء مزدحمة (طاردها أقل) مقابل مرشّحين رخيصين."""
     inv = [r for r in records if not r.get("is_fund")
@@ -1363,8 +1386,8 @@ def _crowd_cheap(records):
         if not rows:
             body = "<p class='muted xs'>لا يوجد الآن.</p>"
         else:
-            body = "".join("<div class='cc-row'><b>%s</b><span class='muted xs'>%s</span></div>"
-                           % (_h(r["ticker"]), _h(_name_sub(r["ticker"], r.get("name", ""))))
+            body = "".join("<div class='cc-row'><b>%s</b>%s</div>"
+                           % (_h(r["ticker"]), _name_sub(r["ticker"], r.get("name", "")))
                            for r in rows[:7])
         return ("<div class='card2 cc-%s'><h4>%s</h4>"
                 "<div class='muted xs cc-hint'>%s</div>%s</div>" % (kind, title, hint, body))
@@ -1432,6 +1455,10 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
 
     # tab panels — محفظتي = command center (mode + invest amount + smart allocation + positions);
     # اليوم = newspaper; البحث = ranked research with the bottleneck lens folded in.
+    # search/command bar — filters the research stock lists by ticker (lives in البحث)
+    search = ("<div class='search'><input id='q' autocomplete='off' spellcheck='false' "
+              "placeholder='🔍 ابحث عن سهم (مثال: NVDA)…' oninput='filt(this.value)'>"
+              "<span id='qx' onclick=\"document.getElementById('q').value='';filt('')\">×</span></div>")
     _opp_lead = (
         ("<p class='lead'><b>الترتيب بالجودة (القناعة)</b> — النقطة قراءة شرعية تقريبية، "
          "تأكّد الحلال على Zoya سهم سهم. الرقم على اليسار = القناعة %s.</p>" % _i("conviction"))
@@ -1440,7 +1467,8 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
     researched = [r for r in ranked if not r.get("is_fund")]
     tab_opp = (
         "<div id='t-opp' class='tabpanel'>"
-        "<h3 class='sec'>أقوى الفرص <span class='c'>(مرتّبة بالجودة)</span></h3>%s" % _opp_lead
+        + search
+        + "<h3 class='sec'>أقوى الفرص <span class='c'>(مرتّبة بالجودة)</span></h3>%s" % _opp_lead
         + _stock_list(opps)
         + ("<h3 class='sec'>كل الأسهم المبحوثة <span class='c'>(%d · اضغط أيّ سهم للبيانات)</span></h3>"
            % len(researched))
@@ -1450,6 +1478,7 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
     )
     tab_port = (
         "<div id='t-port' class='tabpanel show'>"
+        + _desk_note_card(meta)
         + _regime_banner(meta)
         + _mode_bar(meta)
         + _invest_panel(portfolio_rows, cfg, records)
@@ -1492,11 +1521,6 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
         "<button class='tabbtn' onclick=\"tab('t-more',this)\">المزيد</button>"
         "</div>"
     )
-
-    # search/command bar — filters any list by ticker
-    search = ("<div class='search'><input id='q' autocomplete='off' spellcheck='false' "
-              "placeholder='🔍 ابحث عن سهم (مثال: NVDA)…' oninput='filt(this.value)'>"
-              "<span id='qx' onclick=\"document.getElementById('q').value='';filt('')\">×</span></div>")
 
     src_txt = _h(meta.get("data_source", "yfinance"))
     header = (
