@@ -563,6 +563,30 @@ def test_desk_note_panic_guard_never_commands_sell():
         assert bad not in joined, f"narrator must never emit forbidden phrase: {bad}"
 
 
+def test_desk_note_strong_vs_weak_in_dip():
+    strong = {"ticker": "NVDA", "primary_theme": "ai", "lifecycle_status": "Fallen Angel",
+              "fundamental_score": 80, "conviction_score": 9, "pct_below_52w_high": 0.30,
+              "halal_status": "pass", "forward_drivers": [], "weaknesses": ["تقييم مرتفع"]}
+    weak = {"ticker": "WKST", "primary_theme": "x", "lifecycle_status": "Falling Conviction",
+            "fundamental_score": 25, "conviction_score": 3, "pct_below_52w_high": 0.40,
+            "forward_drivers": ["المحللون يخفّضون الأهداف"], "weaknesses": ["نمو ضعيف"]}
+    out = _dn_run([strong, weak], _dn_meta(mode="conservative", risk="High"), [], {}, {})
+    joined = " ".join(out["lines"])
+    assert "NVDA" in joined and "فرص" in joined, "strong fallen name must surface as accumulation opportunity"
+    assert "WKST" in joined, "weak falling name must surface as the avoid contrast"
+    for bad in _DN_FORBIDDEN:
+        assert bad not in joined
+
+
+def test_regime_breadth_metric_present():
+    recs = _reg_recs(crowd=0.2, pe=25)
+    for i, r in enumerate(recs):
+        r["pct_below_52w_high"] = 0.30 if i < 30 else 0.05      # 60% deeply down
+    out = REG.detect(recs, "High", {"regime": {}}, persist=False)
+    bd = out["metrics"].get("breadth_down")
+    assert isinstance(bd, (int, float)) and bd >= 0.55, f"breadth_down should reflect broad damage, got {bd}"
+
+
 def test_desk_note_caps_lines_and_filters_lexicon():
     out = _dn_run([], _dn_meta(mode="conservative", risk="High", conf="HIGH",
                                regime="ضغط مرتفع — دفاع"), [], {}, {})

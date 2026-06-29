@@ -43,6 +43,8 @@ def _params(cfg):
         "pe_bubble": rc.get("pe_bubble", 34),
         "cand_attack": rc.get("cand_attack", 0.12),
         "cand_bottom": rc.get("cand_bottom", 0.10),
+        "breadth_deep": rc.get("breadth_deep", 0.25),    # سهم بعيد ≥هذا عن قمّته = «متضرّر بعمق»
+        "breadth_broad": rc.get("breadth_broad", 0.50),  # ≥هذا من الأسماء متضرّرة = هبوط واسع/انهيار عام
         "pe_cheap": rc.get("pe_cheap", 22),
         "peak_drop_frac": rc.get("peak_drop_frac", 0.85),
         "defense_relief_cand": rc.get("defense_relief_cand", 0.08),
@@ -78,7 +80,7 @@ def _save_state(cfg, st):
         print(f"  regime state save skipped: {e}")
 
 
-def _metrics(records, market_risk):
+def _metrics(records, market_risk, deep_thresh=0.25):
     invest = [r for r in records if not r.get("is_fund")
               and r.get("investable", True) and r.get("action") != "Avoid"]
     n = len(invest) or 1
@@ -89,7 +91,13 @@ def _metrics(records, market_risk):
     med_fpe = _median(fpes)
     cand_pct = sum(1 for r in invest if r.get("action") == "Candidate") / n
     risk_rank = _RISK_RANK.get(str(market_risk or "").strip().lower(), 0)
-    return n, crowd_pct, med_fpe, cand_pct, risk_rank
+    # breadth of the damage: كم اسم بعيد ≥25% عن قمّته — اتساع الهبوط يميّز الانهيار العام
+    # (capitulation حقيقية) عن تصحيحٍ ضيّق، ويقوّي إشارة «اشترِ وقت الخوف».
+    deep = sum(1 for r in invest if isinstance(r.get("pct_below_52w_high"), (int, float))
+               and r["pct_below_52w_high"] >= deep_thresh)
+    cov = sum(1 for r in invest if isinstance(r.get("pct_below_52w_high"), (int, float)))
+    breadth_down = (deep / cov) if cov else None
+    return n, crowd_pct, med_fpe, cand_pct, risk_rank, breadth_down
 
 
 def _stateless_decide(risk_rank, crowd_pct, med_fpe, cand_pct):
@@ -115,7 +123,9 @@ def detect(records, market_risk, cfg=None, persist=True):
     persist=False (تشغيل الماك من الكاش) لا يكتب الحالة — السحابة وحدها تملك ذاكرة الـFSM."""
     cfg = cfg or {}
     P = _params(cfg)
-    n, crowd_pct, med_fpe, cand_pct, risk_rank = _metrics(records, market_risk)
+    n, crowd_pct, med_fpe, cand_pct, risk_rank, breadth_down = _metrics(
+        records, market_risk, P["breadth_deep"])
+    broad_damage = isinstance(breadth_down, (int, float)) and breadth_down >= P["breadth_broad"]
 
     st = _load_state(cfg)
     hist = st.get("history") or []
@@ -170,8 +180,10 @@ def detect(records, market_risk, cfg=None, persist=True):
           and easing >= P["confirm_runs"] and cand_pct >= P["cand_bottom"] and cheap):  # 2) القاع/التعافي
         regime, mode = "القاع/التعافي — هجوم محسوب", "aggressive"
         is_bottom = True
-        why = ("الخطر نزل عن قمّته وثبت نزوله، والتقييم رخص والفرص اتّسعت — "
-               "مِل لمزيد من الجودة بحجمٍ مدروس (DCA)، لا دفعة واحدة.")
+        why = ("الخطر نزل عن قمّته وثبت نزوله، والتقييم رخص والفرص اتّسعت%s — "
+               "مِل لمزيد من الجودة بحجمٍ مدروس (DCA)، لا دفعة واحدة."
+               % (("، والهبوط واسع (%d%% بعيدة عن قممها) — قاعٌ عام لا تصحيح ضيّق"
+                   % round(breadth_down * 100)) if broad_damage else ""))
     elif risk_rank >= 2 and risk_rank < peak and not rising:  # 3) ما بعد الذروة — حياد (مضادّ التعلّق)
         regime, mode = "ما بعد الذروة — حياد حذِر", "balanced"
         why = "الخطر بدأ ينزل عن قمّته لكن التقييم لم يرخص بعد — حياد حذِر، لا دفاع كامل ولا اندفاع."
@@ -232,6 +244,8 @@ def detect(records, market_risk, cfg=None, persist=True):
         signals.append("تقييم رخيص — وسيط P/E %d" % round(med_fpe))
     if cand_pct >= P["cand_bottom"]:
         signals.append("فرص رخيصة %d%%" % round(cand_pct * 100))
+    if broad_damage:
+        signals.append("هبوط واسع — %d%% بعيدة عن قممها" % round(breadth_down * 100))
     if held:
         signals.append("تثبيت مؤقّت لمنع التذبذب")
 
@@ -277,6 +291,7 @@ def detect(records, market_risk, cfg=None, persist=True):
             "crowd_pct": round(crowd_pct, 3),
             "med_fwd_pe": round(med_fpe, 1) if med_fpe is not None else None,
             "candidate_pct": round(cand_pct, 3),
+            "breadth_down": round(breadth_down, 3) if isinstance(breadth_down, (int, float)) else None,
             "n": n,
             "risk_trend": ("rising" if rising else ("easing" if (prev_risk is not None and risk_rank < prev_risk) else "flat")),
             "episode_active": episode,

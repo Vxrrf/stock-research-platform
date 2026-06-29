@@ -209,6 +209,37 @@ def build_desk_note(records, meta, holdings_eval, deltas, mem, cfg=None, persist
                          "مو وصلناه بالبيع الغريزي. موضع تماسُك مو هروب، والقرار لك."
                          % (t, round(abs(pnl) * 100), conv), _theme(rec), t))
 
+    # ── الأساس مقابل السعر: في الهبوط، القوي النازل = فرصة تجميع؛ الضعيف النازل = ابتعد ──
+    sw_strong, sw_weak = [], []
+    for r in records:
+        if r.get("is_fund"):
+            continue
+        below = r.get("pct_below_52w_high")
+        if not (isinstance(below, (int, float)) and below >= 0.20):   # فقط الأسماء النازلة فعلاً
+            continue
+        lc, fund, conv = r.get("lifecycle_status"), r.get("fundamental_score"), r.get("conviction_score")
+        if (lc == "Fallen Angel" and isinstance(fund, (int, float)) and fund >= 50
+                and isinstance(conv, (int, float)) and conv >= 6
+                and r.get("halal_status") != "fail" and not _downgrading(r)):
+            sw_strong.append(r)
+        elif lc == "Falling Conviction" or (isinstance(fund, (int, float)) and fund < 40) or _downgrading(r):
+            sw_weak.append(r)
+    sw_strong.sort(key=lambda r: (r.get("conviction_score") or 0), reverse=True)
+    sw_weak.sort(key=lambda r: (r.get("fundamental_score") if isinstance(r.get("fundamental_score"), (int, float)) else 99))
+    if sw_strong:
+        s = sw_strong[0]
+        sb = round((s.get("pct_below_52w_high") or 0) * 100)
+        owned = s.get("ticker") in held_syms
+        opp = "تشبّث به وزِد بثقة" if owned else "فرصة بحثٍ وتجميع — وتأكّد حلاله بنفسك"
+        wk = (s.get("weaknesses") or ["—"])[0]
+        fundv = ("%d" % round(s["fundamental_score"])) if isinstance(s.get("fundamental_score"), (int, float)) else "—"
+        wclause = ""
+        if sw_weak:
+            wclause = " بالمقابل %s نازلٌ وأساسه يضعف — أتجنّبه، نزوله له سبب." % sw_weak[0].get("ticker")
+        cand.append((0, sb, "افرز القوي من الضعيف في الهبوط: %s نازل %d%% لكن أساسه متين (جودة %s، قناعة %d/10) — %s. "
+                     "نقطة ضعفه: %s.%s" % (s.get("ticker"), sb, fundv, int(s.get("conviction_score") or 0), opp, wk, wclause),
+                     _theme(s), s.get("ticker")))
+
     # ── 4) الميل (لو القرار قراري) ──
     if mode == "conservative" and conf != "LOW":
         cl = ("الازدحام %d%% ووسيط P/E الآجل %d" % (round((crowd_now or 0) * 100), round(pe_now))
