@@ -835,7 +835,7 @@ def _consensus_board(board, holdings):
 
     def _row(r, show_n=False):
         t = r.get("ticker", "")
-        star = "<span class='bvstar'></span>" if r.get("star") else ""
+        star = "<svg class='bvstar' viewBox='0 0 24 24' width='15' height='15' aria-hidden='true'><path fill='#f5b301' d='M12 2l2.9 6.3 6.9.6-5.2 4.6 1.6 6.8L12 17.3 5.8 20.9l1.6-6.8L2.2 8.9l6.9-.6z'/></svg>" if r.get("star") else ""
         own = "<span class='ochip'>تملكه</span>" if t in holdings else ""
         nlbl = ("<span class='cbn'>×%d</span>" % r["n"]) if (show_n and r.get("n")) else ""
         conv = r.get("conv")
@@ -853,7 +853,7 @@ def _consensus_board(board, holdings):
     reps = [r for r in rows if not r.get("star")]         # تكرّر عند المؤثرين العاديين
     big_stocks = ""
     if stars:
-        big_stocks = ("<div class='muted xs' style='margin:2px 0 5px'><span class='bvstar'></span> "
+        big_stocks = ("<div class='muted xs' style='margin:2px 0 5px'><svg class='bvstar' viewBox='0 0 24 24' width='15' height='15' aria-hidden='true'><path fill='#f5b301' d='M12 2l2.9 6.3 6.9.6-5.2 4.6 1.6 6.8L12 17.3 5.8 20.9l1.6-6.8L2.2 8.9l6.9-.6z'/></svg> "
                       "<b>أسهم الكبار وتوصياتهم</b> — رأيهم: <b style='color:#67c79a'>إيجابي/شراء</b> · مع حكم منصّتنا:</div>"
                       "<div class='list cblist'>%s</div>" % "".join(_row(r) for r in stars))
     macro_note = ("<div class='muted xs' style='margin:7px 2px 2px'>نظرتهم للسوق العام: <b>متفائلة لـ2026</b> "
@@ -1145,8 +1145,7 @@ h4{font-size:13px;margin:18px 0 8px;color:var(--t2);font-weight:600}
 .bvwrap{display:flex;flex-direction:column;gap:7px;margin-bottom:4px}
 .bvc{border:1px solid rgba(240,176,0,.22);background:linear-gradient(180deg,rgba(240,176,0,.06),transparent);border-radius:12px;padding:9px 11px}
 .bvh{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.bvh b{font-size:13px;font-weight:600}
-.bvstar{font-size:16px;color:#f5b301;text-shadow:0 0 7px rgba(245,179,1,.6);flex:0 0 auto;line-height:1;vertical-align:middle}
-.bvstar::before{content:"\2605"}  /* CSS-drawn gold star — survives the HTML emoji-stripper */
+.bvstar{flex:0 0 auto;vertical-align:middle;filter:drop-shadow(0 0 4px rgba(245,179,1,.5))}  /* inline SVG gold star — font-independent */
 .allbtn{width:100%;box-sizing:border-box;background:var(--sage16);border:1px solid transparent;color:var(--sage);
 border-radius:12px;padding:11px;font-size:13.5px;font-weight:600;font-family:inherit;cursor:pointer;margin:4px 0 6px}
 .allbtn:hover{background:color-mix(in oklab,var(--sage) 24%,transparent)}.allbtn:active{transform:scale(.98)}
