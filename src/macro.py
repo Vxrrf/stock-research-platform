@@ -112,7 +112,7 @@ def signals(cfg=None, timeout=15, max_age_h=6, persist=True):
 
         hy, hy_prior = _fred_hy(cfg, timeout)            # فارق HY الحقيقي (إن وُجد مفتاح FRED)
 
-        if isinstance(vix_px, (int, float)):
+        if isinstance(vix_px, (int, float)) and vix_px == vix_px:   # reject NaN (would store a fake «calm» fear gauge)
             out = {"vix": round(vix_px, 2),
                    "vix_avg50": round(vix_avg50, 2) if isinstance(vix_avg50, (int, float)) else None,
                    "yield_spread": round(spread, 2) if isinstance(spread, (int, float)) else None,

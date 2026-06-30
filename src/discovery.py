@@ -305,7 +305,7 @@ def _det_revision_inflection(records, deltas, mem, holdings, desk, P):
         if not rev_up:                                  # two-leg confirmation: needs target_mean leg
             continue
         if not (isinstance(up_now, (int, float)) and up_now >= P["upside_flip"]
-                and (up_prev is None or up_prev <= 0.05)):
+                and isinstance(up_prev, (int, float)) and up_prev <= 0.05):   # real prior reading — no fabricated «من +0%»
             continue
         if not (isinstance(below, (int, float)) and 0.12 <= below <= 0.40
                 and isinstance(fo, (int, float)) and fo >= 6
@@ -380,7 +380,7 @@ def discover(records, meta, holdings, deltas, mem, cfg=None, desk_tickers=None, 
             mn = min((c["score"] for c in lst), default=0.0)
             rng = (mx - mn) or 1.0
             for c in lst:
-                norm = (c["score"] - mn) / rng
+                norm = 1.0 if mx == mn else (c["score"] - mn) / rng   # lone catch = full strength, not 0
                 c["final"] = c["weight"] * norm * conf_factor.get(c.get("conf", "HIGH"), 1.0)
         cand.sort(key=lambda c: (c["final"], c["ticker"]), reverse=True)
         # dedup: one ticker, ≤1 per theme, ≤1 cyclical overall, hard cap

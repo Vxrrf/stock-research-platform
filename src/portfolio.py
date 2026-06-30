@@ -415,7 +415,8 @@ def rebalance_flags(records, cfg, deltas=None):
         if w is not None and w > max_single:
             note.append(f"position {w:.0%} > {max_single:.0%} cap — trim to rebalance (no forced sell)")
         pnl = None
-        if price and h["buy_price"]:
+        from sanity import pnl_is_suspect
+        if price and h["buy_price"] and not pnl_is_suspect(price, h["buy_price"], rec.get("data_freshness_status")):
             pnl = price / h["buy_price"] - 1.0
             if pnl <= dd:
                 improving = (deltas.get(h["ticker"], 0) > 0) or ((rec.get("fundamental_score") or 0) >= 60)

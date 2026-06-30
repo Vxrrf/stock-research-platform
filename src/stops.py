@@ -121,7 +121,7 @@ def stop_for(metrics, buy_price, current_price):
         basis = "%d%% تحت سعر الدخول (بحجم تذبذب السهم)" % round(dist * 100)
         kind = "from_entry"
 
-    loss_from_cost = (stop / buy_price - 1.0) if buy_price else None
+    loss_from_cost = min(0.0, stop / buy_price - 1.0) if buy_price else None   # ≤0: a stop above cost is no loss
     below_high = (stop / high52 - 1.0) if high52 else None
     return {
         "price": round(stop, 2),

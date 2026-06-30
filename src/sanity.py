@@ -54,9 +54,10 @@ def flag_suspect(rec):
     if isinstance(pe, (int, float)) and pe > 400:
         reasons.append("مكرّر ربحية شاذ")
     pr = rec.get("price")
-    pbh = rec.get("pct_below_52w_high")
-    # a price far ABOVE its own 52w high usually means a stale/split-broken quote
-    if isinstance(pbh, (int, float)) and pbh < -0.5:
+    wh = rec.get("week52_high")
+    # a price far ABOVE its own 52w high usually means a stale/split-broken quote. (pct_below_52w_high
+    # is clamped to >=0 by its producer, so detect the artifact from the RAW price vs high.)
+    if isinstance(pr, (int, float)) and isinstance(wh, (int, float)) and wh > 0 and pr > wh * 1.5:
         reasons.append("السعر أعلى من قمة 52 أسبوع بكثير (سعر شاذ)")
     rec["data_suspect"] = bool(reasons)
     rec["data_suspect_reasons"] = reasons
@@ -67,6 +68,8 @@ def flag_suspect(rec):
 
 def pnl_is_suspect(price, buy_price, freshness=None):
     """True when a holding's P&L shouldn't be trusted (price artifact or stale data)."""
+    if price != price or buy_price != buy_price:    # NaN guard (nan != nan) — a NaN P&L is untrustworthy
+        return True
     if not price or not buy_price or buy_price <= 0:
         return True
     pnl = price / buy_price - 1.0

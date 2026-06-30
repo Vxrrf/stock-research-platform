@@ -61,7 +61,7 @@ def compute(rec, cfg):
     if rec.get("crowded_late") and fund >= cand_min:
         return "Watch", "CROWDED / LATE - strong company but near highs after a big run"
 
-    if fund >= cand_min and total >= cand_min and not rec.get("crowded_late"):
+    if fund >= cand_min and total >= cand_min:   # crowded_late already returned at the check above
         if rec.get("confidence") == "LOW":
             return "Research More", "strong score but LOW data confidence — refresh data before acting"
         bits = []

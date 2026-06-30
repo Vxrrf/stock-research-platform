@@ -225,6 +225,11 @@ def detect(records, market_risk, cfg=None, persist=True, macro=None):
             and mode_since < P["min_hold_runs"] and not bypass):
         mode = cur_mode
         held = True
+        # keep the LABEL + RATIONALE consistent with the HELD mode — don't show the new regime's
+        # label/why next to the old mode's badge. Restore last run's label; explain the hold.
+        if hist and hist[-1].get("recommended_mode") == cur_mode and hist[-1].get("regime"):
+            regime = hist[-1]["regime"]
+        why = "تثبيت مؤقّت على الوضع الحالي لمنع التذبذب — الإشارة الجديدة لم تتأكّد بعد"
 
     # ── عدّادات للجولة القادمة ──
     if mode != cur_mode:
