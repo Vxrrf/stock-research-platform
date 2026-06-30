@@ -1,10 +1,10 @@
 {
- "vix": 17.65,
+ "vix": 17.58,
  "vix_avg50": 17.79,
  "yield_spread": 0.28,
  "yield_spread_prior": 0.27,
  "hy_spread": null,
  "hy_prior": null,
- "fetched_local": "2026-06-30 07:09",
- "updated_utc": "2026-06-30T04:09:54+00:00"
+ "fetched_local": "2026-06-30 13:10",
+ "updated_utc": "2026-06-30T10:10:00+00:00"
 }
