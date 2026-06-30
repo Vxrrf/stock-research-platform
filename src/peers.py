@@ -17,7 +17,7 @@ def find_peers(rec, all_records, n=5):
     theme = rec.get("primary_theme")
     mc = rec.get("market_cap")
     sym = rec.get("ticker")
-    if not mc or mc <= 0:
+    if not mc or (isinstance(mc, float) and mc != mc) or mc <= 0:   # mc != mc rejects NaN
         return []
 
     def base():
@@ -62,7 +62,7 @@ def compare(rec, all_records, n=5):
 
     def best(key, mode):
         vals = [(x["ticker"], x[key]) for x in rows
-                if isinstance(x[key], (int, float)) and (x[key] > 0 if key == "fpe" else True)]
+                if isinstance(x[key], (int, float)) and x[key] == x[key] and (x[key] > 0 if key == "fpe" else True)]
         if not vals:
             return None
         return (min if mode == "min" else max)(vals, key=lambda kv: kv[1])[0]

@@ -335,7 +335,7 @@ def _peers_block(p):
     for r in p["rows"]:
         def cell(key, best, fmt):
             v = r.get(key)
-            txt = fmt(v) if isinstance(v, (int, float)) and (v > 0 or key != "fpe") else "—"
+            txt = fmt(v) if isinstance(v, (int, float)) and v == v and (v > 0 or key != "fpe") else "—"
             cls = "pbest" if (r["ticker"] == best and txt != "—") else ""
             return "<b class='n %s'>%s</b>" % (cls, txt)
         body += "<div class='pr2 %s'><b class='n'>%s</b>%s%s%s</div>" % (
@@ -627,7 +627,7 @@ def _position_cap(rec, base):
         m *= 1.25
     elif conv >= 8:
         m *= 1.1
-    elif conv and conv < 6:
+    elif conv < 6:                       # conv is numeric (or 0) — 0/None=worst must ALSO shrink, not keep full cap
         m *= 0.7
     if rec.get("forward_outlook_confidence") == "HIGH" and (rec.get("forward_outlook_score") or 0) >= 8:
         m *= 1.2
@@ -816,15 +816,14 @@ def _influencer_roster(accounts):
             "<div class='icard' data-h='%s'>"
             "<div class='ih'><span class='iav'>%s</span>"
             "<a class='ihandle' href='%s' target='_blank' rel='noopener'>@%s</a></div>"
-            "<div class='iacts'>"
             "<a class='ibtn' href='%s' target='_blank' rel='noopener'>🎬 فيديوهاته</a>"
-            "<button class='ibtn pri' onclick=\"invHandle('%s')\">🔍 حقّق</button>"
-            "</div></div>"
-            % (h, av, prof, h, reels, h))
+            "</div>"
+            % (h, av, prof, h, reels))
     return (
+        "<button class='allbtn' onclick='invAll()'>🔍 حقّق كل المؤثرين دفعة وحدة</button>"
         "<input class='isearch' placeholder='ابحث مؤثّر… (مثلاً invest)' oninput='filterInf(this.value)'>"
         "<div class='iroster' id='iroster'>" + cards + "</div>"
-        "<p class='muted xs'>«حقّق» ينسخ طلب تحليل فيديوهاته لكلود ويفتح ريلزه — الصق الطلب لي وأنا أشاهدها وأطلّع أسهمها وأقارنها ببياناتنا.</p>")
+        "<p class='muted xs'>زرّ «حقّق كل المؤثرين» ينسخ لي طلب مسح آخر فيديوهاتهم كلهم — الصقه لي وأنا أشاهدها، أطلّع الأسهم، وأقارنها ببياناتنا.</p>")
 
 
 def _consensus_board(board, holdings):
@@ -833,33 +832,38 @@ def _consensus_board(board, holdings):
     board = board or {}
     analysts = board.get("analysts") or []
     rows = board.get("rows") or []
-    big = ""
-    for a in analysts:
-        big += ("<div class='bvc'><div class='bvh'><span class='bvstar'>★</span>"
-                "<b>%s</b><span class='bvo'>%s</span></div><div class='bvn'>%s</div></div>"
-                % (_h(a.get("name", "")), _h(a.get("org", "")), _h(a.get("note", ""))))
-    big_html = ("<div class='muted xs' style='margin:2px 0 6px'>★ الكبار — محللون يتابعهم مؤثروك ويثقون فيهم:</div>"
-                "<div class='bvwrap'>%s</div>" % big) if big else ""
-    out = ""
-    for r in rows:
+
+    def _row(r, show_n=False):
         t = r.get("ticker", "")
-        star = "<span class='bvstar'>★</span>" if r.get("star") else ""
+        star = "<span class='bvstar'></span>" if r.get("star") else ""
         own = "<span class='ochip'>تملكه</span>" if t in holdings else ""
-        nlbl = ("<span class='cbn'>×%d</span>" % r["n"]) if r.get("n") else ""
+        nlbl = ("<span class='cbn'>×%d</span>" % r["n"]) if (show_n and r.get("n")) else ""
         conv = r.get("conv")
         if r.get("in_platform") and conv is not None:
-            # TEXT labels (not ✓/✗ glyphs — those get stripped by _strip_emoji, leaving pass/fail
-            # indistinguishable except by color: a haram stock would read «حلال». Use words.)
+            # TEXT halal labels (✓/✗ glyphs get stripped by _strip_emoji → pass/fail would look identical)
             hal = HALAL_AR.get(r.get("halal"), "")
             halcls = {"pass": "ok", "fail": "bad", "unknown": "unk"}.get(r.get("halal"), "unk")
             verdict = "<span class='cbcv'>قناعتنا %.1f</span><span class='hc %s'>%s</span>" % (conv, halcls, hal)
         else:
             verdict = "<span class='muted xs'>خارج نطاقنا</span>"
-        out += ("<div class='cbrow'>%s<b class='n cbt'>%s</b>%s%s<span class='cbv'>%s</span></div>"
+        return ("<div class='cbrow'>%s<b class='n cbt'>%s</b>%s%s<span class='cbv'>%s</span></div>"
                 % (star, _h(t), nlbl, own, verdict))
-    table = ("<div class='muted xs' style='margin:8px 0 4px'>🔁 تكرر عند المؤثرين (الأكثر إجماعاً أولاً · ★=سهم من الكبار):</div>"
-             "<div class='list cblist'>%s</div>" % out) if out else ""
-    return "<div class='cbcard'>%s%s</div>" % (big_html, table)
+
+    stars = [r for r in rows if r.get("star")]            # أسهم الكبار (لا أسماء — الأسهم وتوصيتها)
+    reps = [r for r in rows if not r.get("star")]         # تكرّر عند المؤثرين العاديين
+    big_stocks = ""
+    if stars:
+        big_stocks = ("<div class='muted xs' style='margin:2px 0 5px'><span class='bvstar'></span> "
+                      "<b>أسهم الكبار وتوصياتهم</b> — رأيهم: <b style='color:#67c79a'>إيجابي/شراء</b> · مع حكم منصّتنا:</div>"
+                      "<div class='list cblist'>%s</div>" % "".join(_row(r) for r in stars))
+    macro_note = ("<div class='muted xs' style='margin:7px 2px 2px'>نظرتهم للسوق العام: <b>متفائلة لـ2026</b> "
+                  "(هدف S&P ~8000) مع صوت <b>حذِر</b> من فقاعة الذكاء الاصطناعي.</div>") if analysts else ""
+    rep_html = ""
+    if reps:
+        rep_html = ("<div class='muted xs' style='margin:11px 0 4px'>🔁 <b>تكرّر عند المؤثرين</b> "
+                    "(الأكثر إجماعاً أولاً) — مع حكم منصّتنا:</div>"
+                    "<div class='list cblist'>%s</div>" % "".join(_row(r, show_n=True) for r in reps))
+    return "<div class='cbcard'>%s%s%s</div>" % (big_stocks, macro_note, rep_html)
 
 
 def _backtest_compact(bt):
@@ -1141,8 +1145,11 @@ h4{font-size:13px;margin:18px 0 8px;color:var(--t2);font-weight:600}
 .bvwrap{display:flex;flex-direction:column;gap:7px;margin-bottom:4px}
 .bvc{border:1px solid rgba(240,176,0,.22);background:linear-gradient(180deg,rgba(240,176,0,.06),transparent);border-radius:12px;padding:9px 11px}
 .bvh{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.bvh b{font-size:13px;font-weight:600}
-.bvstar{font-size:13px;color:#f0b000;text-shadow:0 0 6px rgba(240,176,0,.55);flex:0 0 auto;line-height:1}
-.bvstar::before{content:"\2605"}  /* CSS-drawn star — survives the HTML emoji-stripper */
+.bvstar{font-size:16px;color:#f5b301;text-shadow:0 0 7px rgba(245,179,1,.6);flex:0 0 auto;line-height:1;vertical-align:middle}
+.bvstar::before{content:"\2605"}  /* CSS-drawn gold star — survives the HTML emoji-stripper */
+.allbtn{width:100%;box-sizing:border-box;background:var(--sage16);border:1px solid transparent;color:var(--sage);
+border-radius:12px;padding:11px;font-size:13.5px;font-weight:600;font-family:inherit;cursor:pointer;margin:4px 0 6px}
+.allbtn:hover{background:color-mix(in oklab,var(--sage) 24%,transparent)}.allbtn:active{transform:scale(.98)}
 .bvo{font-size:10.5px;color:var(--t3);background:var(--field);border-radius:6px;padding:1px 7px}
 .bvn{font-size:12px;color:var(--t2);margin-top:4px;line-height:1.5}
 .cblist{margin-top:2px}
@@ -1329,6 +1336,13 @@ function invHandle(h){
     alert('نسخت طلب التحقيق لكلود — الصقه له. وفتحت ريلز @'+h+'.');};
   try{ if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(prompt).then(done,done);return;} }catch(e){}
   try{var t=document.createElement('textarea');t.value=prompt;document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);}catch(e){}
+  done();
+}
+function invAll(){
+  var p='راجع آخر فيديوهات كل المؤثرين اللي أتابعهم على إنستقرام (آخر ١٠ أيام)، طلّع الأسهم اللي يذكرونها، وقارن كل سهم ببيانات منصّتنا (قناعتنا + الحلال) قبل أي رأي.';
+  var done=function(){alert('نسخت طلب مسح كل المؤثرين لكلود — الصقه له وهو بيشاهد ويحلّل ويقارن.');};
+  try{ if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p).then(done,done);return;} }catch(e){}
+  try{var t=document.createElement('textarea');t.value=p;document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);}catch(e){}
   done();
 }
 function filterInf(q){q=(q||'').toLowerCase().trim();
@@ -1542,8 +1556,10 @@ def build(records, buckets, portfolio_rows, news_rows, political_rows, meta, cfg
     elif pass_cands:
         today.append(("🟢", "أقوى مرشّح حلال مؤكّد: <b class='n'>%s</b> (قناعة %s)." % (
             _h(pass_cands[0]["ticker"]), pass_cands[0].get("conviction_score"))))
-    else:
+    elif strong_unknown:
         today.append(("🔍", "لا مرشّح حلال <b>مؤكّد</b> اليوم. الأقوى للتأكيد على Zoya/Musaffa: <b class='n'>%s</b>." % "، ".join(strong_unknown)))
+    else:
+        today.append(("🔍", "لا مرشّح حلال <b>مؤكّد</b> اليوم — لا جديد عاجل."))
     today.append(("📊", "مخاطر السوق: <b>%s</b>%s" % (
         _h(RISK_AR.get(risk, risk)),
         (" · ⚠️ %d سهم ببيانات مشكوكة استُبعدت." % suspect_n) if suspect_n else ".")))

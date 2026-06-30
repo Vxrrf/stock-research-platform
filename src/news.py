@@ -17,6 +17,7 @@ Also computes market_risk_today: Low / Medium / High / Extreme.
 """
 
 import os
+import re
 import yaml
 
 from config_loader import ROOT
@@ -33,6 +34,11 @@ _NEG = ("miss", "misses", "downgrade", "cut", "cuts", "lawsuit", "probe", "inves
         "slump", "crash", "war", "sink", "tumble", "weak", "fear", "loss", "sell-off", "slip",
         "warn", "recession", "default")
 
+# WHOLE-WORD matchers — plain substring matching wrongly flags 'war' inside forward/toward/award,
+# 'cut' inside executive/circuit, 'high' inside highlight, 'win' inside winter, etc. Count standalone only.
+_POS_RE = re.compile(r"\b(" + "|".join(re.escape(w) for w in _POS) + r")\b")
+_NEG_RE = re.compile(r"\b(" + "|".join(re.escape(w) for w in _NEG) + r")\b")
+
 
 # keep general headlines only if they're market-relevant (incl. market-moving geopolitics);
 # drops pure lifestyle/sports/crime so 'today' stays about the market, not random world news.
@@ -46,8 +52,8 @@ _MKT = ("stock", "shares", "market", "earnings", "fed", "rate", "nasdaq", "dow",
 
 def _direction(head):
     hl = head.lower()
-    pos = sum(w in hl for w in _POS)
-    neg = sum(w in hl for w in _NEG)
+    pos = len(_POS_RE.findall(hl))
+    neg = len(_NEG_RE.findall(hl))
     return "positive" if pos > neg else ("negative" if neg > pos else "neutral")
 
 
@@ -204,8 +210,8 @@ def _headline_sentiment(rec):
         if isinstance(it, dict):
             title = (it.get("title") or it.get("content", {}).get("title", "") if isinstance(it.get("content"), dict) else it.get("title", "")) or ""
         title = str(title).lower()
-        pos += sum(1 for w in _POS if w in title)
-        neg += sum(1 for w in _NEG if w in title)
+        pos += len(_POS_RE.findall(title))
+        neg += len(_NEG_RE.findall(title))
     if pos + neg == 0:
         return 0.0
     return round((pos - neg) / (pos + neg), 3)

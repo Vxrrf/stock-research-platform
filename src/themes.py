@@ -109,7 +109,7 @@ CURATED = {
 
 # Keyword classifier — (theme, [keywords])
 _KW = {
-    "ai": ["artificial intelligence", " ai ", "machine learning", "generative ai",
+    "ai": ["artificial intelligence", "ai", "machine learning", "generative ai",
            "large language", "neural", "inference", "deep learning", "ai model"],
     "semiconductors": ["semiconductor", "chip", "wafer", "foundry", "integrated circuit",
                        "fabless", "memory chip", "logic chip", "asic", "fpga"],
