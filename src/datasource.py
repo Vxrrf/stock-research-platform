@@ -352,7 +352,7 @@ def _yf_fill(rec, sym, want_deep=True):
         rec["last_updated"] = iso(now_utc())
 
     if want_deep:
-        if oyr is None or rec.get("rev_cagr_3y") is None or rec.get("fundamentals_last_updated") is None:
+        if oyr is None or rec.get("rev_cagr_3y") is None or rec.get("rev_cagr_5y") is None or rec.get("fundamentals_last_updated") is None:
             _yf_deep(rec, t, oyr)
         else:
             rec["one_year_return"] = oyr
@@ -389,8 +389,8 @@ def _yf_deep(rec, t, oyr):
                     rec["rev_growth"] = (vals[0][0] / vals[1][0]) - 1.0
                 if rec.get("rev_cagr_3y") is None and len(vals) >= 4:
                     rec["rev_cagr_3y"] = _cagr(vals[0][0], vals[3][0], 3)
-                if rec.get("rev_cagr_5y") is None and len(vals) >= 5:
-                    rec["rev_cagr_5y"] = _cagr(vals[0][0], vals[-1][0], len(vals) - 1)
+                if rec.get("rev_cagr_5y") is None and len(vals) >= 6:
+                    rec["rev_cagr_5y"] = _cagr(vals[0][0], vals[5][0], 5)   # fixed 5y span (was variable len-1 → mislabeled 4y as 5y)
     except Exception:
         pass
 
