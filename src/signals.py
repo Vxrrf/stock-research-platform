@@ -76,10 +76,10 @@ def rows(records_by_ticker, cfg):
             fit = "🔴 لا — غير متوافق شرعياً"
         elif (conv or 0) >= 7 and action != "Avoid":
             fit = f"🟢 يتوافق (قناعة {conv}/10، {action})"
-        elif (conv or 0) >= 5:
+        elif (conv or 0) >= 5 and action != "Avoid":
             fit = f"🟡 متوسط (قناعة {conv}/10) — ابحث أكثر"
         else:
-            fit = f"⚪ ضعيف حسب منصّتنا (قناعة {conv})"
+            fit = f"⚪ ضعيف حسب منصّتنا (قناعة {conv if conv is not None else '—'})"
         out.append({
             "account": s.get("account"),
             "date": s.get("date"),
