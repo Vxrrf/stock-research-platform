@@ -279,6 +279,7 @@ def evaluate_holdings(records, cfg, deltas=None):
             rows.append({"ticker": h["ticker"], "name": "—", "conviction": None, "rank": None,
                          "pnl": None, "halal": "—", "lifecycle": "—", "sleeve": "unknown",
                          "action": "بيانات ناقصة — اضغط «حدّث» وراجعه يدوياً",
+                         "action_short": "حدّث", "action_cls": "hold",
                          "verdict": "⚪ لا بيانات — حدّث", "why": "ما لقيت بيانات هالسهم هالتشغيل"})
             continue
         conv = r.get("conviction_score") or 0
@@ -295,6 +296,7 @@ def evaluate_holdings(records, cfg, deltas=None):
                          "rank": r.get("rank_score"), "pnl": pnl, "halal": hal, "lifecycle": "Core",
                          "verdict": "🟦 صندوق أساسي — احتفظ", "why": "حيازة جوهرية (core)، ليست سهماً نقيّمه فردياً",
                          "sleeve": "core_fund", "action": "نواة طويلة المدى — حيازة جوهرية، مو سهماً نقيّمه فردياً",
+                         "action_short": "نواة — امسك", "action_cls": "hold",
                          "hold_label": "طويل المدى (نواة)", "better": None,
                          "days_until_earnings": None, "pnl_suspect": pnl_suspect})
             continue
@@ -360,6 +362,21 @@ def evaluate_holdings(records, cfg, deltas=None):
                 action = "مضاربة — راقب؛ عند ربح ≥١٥٪ قاعدتك تقترح تأمين ٢٠٪"
         else:  # other — غير مصنّف
             action = f"مو ضمن نواتك ولا مضاربتك المعلَنة — قناعتنا {conv:.0f}/10؛ راجعه حسب قاعدتك"
+        # SHORT «وش تسوي» chip (2-3 words) beside the ticker in the wallet — mirrors `action`
+        if hal == "fail" or conv < 5 or lc == "Falling Conviction":
+            action_short, action_cls = "راجع للخروج", "exit"
+        elif lc == "Fallen Angel" and _fund >= 45:
+            action_short, action_cls = "تماسُك", "hold"
+        elif sleeve == "protection":
+            action_short, action_cls = "حماية", "hold"
+        elif sleeve == "cyclical":
+            action_short, action_cls = ("أمّن الربح", "take") if (pnl is not None and pnl >= _take) else ("اركب وأمّن", "take")
+        elif sleeve == "core":
+            action_short, action_cls = ("تجميع/تماسُك", "hold") if _deep_dd else ("امسك وركّب", "hold")
+        elif sleeve == "spec":
+            action_short, action_cls = ("أمّن ٢٠٪", "take") if (pnl is not None and pnl >= _take) else ("راقب", "hold")
+        else:
+            action_short, action_cls = "راقب", "hold"
         # specific holding-period COUNTDOWN: if we know buy_date, show months remaining
         hold_label = r.get("suggested_hold_label")
         target = r.get("suggested_hold_months")
@@ -383,7 +400,7 @@ def evaluate_holdings(records, cfg, deltas=None):
         rows.append({"ticker": r["ticker"], "name": r.get("name"), "conviction": conv,
                      "rank": r.get("rank_score"), "pnl": pnl, "halal": hal,
                      "lifecycle": lc, "verdict": verdict, "why": why,
-                     "sleeve": sleeve, "action": action,
+                     "sleeve": sleeve, "action": action, "action_short": action_short, "action_cls": action_cls,
                      "hold_label": hold_label, "better": better,
                      "days_until_earnings": r.get("days_until_earnings"),
                      "pnl_suspect": pnl_suspect, "playbook": pb,

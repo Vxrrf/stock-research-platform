@@ -524,14 +524,16 @@ def _holdings_list(rows):
                 "take" if "تسحب" in a else "hold")
         act = ("<div class='haction %s'><span class='hact-l'>وش تسوي</span><span class='hact-t'>%s</span></div>"
                % (acls, _h(a))) if a else ""
+        ash = r.get("action_short")
+        achip = ("<span class='dochip %s'>%s</span>" % (r.get("action_cls", "hold"), _h(ash))) if ash else ""
         out += (
             "<div class='lrow' onclick='exp(this)'><div class='lmain'>"
-            "<div class='lt'><b class='n'>%s</b> <span class='vd'>%s</span>%s</div>"
+            "<div class='lt'><b class='n'>%s</b>%s <span class='vd'>%s</span>%s</div>"
             "%s"
             "<div class='lsub'>%s</div>%s%s</div>"
             "<div class='hpnl'>%s<div class='muted xs'>%s</div></div><span class='chev'>⌄</span></div>"
             "%s"
-            % (_h(r["ticker"]), _h(r["verdict"]), pbtag, act, _h(r.get("why", "")), better,
+            % (_h(r["ticker"]), achip, _h(r["verdict"]), pbtag, act, _h(r.get("why", "")), better,
                _trade_chips(r), pnl, _h(r.get("hold_label") or ""), _hold_detail(r))
         )
     return "<div class='list'>" + out + "</div>"
@@ -1170,6 +1172,11 @@ border-radius:12px;padding:11px;font-size:13.5px;font-weight:600;font-family:inh
 .haction.exit{border-right-color:var(--risk);background:color-mix(in oklab,var(--risk) 9%,var(--field))}
 .haction.take{border-right-color:#d3a24e;background:color-mix(in oklab,#d3a24e 10%,var(--field))}
 .haction.hold{border-right-color:var(--sage);background:color-mix(in oklab,var(--sage) 8%,var(--field))}
+/* short «do-this» chip beside each holding's ticker */
+.dochip{font-size:10.5px;font-weight:700;border-radius:7px;padding:2px 8px;margin-right:7px;white-space:nowrap;vertical-align:middle}
+.dochip.hold{color:var(--sage);background:var(--sage16)}
+.dochip.take{color:#d3a24e;background:color-mix(in oklab,#d3a24e 16%,transparent)}
+.dochip.exit{color:var(--risk);background:color-mix(in oklab,var(--risk) 16%,transparent)}
 .hlean{font-size:12px;color:var(--t2);background:var(--card);border:1px solid var(--hair);border-radius:11px;padding:9px 12px;margin:2px 0 8px;line-height:1.6}
 .hlean b{color:var(--sage);font-weight:600}
 .bt-line{font-size:13.5px;padding:4px 0 8px}
