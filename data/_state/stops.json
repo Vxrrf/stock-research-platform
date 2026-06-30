@@ -5,23 +5,23 @@
   "high_52w": 251.57,
   "low_52w": 115.06,
   "max_drawdown_1y": -0.3939,
-  "ref_price": 153.06
+  "ref_price": 153.63
  },
  "ALAB": {
-  "monthly_vol": 0.2818,
+  "monthly_vol": 0.2816,
   "stop_distance": 0.35,
-  "high_52w": 492.83,
+  "high_52w": 488.04,
   "low_52w": 88.57,
   "max_drawdown_1y": -0.6019,
-  "ref_price": 492.83
+  "ref_price": 488.04
  },
  "AMD": {
-  "monthly_vol": 0.195,
+  "monthly_vol": 0.1952,
   "stop_distance": 0.35,
-  "high_52w": 577.46,
+  "high_52w": 581.1,
   "low_52w": 134.8,
   "max_drawdown_1y": -0.2776,
-  "ref_price": 577.46
+  "ref_price": 581.1
  },
  "ARM": {
   "monthly_vol": 0.2051,
@@ -29,7 +29,7 @@
   "high_52w": 439.46,
   "low_52w": 104.55,
   "max_drawdown_1y": -0.4147,
-  "ref_price": 358.23
+  "ref_price": 359.59
  },
  "AVGO": {
   "monthly_vol": 0.1344,
@@ -37,7 +37,7 @@
   "high_52w": 480.81,
   "low_52w": 262.81,
   "max_drawdown_1y": -0.2867,
-  "ref_price": 376.48
+  "ref_price": 375.3
  },
  "COHR": {
   "monthly_vol": 0.2186,
@@ -45,15 +45,15 @@
   "high_52w": 426.89,
   "low_52w": 86.55,
   "max_drawdown_1y": -0.2652,
-  "ref_price": 387.23
+  "ref_price": 383.27
  },
  "CRWV": {
-  "monthly_vol": 0.2719,
+  "monthly_vol": 0.272,
   "stop_distance": 0.35,
   "high_52w": 165.2,
   "low_52w": 64.55,
   "max_drawdown_1y": -0.6093,
-  "ref_price": 97.7
+  "ref_price": 98.36
  },
  "DLO": {
   "monthly_vol": 0.1575,
@@ -61,15 +61,15 @@
   "high_52w": 15.57,
   "low_52w": 9.84,
   "max_drawdown_1y": -0.3045,
-  "ref_price": 12.93
+  "ref_price": 12.96
  },
  "FN": {
-  "monthly_vol": 0.1973,
+  "monthly_vol": 0.1972,
   "stop_distance": 0.35,
   "high_52w": 746.47,
   "low_52w": 277.04,
   "max_drawdown_1y": -0.297,
-  "ref_price": 559.76
+  "ref_price": 558.46
  },
  "HLAL": {
   "monthly_vol": 0.0421,
@@ -77,7 +77,7 @@
   "high_52w": 73.58,
   "low_52w": 53.19,
   "max_drawdown_1y": -0.102,
-  "ref_price": 71.32
+  "ref_price": 71.29
  },
  "HUBS": {
   "monthly_vol": 0.1847,
@@ -85,15 +85,15 @@
   "high_52w": 560.9,
   "low_52w": 170.28,
   "max_drawdown_1y": -0.6964,
-  "ref_price": 181.95
+  "ref_price": 183.03
  },
  "KRYS": {
   "monthly_vol": 0.1125,
   "stop_distance": 0.2251,
-  "high_52w": 380.9,
+  "high_52w": 380.64,
   "low_52w": 134.94,
   "max_drawdown_1y": -0.1594,
-  "ref_price": 380.9
+  "ref_price": 380.64
  },
  "MNDY": {
   "monthly_vol": 0.1901,
@@ -101,15 +101,15 @@
   "high_52w": 314.48,
   "low_52w": 58.81,
   "max_drawdown_1y": -0.813,
-  "ref_price": 71.72
+  "ref_price": 72.33
  },
  "MRVL": {
-  "monthly_vol": 0.2106,
+  "monthly_vol": 0.2104,
   "stop_distance": 0.35,
   "high_52w": 316.43,
   "low_52w": 62.19,
   "max_drawdown_1y": -0.2636,
-  "ref_price": 295.66
+  "ref_price": 293.67
  },
  "MU": {
   "monthly_vol": 0.2152,
@@ -117,7 +117,7 @@
   "high_52w": 1213.56,
   "low_52w": 104.73,
   "max_drawdown_1y": -0.3028,
-  "ref_price": 1156.79
+  "ref_price": 1153.83
  },
  "NBIS": {
   "monthly_vol": 0.3032,
@@ -125,15 +125,15 @@
   "high_52w": 286.69,
   "low_52w": 44.3,
   "max_drawdown_1y": -0.4547,
-  "ref_price": 281.97
+  "ref_price": 281.92
  },
  "NOW": {
   "monthly_vol": 0.1498,
-  "stop_distance": 0.2996,
+  "stop_distance": 0.2995,
   "high_52w": 208.94,
   "low_52w": 83.0,
   "max_drawdown_1y": -0.6028,
-  "ref_price": 97.68
+  "ref_price": 97.83
  },
  "NVDA": {
   "monthly_vol": 0.102,
@@ -141,47 +141,47 @@
   "high_52w": 235.47,
   "low_52w": 153.1,
   "max_drawdown_1y": -0.2021,
-  "ref_price": 198.11
+  "ref_price": 198.3
  },
  "ONTO": {
   "monthly_vol": 0.1743,
-  "stop_distance": 0.3485,
-  "high_52w": 382.54,
+  "stop_distance": 0.3487,
+  "high_52w": 383.34,
   "low_52w": 90.0,
   "max_drawdown_1y": -0.2024,
-  "ref_price": 382.54
+  "ref_price": 383.34
  },
  "RKLB": {
-  "monthly_vol": 0.2726,
+  "monthly_vol": 0.2727,
   "stop_distance": 0.35,
   "high_52w": 150.23,
   "low_52w": 34.33,
   "max_drawdown_1y": -0.4629,
-  "ref_price": 102.21
+  "ref_price": 103.18
  },
  "TEM": {
-  "monthly_vol": 0.1891,
+  "monthly_vol": 0.189,
   "stop_distance": 0.35,
   "high_52w": 103.25,
   "low_52w": 42.37,
   "max_drawdown_1y": -0.5896,
-  "ref_price": 57.33
+  "ref_price": 57.82
  },
  "VICR": {
   "monthly_vol": 0.2475,
   "stop_distance": 0.35,
-  "high_52w": 373.46,
+  "high_52w": 373.76,
   "low_52w": 43.85,
   "max_drawdown_1y": -0.3201,
-  "ref_price": 373.46
+  "ref_price": 373.76
  },
  "CELH": {
-  "monthly_vol": 0.1637,
-  "stop_distance": 0.3274,
+  "monthly_vol": 0.1636,
+  "stop_distance": 0.3273,
   "high_52w": 64.86,
   "low_52w": 27.75,
   "max_drawdown_1y": -0.5722,
-  "ref_price": 29.22
+  "ref_price": 29.39
  },
  "FNF": {
   "monthly_vol": 0.0752,
@@ -192,12 +192,12 @@
   "ref_price": 46.71
  },
  "APP": {
-  "monthly_vol": 0.2055,
+  "monthly_vol": 0.2056,
   "stop_distance": 0.35,
   "high_52w": 733.6,
   "low_52w": 335.1,
   "max_drawdown_1y": -0.4999,
-  "ref_price": 514.65
+  "ref_price": 517.28
  },
  "FSLR": {
   "monthly_vol": 0.1596,
@@ -216,20 +216,20 @@
   "ref_price": 338.35
  },
  "ANET": {
-  "monthly_vol": 0.154,
-  "stop_distance": 0.308,
+  "monthly_vol": 0.1541,
+  "stop_distance": 0.3082,
   "high_52w": 177.73,
   "low_52w": 98.91,
   "max_drawdown_1y": -0.2833,
-  "ref_price": 169.6
+  "ref_price": 170.48
  },
  "TTWO": {
   "monthly_vol": 0.0887,
-  "stop_distance": 0.1773,
+  "stop_distance": 0.1774,
   "high_52w": 262.29,
   "low_52w": 189.69,
   "max_drawdown_1y": -0.2768,
-  "ref_price": 252.06
+  "ref_price": 252.7
  },
  "ADSK": {
   "monthly_vol": 0.099,
@@ -249,11 +249,11 @@
  },
  "FIVE": {
   "monthly_vol": 0.1141,
-  "stop_distance": 0.2283,
+  "stop_distance": 0.2282,
   "high_52w": 247.71,
   "low_52w": 128.78,
   "max_drawdown_1y": -0.2805,
-  "ref_price": 180.1
+  "ref_price": 179.7
  },
  "ANIP": {
   "monthly_vol": 0.1032,
@@ -277,15 +277,15 @@
   "high_52w": 1879.55,
   "low_52w": 922.37,
   "max_drawdown_1y": -0.5093,
-  "ref_price": 1183.48
+  "ref_price": 1184.98
  },
  "BLK": {
   "monthly_vol": 0.0756,
-  "stop_distance": 0.1513,
+  "stop_distance": 0.1512,
   "high_52w": 1183.47,
   "low_52w": 917.73,
   "max_drawdown_1y": -0.2245,
-  "ref_price": 964.79
+  "ref_price": 962.7
  },
  "APH": {
   "monthly_vol": 0.1218,
@@ -297,11 +297,11 @@
  },
  "APPF": {
   "monthly_vol": 0.1288,
-  "stop_distance": 0.2577,
+  "stop_distance": 0.2576,
   "high_52w": 321.25,
   "low_52w": 143.34,
   "max_drawdown_1y": -0.5538,
-  "ref_price": 159.52
+  "ref_price": 158.73
  },
  "EME": {
   "monthly_vol": 0.1149,
@@ -533,7 +533,7 @@
   "high_52w": 41.96,
   "low_52w": 29.54,
   "max_drawdown_1y": -0.2878,
-  "ref_price": 33.87
+  "ref_price": 33.83
  },
  "ATAT": {
   "monthly_vol": 0.1095,
@@ -541,7 +541,7 @@
   "high_52w": 42.21,
   "low_52w": 31.52,
   "max_drawdown_1y": -0.2532,
-  "ref_price": 32.11
+  "ref_price": 32.15
  },
  "ARGX": {
   "monthly_vol": 0.0895,
@@ -712,91 +712,91 @@
   "ref_price": 47.98
  },
  "RELY": {
-  "monthly_vol": 0.1606,
+  "monthly_vol": 0.1605,
   "stop_distance": 0.3211,
   "high_52w": 24.28,
   "low_52w": 12.2,
   "max_drawdown_1y": -0.3975,
-  "ref_price": 22.42
+  "ref_price": 22.54
  },
  "GMED": {
-  "monthly_vol": 0.143,
-  "stop_distance": 0.2861,
+  "monthly_vol": 0.1431,
+  "stop_distance": 0.2862,
   "high_52w": 96.82,
   "low_52w": 51.89,
   "max_drawdown_1y": -0.221,
-  "ref_price": 77.68
+  "ref_price": 77.58
  },
  "MPWR": {
   "monthly_vol": 0.1476,
-  "stop_distance": 0.2952,
+  "stop_distance": 0.2951,
   "high_52w": 1689.89,
   "low_52w": 707.38,
   "max_drawdown_1y": -0.2245,
-  "ref_price": 1350.92
+  "ref_price": 1346.72
  },
  "PCTY": {
-  "monthly_vol": 0.1094,
-  "stop_distance": 0.2188,
+  "monthly_vol": 0.1093,
+  "stop_distance": 0.2187,
   "high_52w": 190.36,
   "low_52w": 95.1,
   "max_drawdown_1y": -0.5004,
-  "ref_price": 103.96
+  "ref_price": 104.39
  },
  "META": {
-  "monthly_vol": 0.1046,
-  "stop_distance": 0.2091,
+  "monthly_vol": 0.1045,
+  "stop_distance": 0.209,
   "high_52w": 787.42,
   "low_52w": 525.23,
   "max_drawdown_1y": -0.333,
-  "ref_price": 555.67
+  "ref_price": 559.07
  },
  "PLTR": {
   "monthly_vol": 0.1478,
-  "stop_distance": 0.2955,
+  "stop_distance": 0.2956,
   "high_52w": 207.18,
   "low_52w": 107.27,
   "max_drawdown_1y": -0.4822,
-  "ref_price": 117.61
+  "ref_price": 118.33
  },
  "AVPT": {
-  "monthly_vol": 0.1318,
-  "stop_distance": 0.2635,
+  "monthly_vol": 0.1319,
+  "stop_distance": 0.2638,
   "high_52w": 19.31,
   "low_52w": 8.99,
   "max_drawdown_1y": -0.5344,
-  "ref_price": 11.27
+  "ref_price": 11.36
  },
  "NBIX": {
   "monthly_vol": 0.0915,
   "stop_distance": 0.183,
-  "high_52w": 170.17,
+  "high_52w": 170.06,
   "low_52w": 123.1,
   "max_drawdown_1y": -0.209,
-  "ref_price": 170.17
+  "ref_price": 170.06
  },
  "MSFT": {
   "monthly_vol": 0.0778,
-  "stop_distance": 0.1555,
+  "stop_distance": 0.1556,
   "high_52w": 538.66,
   "low_52w": 352.83,
   "max_drawdown_1y": -0.345,
-  "ref_price": 370.73
+  "ref_price": 372.68
  },
  "PTC": {
   "monthly_vol": 0.1042,
-  "stop_distance": 0.2084,
+  "stop_distance": 0.2083,
   "high_52w": 216.53,
   "low_52w": 112.33,
   "max_drawdown_1y": -0.4812,
-  "ref_price": 112.4
+  "ref_price": 112.98
  },
  "PODD": {
   "monthly_vol": 0.1131,
-  "stop_distance": 0.2261,
+  "stop_distance": 0.2263,
   "high_52w": 352.82,
   "low_52w": 138.97,
   "max_drawdown_1y": -0.6061,
-  "ref_price": 154.17
+  "ref_price": 153.39
  }
 }
