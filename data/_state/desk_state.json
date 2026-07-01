@@ -1,9 +1,9 @@
 {
- "run_date": "2026-07-01 07:25",
+ "run_date": "2026-07-01 13:03",
  "regime_mode": "balanced",
  "regime_label": "تهدئة الدفاع — توازن",
  "market_risk": "High",
- "crowd_pct": 0.021,
- "med_fwd_pe": 15.3,
- "candidate_pct": 0.204
+ "crowd_pct": 0.013,
+ "med_fwd_pe": 14.0,
+ "candidate_pct": 0.193
 }
