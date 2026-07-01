@@ -320,12 +320,12 @@
   "ref_price": 464.83
  },
  "BKNG": {
-  "monthly_vol": 0.0963,
-  "stop_distance": 0.1927,
+  "monthly_vol": 0.0964,
+  "stop_distance": 0.1928,
   "high_52w": 230.69,
   "low_52w": 153.74,
   "max_drawdown_1y": -0.3335,
-  "ref_price": 181.46
+  "ref_price": 178.24
  },
  "CEG": {
   "monthly_vol": 0.1348,
@@ -528,12 +528,12 @@
   "ref_price": 17.88
  },
  "AS": {
-  "monthly_vol": 0.1198,
+  "monthly_vol": 0.1199,
   "stop_distance": 0.2397,
   "high_52w": 41.96,
   "low_52w": 29.54,
   "max_drawdown_1y": -0.2878,
-  "ref_price": 33.83
+  "ref_price": 33.84
  },
  "ATAT": {
   "monthly_vol": 0.1098,
@@ -544,12 +544,12 @@
   "ref_price": 31.8
  },
  "ARGX": {
-  "monthly_vol": 0.0895,
-  "stop_distance": 0.1789,
+  "monthly_vol": 0.0896,
+  "stop_distance": 0.1791,
   "high_52w": 929.61,
   "low_52w": 538.64,
   "max_drawdown_1y": -0.2858,
-  "ref_price": 887.18
+  "ref_price": 927.77
  },
  "AERA": {
   "monthly_vol": 1.8127,
@@ -560,12 +560,12 @@
   "ref_price": 1.13
  },
  "AU": {
-  "monthly_vol": 0.1701,
-  "stop_distance": 0.3402,
+  "monthly_vol": 0.1698,
+  "stop_distance": 0.3397,
   "high_52w": 124.62,
-  "low_52w": 41.58,
+  "low_52w": 42.85,
   "max_drawdown_1y": -0.3703,
-  "ref_price": 81.62
+  "ref_price": 80.89
  },
  "WAY": {
   "monthly_vol": 0.1378,
@@ -830,5 +830,37 @@
   "low_52w": 71.77,
   "max_drawdown_1y": -0.3075,
   "ref_price": 126.86
+ },
+ "ARES": {
+  "monthly_vol": 0.1226,
+  "stop_distance": 0.2451,
+  "high_52w": 185.9,
+  "low_52w": 94.25,
+  "max_drawdown_1y": -0.493,
+  "ref_price": 111.31
+ },
+ "AUPH": {
+  "monthly_vol": 0.1282,
+  "stop_distance": 0.2563,
+  "high_52w": 18.62,
+  "low_52w": 7.47,
+  "max_drawdown_1y": -0.1591,
+  "ref_price": 16.97
+ },
+ "B": {
+  "monthly_vol": 0.1327,
+  "stop_distance": 0.2655,
+  "high_52w": 52.32,
+  "low_52w": 20.27,
+  "max_drawdown_1y": -0.3031,
+  "ref_price": 36.73
+ },
+ "ARX": {
+  "monthly_vol": 0.1862,
+  "stop_distance": 0.35,
+  "high_52w": 30.05,
+  "low_52w": 9.36,
+  "max_drawdown_1y": -0.6885,
+  "ref_price": 11.72
  }
 }
